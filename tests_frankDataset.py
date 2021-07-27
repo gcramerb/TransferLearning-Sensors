@@ -1,6 +1,6 @@
 from Dataset import Datasets
 import numpy as np
-import csv, sys, glob, os, pickle
+import csv, sys, glob, os
 import pandas as pd
 from enum import Enum
 
@@ -14,6 +14,12 @@ from Process.Protocol import Loso
 
 if __name__ == "__main__":
 	
+	parser = argparse.ArgumentParser(description='Process some integers.')
+	parser.add_argument('--debug', action='store_true')
+	args = parser.parse_args()
+	if args.debug:
+		import pydevd_pycharm
+		pydevd_pycharm.settrace('172.22.100.3', port=22, stdoutToServer=True, stderrToServer=True, suspend=False)
 	if len(sys.argv) > 2:
 		file_wisdm = sys.argv[1]
 		dir_datasets = sys.argv[2]

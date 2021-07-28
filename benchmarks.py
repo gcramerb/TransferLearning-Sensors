@@ -6,10 +6,8 @@ import numpy as np
 import pandas as pd
 from enum import Enum
 import scipy.stats as st
-import csv, sys, glob, os, json
+import csv, sys, glob, os, json,time
 
-from sklearn.metrics import accuracy_score, recall_score, f1_score
-from sklearn.preprocessing import OneHotEncoder
 import argparse
 from Dataset import Datasets
 from Dataset.Ucihar import UCIHAR, SignalsUcihar,actNameUcihar
@@ -35,7 +33,7 @@ myActNames = {
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--datasetTrain', type=str, default='Uschad')
+parser.add_argument('--datasetTrain', type=str, default='Pamap2')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 args = parser.parse_args()
@@ -134,7 +132,7 @@ def classification(datasetList,result):
 		ytrain = y_[fold_i[0]]
 		yTrue =y_[fold_i[1]]
 		yTrue = np.argmax(yTrue, axis=1)
-		classifier = DCNNclassifier(1)
+		classifier = DCNNclassifier()
 		classifier.fit(Xtrain, ytrain)
 		yPred = classifier.predict(Xtest)
 		result[args.datasetTrain + '_acc'].append(accuracy_score(yTrue, yPred))
@@ -161,14 +159,13 @@ def classification(datasetList,result):
 if __name__ == '__main__':
 	
 	#TODO
-	"""
-	Experimentos:
-		Separar apenas as atividades que são comuns
-		Separar os sensores Comuns.
-		Treinar A -> testar B
-		Treinar A + B -> testar B
-			Como que acessa os folds de teste provenientes apenas de B.
-	"""
+	# Experimentos:
+	# 	Separar apenas as atividades que são comuns
+	# 	Separar os sensores Comuns.
+	# 	Treinar A -> testar B
+	# 	Treinar A + B -> testar B
+	# 		Como que acessa os folds de teste provenientes apenas de B.
+
 	#processData()
 	result = {}
 	datasetList = ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']
@@ -181,10 +178,39 @@ if __name__ == '__main__':
 			result[dat + f'_{args.datasetTrain}_acc'] = []
 			result[dat + f'_{args.datasetTrain}_rec'] = []
 			result[dat + f'_{args.datasetTrain}_f1'] = []
-	print('\n\n\n')
+	print('\n\n starting: ')
 	print(args.datasetTrain,)
 	print('\n\n\n')
+	start = time.time()
 	classification(datasetList,result)
-	print('\n\n\n')
+	end = time.time()
+	print("Time passed  = {}".format(end - start), flush=True)
+	print('\n\n\n End   ')
 	print(args.datasetTrain)
 	print('\n\n\n')
+	
+	
+	# file = os.path.join(args.inPath, f'{args.datasetTrain}_f25_t2.npz')
+	# with np.load(file,allow_pickle=True) as tmp:
+	# 	X = tmp['X']
+	# 	y = tmp['y']
+	# 	folds = tmp['folds']
+	# print(np.isnan(np.sum(X)))
+	# shp = X.shape
+	# c = 0
+	# for xi in range(shp[0]):
+	# 	for axi in range(shp[3]):
+	# 		if np.isnan(np.sum(X[xi,0,:,axi])):
+	# 			c +=1
+	# print(c)
+	#
+	# # file = os.path.join(args.inPath, f'{args.datasetTrain}_0.pkl')
+	# # import pickle
+	# # with open(file, "rb") as openfile:
+	# # 	X = pickle.load(openfile)
+	# # a= 0
+	# # for k,v in X.items():
+	# # 	for axi in range(v.shape[-1]):
+	# # 		if np.isnan(np.sum(v[:, axi])):
+	# # 			a += 1
+	# # print(a)

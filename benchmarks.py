@@ -26,14 +26,19 @@ myActNames = {
 	'descending stairs': 2,
 	'walking down': 2,
 	'sitting':3,
-	'standing':4
+	'standing':4,
+	'lying':5,
+	'lying on back':5,
+	'lying on right':5,
+	'laying':5,
+	'sleeping':5
 }
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--datasetTrain', type=str, default='Pamap2')
+parser.add_argument('--datasetTrain', type=str, default='Dsads')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 args = parser.parse_args()
@@ -160,7 +165,7 @@ if __name__ == '__main__':
 	
 	#TODO
 	# Experimentos:
-	# 	Separar apenas as atividades que são comuns
+	# 	Separar apenas as atividades que sao comuns
 	# 	Separar os sensores Comuns.
 	# 	Treinar A -> testar B
 	# 	Treinar A + B -> testar B

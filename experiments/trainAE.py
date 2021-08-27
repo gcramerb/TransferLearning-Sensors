@@ -1,5 +1,7 @@
 
 from autoencoder import ConvAutoencoder
+from geomloss import SamplesLoss
+
 class AEnetwork:
 	def __init__(self, bs=32):
 		self.bs = bs
@@ -27,10 +29,10 @@ class AEnetwork:
 				acc,gyr,domain = data
 				acc, gyr, domain = acc.to(self.device,dtype=torch.float),gyr.to(self.device,dtype=torch.float),domain.to(self.device, dtype=torch.int)
 				optimizer.zero_grad()
-				encoded,dataRec = self.model([acc,gyr])
+				latent,rec = self.model([acc,gyr])
 				
 				sensor = torch.cat(tuple(acc,gyr))
-				loss = criterion(dataRec, sensor)
+				loss = criterion(latent,domain, rec, sensor)
 				loss.mean().backward()
 				optimizer.step()
 				train_loss += loss.mean().item()

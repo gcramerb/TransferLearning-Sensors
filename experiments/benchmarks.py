@@ -18,21 +18,6 @@ from Utils.actTranslate import actNameVersions
 from Process.Manager import preprocess_datasets
 from Process.Protocol import Loso
 
-myActNames = {
-	'walking': 0,
-	'walking forward': 0,
-	'ascending stairs': 1,
-	'walking up': 1,
-	'descending stairs': 2,
-	'walking down': 2,
-	'sitting':3,
-	'standing':4,
-	'lying':5,
-	'lying on back':5,
-	'lying on right':5,
-	'laying':5,
-	'sleeping':5
-}
 
 
 parser = argparse.ArgumentParser()
@@ -54,7 +39,7 @@ if args.slurm:
 
 else:
 	args.inPath = os.path.abspath('C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\')
-	args.outPath  = os.path.realpath('results')
+	args.outPath  = os.path.realpath('../results')
 	
 	classifiersPath = os.path.abspath("C:\\Users\\gcram\\Documents\\Smart Sense\\classifiers\\")
 	sys.path.insert(0,classifiersPath)
@@ -111,13 +96,7 @@ def myMetric(data):
 	m = np.mean(data)
 	ic = st.t.interval(alpha=0.95, df=len(data) - 1, loc=m, scale=st.sem(data))
 	return [m, ic[0],ic[1]]
-def categorical_to_int(y):
-	y1 = list(map(lambda x: x.split('-')[-1], y))
-	y2 = np.array(list(map(lambda x: myActNames[x], y1)))
-	y3 = np.zeros([len(y),len(pd.unique(y))])
-	for i in range(len(y3)):
-		y3[i,y2[i]] = 1
-	return y3
+
 
 def classification(datasetList,result):
 	file = os.path.join(args.inPath, f'{args.datasetTrain}_f25_t2.npz')

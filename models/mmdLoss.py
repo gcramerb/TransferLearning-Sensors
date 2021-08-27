@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 
-class MMD_loss(nn.Module):
+class MMDLoss(nn.Module):
 	def __init__(self, kernel_mul = 2.0, kernel_num = 5):
-		super(MMD_loss, self).__init__()
+		super(MMDLoss, self).__init__()
 		self.kernel_num = kernel_num
 		self.kernel_mul = kernel_mul
 		self.fix_sigma = None
@@ -44,12 +44,34 @@ class MMD_loss(nn.Module):
 			XY += torch.exp(-0.5 * dxy / a)
 
 
-def forward(self, source, target):
-    	batch_size = int(source.size()[0])
-    	kernels = guassian_kernel(source, target, kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma)
-    	XX = kernels[:batch_size, :batch_size]
-    	YY = kernels[batch_size:, batch_size:]
-    	XY = kernels[:batch_size, batch_size:]
-    	YX = kernels[batch_size:, :batch_size]
-    	loss = torch.mean(XX + YY - XY -YX)
-    	return loss
+	def forward(self, source, target):
+	        batch_size = int(source.size()[0])
+	        kernels = guassian_kernel(source, target, kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma)
+	        XX = kernels[:batch_size, :batch_size]
+	        YY = kernels[batch_size:, batch_size:]
+	        XY = kernels[:batch_size, batch_size:]
+	        YX = kernels[batch_size:, :batch_size]
+	        loss = torch.mean(XX + YY - XY -YX)
+	        return loss
+	
+
+	class MMD_MSELoss(MMDLoss):
+		def __init__(self, kernel_mul=2.0, kernel_num=5):
+			super(MMD_MSE_loss, self).__init__()
+			return
+		def forward(self,latent,domain,sensor,rec,alpha = .5):
+			batch_size = int(source.size()[0])
+			sourceIdx = np.where(domain==0)[0]
+			targetIdx = np.where(domain == 1)[0]
+			source =latent[sourceIdx]
+			target = latent[targetIdx]
+			
+			kernels = guassian_kernel(source, target, kernel_mul=self.kernel_mul, kernel_num=self.kernel_num,
+			                          fix_sigma=self.fix_sigma)
+			XX = kernels[:batch_size, :batch_size]
+			YY = kernels[batch_size:, batch_size:]
+			XY = kernels[:batch_size, batch_size:]
+			YX = kernels[batch_size:, :batch_size]
+			lossMMD = torch.mean(XX + YY - XY - YX)
+			mse= torch.nn.MSELoss(sensor,rec)
+			return alpha*lossMMD + (1-alpha)*mse

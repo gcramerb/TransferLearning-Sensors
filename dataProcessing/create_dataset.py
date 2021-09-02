@@ -1,58 +1,67 @@
 import os
 import numpy as np
+import torch
 from Utils.data import categorical_to_int
-def processTorch(data,y,domain):
-	dataP = []
-	for i in range(len(data)):
-		dataP.append((data[i],y[i],domain))
-	return dataP
+from torch.utils.data import Dataset
 
-
-def getData(sourceDat,targetDat,inPath):
-	file = os.path.join(inPath, f'{sourceDat}_f25_t2.npz')
+def getData(inPath,dataset,getLabel):
+	file = os.path.join(inPath, f'{dataset}_f25_t2.npz')
 	with np.load(file, allow_pickle=True) as tmp:
 		X = tmp['X']
 		y = tmp['y']
-	X = np.expand_dims(X, axis=1)
-	y = categorical_to_int(y)
-	source = X[:,:,:,0:6]
-	source = processTorch(source,y,0)
+	Y = categorical_to_int(y).astype('int')
+	Y = np.argmax(Y, axis=1)
+	#X = np.transpose(X.astype('float32'), (0, 2, 3, 1))
+	data = X[:, :, :, 0:6]
+	if getLabel:
+		return data,Y
+	else:
+		return data,None
 	
-	file = os.path.join(inPath, f'{targetDat}_f25_t2.npz')
-	with np.load(file, allow_pickle=True) as tmp:
-		X = tmp['X']
-		y = tmp['y']
-	X = np.expand_dims(X, axis=1)
-	y = categorical_to_int(y)
-	target= X[:,:,:,0:6]
-	target = processTorch(target,y,1)
-	return source+target
+	
 
-inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-train = getData('Dsads','Ucihar',inPath)
+class crossDataset(Dataset):
+	def __init__(self,source,target,transform = None):
+		
+		self.source,self.Ysource =source
+		self.target,_ = target
+		self.transform = transform
+
+	def processTorch(self,s,t,y):
+		dataP = []
+		r= np.min(len(s),len(t))
+		
+		for i in range(r):
+			dataP.append((s[i],t[i],y[i]))
+		return dataP
+
+	def __len__(self):
+		return len(self.source) + len(self.target)
+	def __getitem__(self,idx):
+		if torch.is_tensor(idx):
+			idx = idx.tolist()
+		dataset = self.processTorch(self.source,self.target,self.Ysource)
+		sample = {'source':dataset[idx][0],'target':dataset[idx][1],'label':dataset[idx][2]}
+		return sample
 
 
-# def summarizeMetric(resList):
-# 	resp = dict()
-# 	mse = resList['MICE_f1']
-# 	icMse = st.t.interval(alpha=0.95, df=len(mse) - 1, loc=np.mean(mse), scale=st.sem(mse))
-# 	mse = np.mean(mse)
-# 	resp['MICE_f1'] = mse
-# 	resp['MICE_f1_up'] = icMse[1]
-# 	resp['MICE_f1_down'] = icMse[0]
+# inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
+# sourceDat = 'Dsads'
+# targetDat = 'Ucihar'
+# file = os.path.join(inPath, f'{sourceDat}_f25_t2.npz')
+# with np.load(file, allow_pickle=True) as tmp:
+# 	X = tmp['X']
+# 	y = tmp['y']
+# Ysource = categorical_to_int(y).astype('int')
+# Ysource = np.argmax(Ysource,axis = 1)
+# X = np.transpose(X.astype('float32'),(0,2,3,1))
+# source = X[:,:,0:6,:]
 #
-# 	mse = resList['MF_f1']
-# 	icMse = st.t.interval(alpha=0.95, df=len(mse) - 1, loc=np.mean(mse), scale=st.sem(mse))
-# 	mse = np.mean(mse)
-# 	resp['MF_f1'] = mse
-# 	resp['MF_f1_up'] = icMse[1]
-# 	resp['MF_f1_down'] = icMse[0]
 #
-# 	mse = resList['EM_f1']
-# 	icMse = st.t.interval(alpha=0.95, df=len(mse) - 1, loc=np.mean(mse), scale=st.sem(mse))
-# 	mse = np.mean(mse)
-# 	resp['EM_f1'] = mse
-# 	resp['EM_f1_up'] = icMse[1]
-# 	resp['EM_f1_down'] = icMse[0]
+# file = os.path.join(inPath, f'{targetDat}_f25_t2.npz')
+# with np.load(file, allow_pickle=True) as tmp:
+# 	X = tmp['X']
+# X = np.transpose(X.astype('float32'), (0, 2, 3, 1))
+# target = X[:, :, 0:6, :]
 #
-# 	return resp
+# a = 1

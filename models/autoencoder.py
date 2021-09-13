@@ -25,6 +25,7 @@ class ConvAutoencoder(nn.Module):
 			self.encoded_dim = hyp['encDim']
 		else:
 			self.conv_window = (5, 3)
+			self.convTrans_window = (6, 2)
 			self.pooling_window_1 = (2, 1)
 			self.pooling_window_2 = (5, 1)
 			self.n_filters = (8, 16, 32)
@@ -57,25 +58,42 @@ class ConvAutoencoder(nn.Module):
 			nn.ReLU()
 		)
 		
-		## decoder layers ##
+			## decoder layers ##
 		self.decoder = nn.Sequential(
 			nn.Linear(self.encoded_dim, 480),
 			nn.ReLU(),
-			myReshape((32,5,3)),
-			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.conv_window, out_channels=self.n_filters[1],stride = (5,1)),
+			myReshape((32, 5, 3)),
+			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window, out_channels=self.n_filters[1],
+			                   padding=(2, 0),output_padding=(1,0) ,dilation=(1, 1), stride=(5, 1)),
 			nn.ReLU(),
-			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.conv_window, out_channels=self.n_filters[0],stride=(2, 1)),
+			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window,
+			                   out_channels=self.n_filters[0], padding=(4, 0), dilation=(2, 1), stride=(2, 1)),
 			nn.ReLU(),
-			nn.ConvTranspose2d(in_channels=self.n_filters[0], kernel_size=self.conv_window, out_channels=1,stride=(2, 1)),
+			nn.ConvTranspose2d(in_channels=self.n_filters[0], kernel_size=self.convTrans_window, out_channels=1,
+			                   padding=(1, 0), stride=(1, 1)),
 			nn.ReLU()
 		)
 
 	def forward(self, X):
-
 		AccEncoded = self.encoderSensor(X[:,:,:,0:3])
 		GyrEncoded = self.encoderSensor(X[:, :, :, 3:6])
 		encoded = self.mergedSensors(torch.cat([AccEncoded,GyrEncoded] ,1))
 		decoded = self.decoder(encoded)
 		return encoded,decoded
+	
+	# self.decoder = nn.Sequential(
+	# 	nn.Linear(self.encoded_dim, 480),
+	# 	nn.ReLU(),
+	# 	myReshape((32, 5, 3)),
+	# 	nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.conv_window, out_channels=self.n_filters[1],
+	# 	                   padding=(0, 0), dilation=(1, 1), stride=(5, 1)),
+	# 	nn.ReLU(),
+	# 	nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window,
+	# 	                   out_channels=self.n_filters[0], padding=(4, 0), dilation=(2, 1), stride=(2, 1)),
+	# 	nn.ReLU(),
+	# 	nn.ConvTranspose2d(in_channels=self.n_filters[0], kernel_size=self.convTrans_window, out_channels=1,
+	# 	                   padding=(3, 3), stride=(1, 2)),
+	# 	nn.ReLU()
+	# )
 
 

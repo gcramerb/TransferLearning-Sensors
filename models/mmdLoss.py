@@ -25,6 +25,7 @@ class MMDLoss(nn.Module):
 		bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
 		kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
 		return sum(kernel_val)
+	
 	def rbf_kernel(self,source,target):
 		xx, yy, zz = torch.mm(source, source.t()), torch.mm(target, target.t()), torch.mm(source, target.t())
 		rx = (xx.diag().unsqueeze(0).expand_as(xx))
@@ -56,25 +57,32 @@ class MMDLoss(nn.Module):
 		return loss
 	
 
+
 class MMD_MSELoss(MMDLoss):
 	def __init__(self, kernel_mul=2.0, kernel_num=5,alpha = .5):
 		alpha = alpha
 		super(MMD_MSELoss, self).__init__()
 		return
-	def forward(self,latentSource,latentTarget,sensor,rec):
+	
 
-		batch_size = int(latentSource.size()[0])
-		# sourceIdx = np.where(domain==0)[0]
-		# targetIdx = np.where(domain == 1)[0]
-		# source =latent[sourceIdx]
-		# target = latent[targetIdx]
+	def forward(self,latent,domain,rec,data):
+		penalty =0
+		batch_size = int(latent.size()[0])
+		domain = domain.cpu()
+		sourceIdx = np.where(domain ==0)[0]
+		targetIdx = np.where(domain ==1)[0]
 		
-		kernels = guassian_kernel(latentSource, latentTarget, kernel_mul=self.kernel_mul, kernel_num=self.kernel_num,
-		                          fix_sigma=self.fix_sigma)
-		XX = kernels[:batch_size, :batch_size]
-		YY = kernels[batch_size:, batch_size:]
-		XY = kernels[:batch_size, batch_size:]
-		YX = kernels[batch_size:, :batch_size]
-		lossMMD = torch.mean(XX + YY - XY - YX)
-		mse= torch.nn.MSELoss(sensor,rec)
-		return alpha*lossMMD + (1-self.alpha)*mse
+		#kernels = self.guassian_kernel(latent[sourceIdx], latent[targetIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma)
+		
+		# XX = kernels[:batch_size, :batch_size]
+		# YY = kernels[batch_size:, batch_size:]
+		# XY = kernels[:batch_size, batch_size:]
+		# YX = kernels[batch_size:, :batch_size]
+		#
+		xx=  torch.mean(self.guassian_kernel(latent[sourceIdx], latent[sourceIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
+		yy =  torch.mean(self.guassian_kernel(latent[targetIdx], latent[targetIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
+		xy =  torch.mean(self.guassian_kernel(latent[sourceIdx], latent[targetIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
+		#penalty = torch.mean(XX + YY - XY -YX)
+		penalty = xx + yy - 2*xy
+		mse= torch.nn.MSELoss(data,rec)
+		return self.alpha*mse + (1-self.alpha)*penalty

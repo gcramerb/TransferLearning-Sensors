@@ -29,10 +29,10 @@ class crossDataset(Dataset):
 
 	def processTorch(self,s,t,y):
 		dataP = []
-		r= np.min(len(s),len(t))
-		
-		for i in range(r):
-			dataP.append((s[i],t[i],y[i]))
+		for i in range(len(s)):
+			dataP.append((s[i],0,y[i]))
+		for i in range(len(t)):
+			dataP.append((t[i],1,-1))
 		return dataP
 
 	def __len__(self):
@@ -41,7 +41,7 @@ class crossDataset(Dataset):
 		if torch.is_tensor(idx):
 			idx = idx.tolist()
 		dataset = self.processTorch(self.source,self.target,self.Ysource)
-		sample = {'source':dataset[idx][0],'target':dataset[idx][1],'label':dataset[idx][2]}
+		sample = {'data':dataset[idx][0],'domain':dataset[idx][1],'label':dataset[idx][2]}
 		return sample
 
 

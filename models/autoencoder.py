@@ -30,7 +30,6 @@ class ConvAutoencoder(nn.Module):
 			self.pooling_window_2 = (5, 1)
 			self.n_filters = (8, 16, 32)
 			self.encoded_dim = 50
-		
 	def build(self):
 		class myReshape(nn.Module):
 			def __init__(self, newShape):
@@ -44,30 +43,37 @@ class ConvAutoencoder(nn.Module):
 		## encoder layers ##
 		self.encoderSensor = nn.Sequential(
 			nn.Conv2d(in_channels=1, kernel_size=self.conv_window, out_channels=self.n_filters[0], padding='same'),
+			nn.BatchNorm2d(self.n_filters[0]),
 			nn.ReLU(),
 			nn.MaxPool2d(self.pooling_window_1),
 			nn.Conv2d(in_channels=self.n_filters[0], kernel_size=self.conv_window, out_channels=self.n_filters[1],padding='same'),
+			nn.BatchNorm2d(self.n_filters[1]),
 			nn.ReLU(),
 			nn.MaxPool2d(self.pooling_window_2)
 		)
 		self.mergedSensors = nn.Sequential(
 			nn.Conv2d(in_channels=self.n_filters[2], kernel_size=self.conv_window, out_channels=self.n_filters[2], padding='same'),
+			nn.BatchNorm2d(self.n_filters[2]),
 			nn.ReLU(),
 			nn.Flatten(),
 			nn.Linear(480, self.encoded_dim),
+			nn.BatchNorm1d(self.encoded_dim),
 			nn.ReLU()
 		)
 		
 			## decoder layers ##
 		self.decoder = nn.Sequential(
 			nn.Linear(self.encoded_dim, 480),
+			nn.BatchNorm1d(480),
 			nn.ReLU(),
 			myReshape((32, 5, 3)),
 			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window, out_channels=self.n_filters[1],
 			                   padding=(2, 0),output_padding=(1,0) ,dilation=(1, 1), stride=(5, 1)),
+			nn.BatchNorm2d(self.n_filters[1]),
 			nn.ReLU(),
 			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window,
 			                   out_channels=self.n_filters[0], padding=(4, 0), dilation=(2, 1), stride=(2, 1)),
+			nn.BatchNorm2d(self.n_filters[0]),
 			nn.ReLU(),
 			nn.ConvTranspose2d(in_channels=self.n_filters[0], kernel_size=self.convTrans_window, out_channels=1,
 			                   padding=(1, 0), stride=(1, 1)),
@@ -81,19 +87,4 @@ class ConvAutoencoder(nn.Module):
 		decoded = self.decoder(encoded)
 		return encoded,decoded
 	
-	# self.decoder = nn.Sequential(
-	# 	nn.Linear(self.encoded_dim, 480),
-	# 	nn.ReLU(),
-	# 	myReshape((32, 5, 3)),
-	# 	nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.conv_window, out_channels=self.n_filters[1],
-	# 	                   padding=(0, 0), dilation=(1, 1), stride=(5, 1)),
-	# 	nn.ReLU(),
-	# 	nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window,
-	# 	                   out_channels=self.n_filters[0], padding=(4, 0), dilation=(2, 1), stride=(2, 1)),
-	# 	nn.ReLU(),
-	# 	nn.ConvTranspose2d(in_channels=self.n_filters[0], kernel_size=self.convTrans_window, out_channels=1,
-	# 	                   padding=(3, 3), stride=(1, 2)),
-	# 	nn.ReLU()
-	# )
-
 

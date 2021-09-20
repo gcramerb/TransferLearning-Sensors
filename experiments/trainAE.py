@@ -5,7 +5,7 @@ from torchvision import transforms
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 
-#from torchsummary import summary
+from torchsummary import summary
 
 import sys,os
 import argparse
@@ -13,7 +13,7 @@ import argparse
 sys.path.insert(0,'../')
 
 from models.autoencoder import ConvAutoencoder
-from models.mmdLoss import myMMDLoss
+from models.customLosses import MMDLoss
 
 from dataProcessing.create_dataset import crossDataset,getData
 
@@ -27,9 +27,9 @@ class trainer:
 		self.model = self.model.to(self.device)
 		self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
 		self.scheduler = StepLR(self.optimizer, step_size=20, gamma=0.1)
-		self.penalty = myMMDLoss()
+		self.penalty = MMDLoss()
 		self.loss = torch.nn.MSELoss()
-		# summary(self.model, (1, 50, 6))
+		#summary(self.model, (1, 50, 6))
 		
 	def configTrain(self, alpha=0.8, n_ep=80, bs=128):
 		self.bs = bs
@@ -55,8 +55,10 @@ class trainer:
 					self.device, dtype=torch.int)
 				self.optimizer.zero_grad()
 				latent, pred = self.model(data)
+				
 				m_loss = self.loss(data, pred)
 				p_loss = self.penalty(latent, domain)
+				
 				loss = self.alpha * m_loss + (1 - self.alpha) * p_loss
 				loss.mean().backward()
 				self.optimizer.step()
@@ -84,6 +86,7 @@ class trainer:
 					self.device, dtype=torch.int)
 				# domain = domain.cpu().data.numpy()[0].astype('int')
 				latent, rec = self.model(data)
+				
 				latent, rec = latent.cpu().data.numpy()[0], rec.cpu().data.numpy()[0]
 				dataRec.append(rec)
 				dataLatent.append(latent)

@@ -16,6 +16,7 @@ class ConvAutoencoder(nn.Module):
 	"""
 	def __init__(self, hyp=None):
 		super(ConvAutoencoder, self).__init__()
+		self._name = 'AE'
 		if hyp:
 			self.conv_window = hyp['conv_window']
 			self.pooling_window_1 = hyp['pooling_window_1']
@@ -30,6 +31,10 @@ class ConvAutoencoder(nn.Module):
 			self.pooling_window_2 = (5, 1)
 			self.n_filters = (8, 16, 32)
 			self.encoded_dim = 50
+	
+	@property
+	def name(self):
+		return self._name
 	def build(self):
 		class myReshape(nn.Module):
 			def __init__(self, newShape):

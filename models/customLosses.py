@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-
+import geomloss
 
 class MMDLoss(nn.Module):
 	def __init__(self, kernel_mul = 2.0, kernel_num = 5):
@@ -44,43 +44,46 @@ class MMDLoss(nn.Module):
 			XX += torch.exp(-0.5 * dxx / a)
 			YY += torch.exp(-0.5 * dyy / a)
 			XY += torch.exp(-0.5 * dxy / a)
+		return XX,YY,XY
 
 
-	def forward(self, source, target):
-		batch_size = int(source.size()[0])
-		kernels = guassian_kernel(source, target, kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma)
-		XX = kernels[:batch_size, :batch_size]
-		YY = kernels[batch_size:, batch_size:]
-		XY = kernels[:batch_size, batch_size:]
-		YX = kernels[batch_size:, :batch_size]
-		loss = torch.mean(XX + YY - XY -YX)
-		return loss
-
-
-class myMMDLoss(MMDLoss):
-	def __init__(self, kernel_mul=2.0, kernel_num=5):
-		super(myMMDLoss, self).__init__()
-		return
-	
-
-	def forward(self,latent,domain):
-		penalty =0
+	def forward(self, latent, domain,kernel = 'gaussian'):
+		penalty = 0
 		batch_size = int(latent.size()[0])
 		domain = domain.cpu()
-		sourceIdx = np.where(domain ==0)[0]
-		targetIdx = np.where(domain ==1)[0]
+		sourceIdx = np.where(domain == 0)[0]
+		targetIdx = np.where(domain == 1)[0]
+
 		
-		#kernels = self.guassian_kernel(latent[sourceIdx], latent[targetIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma)
+		if kernel =='gaussian':
+			xx = torch.mean(self.guassian_kernel(latent[sourceIdx], latent[sourceIdx], kernel_mul=self.kernel_mul,
+			                                     kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
+			yy = torch.mean(self.guassian_kernel(latent[targetIdx], latent[targetIdx], kernel_mul=self.kernel_mul,
+			                                     kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
+			xy = torch.mean(self.guassian_kernel(latent[sourceIdx], latent[targetIdx], kernel_mul=self.kernel_mul,
+			                                     kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
+			# penalty = torch.mean(XX + YY - XY -YX)
+			mmd = xx + yy - 2 * xy
+			
+			return mmd
+		elif kernel == 'rbf':
+			xx,yy,xy = self.rbf_kernel(latent[sourceIdx],latent[targetIdx])
+			return torch.mean(XX + YY - 2. * XY)
+
+
+class OTLoss(nn.Module):
+	def __init__(self,loss='sinkhorn', p=2, blur=0.05,scaling=0.9):
+		super(OTLoss, self).__init__()
+		self.loss = loss
+		self.p = p
+		self.blur = blur
+		self.scaling = scaling
+		self.lossFunc  = geomloss.SamplesLoss(loss=self.loss, p=self.p, blur=self.blur, reach=None, diameter=None, scaling=self.scaling,
+			                          truncate=5, cost=None, kernel=None, cluster_scale=None, debias=True,
+			                          potentials=False, verbose=False, backend='auto')
 		
-		# XX = kernels[:batch_size, :batch_size]
-		# YY = kernels[batch_size:, batch_size:]
-		# XY = kernels[:batch_size, batch_size:]
-		# YX = kernels[batch_size:, :batch_size]
-		#
-		xx=  torch.mean(self.guassian_kernel(latent[sourceIdx], latent[sourceIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
-		yy =  torch.mean(self.guassian_kernel(latent[targetIdx], latent[targetIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
-		xy =  torch.mean(self.guassian_kernel(latent[sourceIdx], latent[targetIdx], kernel_mul=self.kernel_mul, kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
-		#penalty = torch.mean(XX + YY - XY -YX)
-		mmd = xx + yy - 2*xy
-		
-		return mmd
+	def forward(self, latent, domain):
+		domain = domain.cpu()
+		sourceIdx = np.where(domain == 0)[0]
+		targetIdx = np.where(domain == 1)[0]
+		return self.lossFunc(latent[sourceIdx], latent[sourceIdx])

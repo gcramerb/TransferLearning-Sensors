@@ -23,21 +23,25 @@ def getData(inPath,dataset,getLabel,categoricalLab = False):
 	
 
 class crossDataset(Dataset):
-	def __init__(self,source,target,n_class = 6,transform = None):
+	def __init__(self,source,target,n_class = 6,targetLab = False, transform = None):
 		
 		self.source,self.Ysource =source
 		# self.Ysource= LabelEncoder().fit_transform(self.Ysource)
 		self.Ysource = self.Ysource.astype('long')
 		# self.Ysource = self.Ysource.reshape((len(self.Ysource), n_class))
-		self.target,_ = target
+		if targetLab:
+			self.target,self.Ytarget = target
+		else:
+			self.target,_ = target
+			self.Ytarget = -1*np.ones(len(self.target),dtype = 'int')
 		self.transform = transform
 
-	def processTorch(self,s,t,y):
+	def processTorch(self,s,t,ys,yt):
 		dataP = []
 		for i in range(len(s)):
-			dataP.append((s[i],0,y[i]))
+			dataP.append((s[i],0,ys[i]))
 		for i in range(len(t)):
-			dataP.append((t[i],1,-1))
+			dataP.append((t[i],1,yt[i]))
 		return dataP
 
 	def __len__(self):
@@ -45,7 +49,7 @@ class crossDataset(Dataset):
 	def __getitem__(self,idx):
 		if torch.is_tensor(idx):
 			idx = idx.tolist()
-		dataset = self.processTorch(self.source,self.target,self.Ysource)
+		dataset = self.processTorch(self.source,self.target,self.Ysource,self.Ytarget)
 		sample = {'data':dataset[idx][0],'domain':dataset[idx][1],'label':dataset[idx][2]}
 		return sample
 

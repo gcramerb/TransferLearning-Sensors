@@ -21,6 +21,7 @@ from models.customLosses import MMDLoss
 from dataProcessing.create_dataset import crossDataset,targetDataset, getData
 from Utils.trainer import Trainer
 
+import mlflow
 
 
 parser = argparse.ArgumentParser()
@@ -32,8 +33,9 @@ parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--model', type=str, default="clf")
 parser.add_argument('--penalty', type=str, default="mmd")
-
 args = parser.parse_args()
+
+
 
 
 if __name__ == '__main__':
@@ -44,7 +46,7 @@ if __name__ == '__main__':
 	hyp['penalty'] = args.penalty
 	hyp['lr'] = 1e-3
 	network = Trainer(hyp)
-	network.configTrain(bs=256,n_ep=70)
+	network.configTrain(bs=256,n_ep=1)
 	
 	if args.inPath is None:
 		args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
@@ -52,11 +54,12 @@ if __name__ == '__main__':
 	target = getData(args.inPath, args.target, getLabel = False)
 	dataTrain = crossDataset(source, target)
 	network.train(dataTrain)
-	
+	del source
+	del target
 	source = getData(args.inPath, args.source,getLabel= True)
 	target = getData(args.inPath, args.target, getLabel=True)
-	dataTest = crossDataset(source, target)
-	yTrueSource,yPredSource, yTrueTarget,yPredTarget = network.predict(dataTest)
+	dataTest = crossDataset(source, target,targetLab = True)
+	yTrueTarget,yTrueSource, yPredTarget, yPredSource = network.predict(dataTest)
 	
 	print(hyp['model'],'  ',hyp['penalty'])
 	print('Source: ')

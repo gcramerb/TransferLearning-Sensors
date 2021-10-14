@@ -17,7 +17,7 @@ sys.path.insert(0, '../')
 from models.classifier import classifier
 from models.autoencoder import ConvAutoencoder
 from models.customLosses import MMDLoss,OTLoss
-import geomloss
+#import geomloss
 
 
 from dataProcessing.create_dataset import crossDataset, targetDataset, getData
@@ -54,7 +54,7 @@ class Trainer:
 		self.alpha = alpha
 		self.epochs = n_ep
 	
-	def train(self, dataTrain):
+	def train(self, dataTrain,dataVal = None, printGrad = False):
 		# transform = transforms.Compose([transforms.Resize(self.bs), transforms.ToTensor()])
 		
 		trainloader = DataLoader(dataTrain, shuffle=True, batch_size=self.bs)
@@ -70,6 +70,7 @@ class Trainer:
 				data, domain, label = data.to(self.device, dtype=torch.float), domain.to(self.device,
 				                                                                         dtype=torch.int), label.to(
 					self.device, dtype=torch.long)
+				#self.model.train()
 				self.optimizer.zero_grad()
 				latent, pred = self.model(data)
 				if self.model.name == 'clf':
@@ -94,11 +95,23 @@ class Trainer:
 			main_loss = main_loss / len(trainloader)
 			#print(train_loss, '  ', main_loss, '  ', penalty_loss, '\n')
 			histTrainLoss.append(train_loss)
-		return histTrainLoss[-1]
+			if dataVal:
+				valTarget,valSource,predValTarget,predValSource = self.predict(dataVal)
+				accValSource = accuracy_score(valTarget,predValTarget)
+				accValTarget = accuracy_score(valSource,predValSource)
+				
+				print('acc Val - source: ',accValSource,'target: ',accValTarget )
+
+			if printGrad:
+				print('Epoch:', '  ',epoch)
+				for name, param in self.model.named_parameters():
+					print(name, param.grad.mean())
+				print('\n\n')
+		return histTrainLoss
 	
-	def predict(self, xTest):
+	def predict(self, dataTest):
 		
-		testloader = DataLoader(xTest, shuffle=False, batch_size=len(xTest))
+		testloader = DataLoader(dataTest, shuffle=False, batch_size=len(dataTest))
 		# PredSource = []
 		# TrueSource = []
 		# PredTarget = []

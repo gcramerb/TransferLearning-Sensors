@@ -44,18 +44,26 @@ if __name__ == '__main__':
 	hyp['model'] = args.model
 	hyp['loss'] = 'cel'
 	hyp['penalty'] = args.penalty
-	hyp['lr'] = 1e-3
+	hyp['lr'] = 0.014188514716320757
 	network = Trainer(hyp)
-	network.configTrain(bs=256,n_ep=1)
+	network.configTrain(bs=128,n_ep=1)
 	
 	if args.inPath is None:
 		args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	source = getData(args.inPath, args.source, getLabel = True)
-	target = getData(args.inPath, args.target, getLabel = False)
+	source, sourceVal = getData(args.inPath, args.source, getLabel = True)
+	
+	#we pass the label only to calculate the validation metrics.
+	target ,targetVal = getData(args.inPath, args.target, getLabel = True)
 	dataTrain = crossDataset(source, target)
-	network.train(dataTrain)
+	dataVal =  crossDataset(sourceVal, targetVal)
 	del source
 	del target
+	del sourceVal
+	del targetVal
+
+	hist = network.train(dataTrain,printGrad = False,dataVal= dataVal)
+	print('Train Loss: ', hist)
+
 	source = getData(args.inPath, args.source,getLabel= True)
 	target = getData(args.inPath, args.target, getLabel=True)
 	dataTest = crossDataset(source, target,targetLab = True)
@@ -63,12 +71,12 @@ if __name__ == '__main__':
 	
 	print(hyp['model'],'  ',hyp['penalty'])
 	print('Source: ')
-	print('\n',accuracy_score(yTrueSource,yPredSource),'\n')
-	print(recall_score(yTrueSource,yPredSource,average = 'macro'),'\n')
-	print(f1_score(yTrueSource,yPredSource,average = 'macro'),'\n')
+	print('\n Acc:',accuracy_score(yTrueSource,yPredSource),'\n')
+	#print(recall_score(yTrueSource,yPredSource,average = 'macro'),'\n')
+	print("F1: ",f1_score(yTrueSource,yPredSource,average = 'macro'),'\n')
 
 	print('Target: ')
 	print('\n',accuracy_score(yTrueTarget,yPredTarget),'\n')
-	print(recall_score(yTrueTarget,yPredTarget,average = 'macro'),'\n')
-	print(f1_score(yTrueTarget,yPredTarget,average = 'macro'),'\n')
+	#print(recall_score(yTrueTarget,yPredTarget,average = 'macro'),'\n')
+	print("F1: ",f1_score(yTrueTarget,yPredTarget,average = 'macro'),'\n')
 

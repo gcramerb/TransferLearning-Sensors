@@ -15,7 +15,7 @@ class classifier(nn.Module):
 
 	"""
 	
-	def __init__(self,n_class, hyp=None):
+	def __init__(self,n_class, hyp=None,n_sensor = 2):
 		super(classifier, self).__init__()
 		self.n_class = n_class
 		self._name = 'clf'
@@ -27,6 +27,7 @@ class classifier(nn.Module):
 			self.pooling_window_2 = hyp['pooling_window_2']
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['encDim']
+			
 		else:
 			self.conv_window = (5, 3)
 			self.conv_window2 = (25, 3)
@@ -34,6 +35,7 @@ class classifier(nn.Module):
 			self.pooling_window_2 = (5, 1)
 			self.n_filters = (4,8, 16, 32,64)
 			self.encoded_dim = 50
+		self.n_sensors = 2
 			
 		
 	@property
@@ -61,7 +63,7 @@ class classifier(nn.Module):
 			nn.Conv2d(in_channels=self.n_filters[1], kernel_size=self.conv_window, out_channels=self.n_filters[2],
 			          padding='same'),
 			nn.BatchNorm2d(self.n_filters[2]),
-			nn.ReLU(),
+			nn.SELU(),
 			nn.MaxPool2d(self.pooling_window_2)
 		)
 		
@@ -73,7 +75,7 @@ class classifier(nn.Module):
 			nn.Flatten(),
 			nn.Linear(480, self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
-			nn.ReLU()
+			nn.SELU()
 		)
 		
 		## decoder layers ##

@@ -1,11 +1,11 @@
-import os
+import os,random
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
 import torch
 from Utils.data import categorical_to_int
 from torch.utils.data import Dataset
 
-def getData(inPath,dataset,getLabel,categoricalLab = False):
+def getData(inPath,dataset,getLabel,categoricalLab = False,valRate = 0.0):
 	file = os.path.join(inPath, f'{dataset}_f25_t2.npz')
 	with np.load(file, allow_pickle=True) as tmp:
 		X = tmp['X']
@@ -14,11 +14,16 @@ def getData(inPath,dataset,getLabel,categoricalLab = False):
 		y = categorical_to_int(y).astype('int')
 		y = np.argmax(y, axis=1)
 	#X = np.transpose(X.astype('float32'), (0, 2, 3, 1))
-	data = X[:, :, :, 0:6]
+	valIdx = random.sample(range(0, len(X)), int(len(X)*valRate))
+	maskVal = np.array([False] *len(X))
+	maskVal[valIdx] = True
+	maskTrain = np.logical_not(maskVal)
+	data, dataVal = X[maskTrain, :, :, 0:6], X[maskVal, :, :, 0:6]
+	y,yVal = y[maskTrain],y[maskVal]
 	if getLabel:
-		return data,y
+		return (data,y), (dataVal,yVal)
 	else:
-		return data,None
+		return (data,None), (dataVal,None)
 	
 	
 
@@ -63,7 +68,7 @@ class targetDataset(Dataset):
 	def processTorch(self, t, y):
 		dataP = []
 		for i in range(len(t)):
-			dataP.append((t[i], 1, self.y[i]))
+			dataP.append((t[i], 1, y[i]))
 		return dataP
 	
 	def __len__(self):

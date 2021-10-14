@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
+from sklearn.metrics import accuracy_score, recall_score, f1_score
 
 
 
@@ -58,7 +59,6 @@ def objective(trial):
 		
 		# Use CUDA if GPU is available and log device as param using mlflow
 		device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-		mlflow.log_param("device", device)
 		
 		# Initialize network
 		hyp = {}

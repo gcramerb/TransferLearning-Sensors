@@ -5,6 +5,8 @@ import torch
 from Utils.data import categorical_to_int
 from torch.utils.data import Dataset
 
+
+#TODO: Crate a DataModule like pytorch Lighting
 def getData(inPath,dataset,getLabel,categoricalLab = False,valRate = 0.0):
 	file = os.path.join(inPath, f'{dataset}_f25_t2.npz')
 	with np.load(file, allow_pickle=True) as tmp:
@@ -20,8 +22,10 @@ def getData(inPath,dataset,getLabel,categoricalLab = False,valRate = 0.0):
 	maskTrain = np.logical_not(maskVal)
 	data, dataVal = X[maskTrain, :, :, 0:6], X[maskVal, :, :, 0:6]
 	y,yVal = y[maskTrain],y[maskVal]
-	if getLabel:
+	if getLabel and valRate > .0:
 		return (data,y), (dataVal,yVal)
+	elif getLabel and valRate == .0:
+		return data, y
 	else:
 		return (data,None), (dataVal,None)
 	

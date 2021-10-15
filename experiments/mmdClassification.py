@@ -7,7 +7,7 @@ from torch import optim
 
 
 
-import sys, os,argparse
+import sys, os,argparse,pickle
 import numpy as np
 
 
@@ -35,7 +35,11 @@ parser.add_argument('--model', type=str, default="clf")
 parser.add_argument('--penalty', type=str, default="mmd")
 args = parser.parse_args()
 
-
+if args.slurm:
+	n_ep = 50
+else:
+	n_ep = 1
+	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 
 
 if __name__ == '__main__':
@@ -46,22 +50,25 @@ if __name__ == '__main__':
 	hyp['penalty'] = args.penalty
 	hyp['lr'] = 0.014188514716320757
 	network = Trainer(hyp)
-	network.configTrain(bs=128,n_ep=1)
-	
-	if args.inPath is None:
-		args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	source, sourceVal = getData(args.inPath, args.source, getLabel = True)
+	network.configTrain(bs=128,n_ep=n_ep)
+
+
+	source, sourceVal = getData(args.inPath, args.source, getLabel = True,valRate =0.1)
 	
 	#we pass the label only to calculate the validation metrics.
-	target ,targetVal = getData(args.inPath, args.target, getLabel = True)
+	target ,targetVal = getData(args.inPath, args.target, getLabel = True,valRate = 0.1)
 	dataTrain = crossDataset(source, target)
-	dataVal =  crossDataset(sourceVal, targetVal)
+	dataVal =  crossDataset(sourceVal, targetVal,targetLab = True)
 	del source
 	del target
 	del sourceVal
 	del targetVal
 
 	hist = network.train(dataTrain,printGrad = False,dataVal= dataVal)
+	saveModel = os.path.relpath(f'../saved/{network.name}.pkl')
+	with open(saveModel, 'wb') as outp:
+		pickle.dump(network, outp, pickle.HIGHEST_PROTOCOL)
+
 	print('Train Loss: ', hist)
 
 	source = getData(args.inPath, args.source,getLabel= True)

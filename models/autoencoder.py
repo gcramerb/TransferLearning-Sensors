@@ -21,7 +21,7 @@ class ConvAutoencoder(nn.Module):
 			self.conv_window = hyp['conv_window']
 			self.pooling_window_1 = hyp['pooling_window_1']
 			self.same_pad = pooling_window_1
-			self.pooling_window_2 = hyp['pooling_window_2']
+			self.pooling_window_2 = hyp['pooling_2']
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['encDim']
 		else:

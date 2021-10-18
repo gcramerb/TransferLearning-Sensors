@@ -7,25 +7,23 @@ from torch import optim
 
 import sys, os,argparse,pickle
 import numpy as np
-
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 # from geomloss import SamplesLoss
 sys.path.insert(0, '../')
 
-from models.classifier import classifier, networkLight
+from models.classifier import classifier
 from models.customLosses import MMDLoss
-
 from dataProcessing.create_dataset import crossDataset,targetDataset, getData
 from dataProcessing.dataModule import CrossDatasetModule
-from Utils.trainer import Trainer
+from Utils.trainer import myTrainer,networkLight
 
 import mlflow
 
-from collections import OrderedDict
-
+from pytorch_lightning.loggers import MLFlowLogger
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from torch.utils.data import DataLoader, random_split
 
+from collections import OrderedDict
 
 PATH_DATASETS = os.environ.get("PATH_DATASETS", ".")
 AVAIL_GPUS = min(1, torch.cuda.device_count())
@@ -46,11 +44,15 @@ args = parser.parse_args()
 if args.slurm:
 	n_ep = 50
 else:
-	n_ep = 1
+	n_ep = 3
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 
 if __name__ == '__main__':
 	dm = CrossDatasetModule(data_dir = args.inPath )
+	dm.setup()
 	model = networkLight()
-	trainer = Trainer(gpus=AVAIL_GPUS, max_epochs=n_ep, progress_bar_refresh_rate=20)
+	mlf_logger = MLFlowLogger(experiment_name="firstTrial")
+	trainer = Trainer(gpus=AVAIL_GPUS,check_val_every_n_epoch =1, max_epochs=n_ep, progress_bar_refresh_rate=4,logger=mlf_logger)
 	trainer.fit(model, dm)
+	trainer.test(datamodule=dm)
+

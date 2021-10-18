@@ -11,7 +11,7 @@ from copy import deepcopy
 
 from .customLosses import MMDLoss,OTLoss
 
-from pytorch_lightning import LightningDataModule,LightningModule
+
 # define the NN architecture
 class classifier(nn.Module):
 	"""
@@ -102,52 +102,4 @@ class classifier(nn.Module):
 
 
 
-class networkLight(LightningModule):
-	def __init__(
-		self,
-		latent_dim: int = 50,
-		lr: float = 0.0002,
-		batch_size: int = 128,
-		n_classes: int  = 6,
-		alpha: float = 0.2,
-		penalty: str = 'mmd',
-		**kwargs
-	):
-		super().__init__()
-		self.save_hyperparameters()
-
-
-		self.clf = classifier(self.hparams.n_classes)
-		self.clf.build()
-
-	def myLoss(self,penalty):
-		if penalty =='mmd':
-			return torch.nn.CrossEntropyLoss(),MMDLoss()
-		elif penalty == "ot":
-			torch.nn.CrossEntropyLoss(),OTLoss()
-	def forward(self, X):
-		return self.clf(X)
-
-    # def adversarial_loss(self, y_hat, y):
-    #     return F.binary_cross_entropy(y_hat, y)
-
-	def training_step(self, batch, batch_idx):
-		data, domain, label = batch['data'],batch['domain'],batch['label']
-		latent, pred = self.clf(data)
-		sourceIdx = np.where(domain.cpu() == 0)[0]
-		true = label[sourceIdx]
-		pred = pred[sourceIdx]
-		m_loss,penalty = self.myLoss(self.hparams.penalty)
-		
-		loss = self.hparams.alpha * m_loss(pred, true) + (1 - self.hparams.alpha) * p_loss(latent, domain)
-		
-		tqdm_dict = {"loss": loss}
-		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
-		return output
-
-	def configure_optimizers(self):
-		return optim.Adam(self.clf.parameters(), lr=self.hparams.lr)
-	
-	def on_epoch_end(self):
-		pass
 

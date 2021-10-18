@@ -23,7 +23,7 @@ from models.customLosses import MMDLoss,OTLoss
 from dataProcessing.create_dataset import crossDataset, targetDataset, getData
 
 
-class Trainer:
+class myTrainer:
 	def __init__(self, hyp=None):
 		use_cuda = torch.cuda.is_available()
 		self.device = torch.device("cuda" if use_cuda else "cpu")
@@ -47,7 +47,7 @@ class Trainer:
 	# from torchsummary import summary
 	# summary(self.model, (1, 50, 6))
 	
-	def configTrain(self, alpha=0.8, n_ep=120, bs=128):
+	def configTrain(self, alpha=1.8, n_ep=120, bs=128):
 		self.bs = bs
 		self.alpha = alpha
 		self.epochs = n_ep
@@ -80,8 +80,7 @@ class Trainer:
 
 				m_loss = self.loss(pred, true)
 				p_loss = self.penalty(latent, domain)
-				
-				loss = self.alpha * m_loss + (1 - self.alpha) * p_loss
+				loss =  m_loss + self.alpha * p_loss
 				loss.mean().backward()
 				self.optimizer.step()
 				train_loss += loss.mean().item()
@@ -164,4 +163,90 @@ class Trainer:
 			mse_target.append(mseTarget.mean())
 		return np.mean(mse_list), np.mean(mse_source), np.mean(mse_target)
 
+from pytorch_lightning import LightningDataModule,LightningModule
+from collections import OrderedDict
+class networkLight(LightningModule):
+	def __init__(
+			self,
+			latent_dim: int = 50,
+			lr: float = 0.0002,
+			batch_size: int = 128,
+			n_classes: int = 6,
+			alpha: float = 0.2,
+			penalty: str = 'mmd',
+			**kwargs
+	):
+		super().__init__()
+		self.save_hyperparameters()
+		self.clf = classifier(self.hparams.n_classes)
+		self.clf.build()
+	
+	def myLoss(self, penalty):
+		if penalty == 'mmd':
+			return torch.nn.CrossEntropyLoss(), MMDLoss()
+		elif penalty == "ot":
+			torch.nn.CrossEntropyLoss(), OTLoss()
+	
+	def forward(self, X):
+		return self.clf(X)
+	
+	# def adversarial_loss(self, y_hat, y):
+	#     return F.binary_cross_entropy(y_hat, y)
+	
+	def training_step(self, batch, batch_idx):
+		data, domain, label = batch['data'], batch['domain'], batch['label']
+		latent, pred = self.clf(data)
+		sourceIdx = np.where(domain.cpu() == 0)[0]
+		true = label[sourceIdx]
+		pred = pred[sourceIdx]
+		m_loss, p_loss = self.myLoss(self.hparams.penalty)
+		true = true.long()  # why need this?
+		loss = self.hparams.alpha * m_loss(pred, true) + (1 - self.hparams.alpha) * p_loss(latent, domain)
+		
+		tqdm_dict = {"loss": loss}
+		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
+		return output
+	#def on
+	
+	def validation_step(self, batch, batch_idx):
+		data, domain, label = batch['data'], batch['domain'], batch['label']
+		latent, pred = self.clf(data)
+		
+		sourceIdx = np.where(domain.cpu() == 0)[0]
+		targetIdx = np.where(domain.cpu() != 0)[0]
+		trueSource = label[sourceIdx]
+		predSource = pred[sourceIdx]
+		trueTarget = label[targetIdx]
+		predTarget = pred[targetIdx]
+		outputs = (trueSource,predSource,trueTarget,predTarget)
+		return outputs
+		#pred = np.argmax(pred.cpu().data.numpy(), axis=1)
+	def validation_end(self, outputs):
+		trueSource, predSource, trueTarget, predTarget = outputs
+		m_loss, p_loss = self.myLoss(self.hparams.penalty)
+		trueSource = trueSource.long()  # why need this?
+		val_loss = self.hparams.alpha * m_loss(predSource, trueSource) + (1 - self.hparams.alpha) * p_loss(latent,
+		                                                                                                   domain)
+		accValSource = accuracy_score(trueSource.cpu().data.numpy(), np.argmax(predSource.cpu().data.numpy(), axis=1))
+		accValTarget = accuracy_score(trueTarget.cpu().data.numpy(), np.argmax(predTarget.cpu().data.numpy(), axis=1))
+		
+		metrics = {"val_loss": val_loss.cpu().data.numpy().item(),
+		           'val_acc_source': accValSource, 'val_acc_target': accValTarget}
+		tqdm_dict = metrics
+		
+		# self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
+		self.log('val_loss', val_loss, on_step=True, on_epoch=True, prog_bar=True)
+		self.log('accValSource', accValSource, on_step=True, on_epoch=True, prog_bar=True)
+		self.log('accValTarget', accValTarget, on_step=True, on_epoch=True, prog_bar=True)
+		result = {
+			'progress_bar': tqdm_dict,
+			'log': tqdm_dict
+		}
+		return result
+		
+	def configure_optimizers(self):
+		return optim.Adam(self.clf.parameters(), lr=self.hparams.lr)
+	
+	def on_epoch_end(self):
+		pass
 

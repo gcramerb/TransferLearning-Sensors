@@ -16,7 +16,7 @@ sys.path.insert(0, '../')
 
 from models.classifier import classifier
 from models.autoencoder import ConvAutoencoder
-from models.customLosses import MMDLoss,OTLoss
+from models.customLosses import MMDLoss,OTLoss,classDistance
 #import geomloss
 
 
@@ -164,6 +164,7 @@ class myTrainer:
 		return np.mean(mse_list), np.mean(mse_source), np.mean(mse_target)
 
 from pytorch_lightning import LightningDataModule,LightningModule
+from pytorch_lightning.callbacks import Callback
 from collections import OrderedDict
 class networkLight(LightningModule):
 	def __init__(
@@ -172,7 +173,7 @@ class networkLight(LightningModule):
 			lr: float = 0.0002,
 			batch_size: int = 128,
 			n_classes: int = 6,
-			alpha: float = 0.2,
+			alpha: float = 1.2,
 			penalty: str = 'mmd',
 			**kwargs
 	):
@@ -180,12 +181,15 @@ class networkLight(LightningModule):
 		self.save_hyperparameters()
 		self.clf = classifier(self.hparams.n_classes)
 		self.clf.build()
+		
 	
 	def myLoss(self, penalty):
 		if penalty == 'mmd':
 			return torch.nn.CrossEntropyLoss(), MMDLoss()
 		elif penalty == "ot":
-			torch.nn.CrossEntropyLoss(), OTLoss()
+			return torch.nn.CrossEntropyLoss(), OTLoss()
+		elif penalty == 'clDist':
+			return torch.nn.CrossEntropyLoss(), classDistance()
 	
 	def forward(self, X):
 		return self.clf(X)
@@ -201,14 +205,47 @@ class networkLight(LightningModule):
 		pred = pred[sourceIdx]
 		m_loss, p_loss = self.myLoss(self.hparams.penalty)
 		true = true.long()  # why need this?
-		loss = self.hparams.alpha * m_loss(pred, true) + (1 - self.hparams.alpha) * p_loss(latent, domain)
+		loss = m_loss(pred, true) + self.hparams.alpha * p_loss(latent, domain,label)
 		
 		tqdm_dict = {"loss": loss}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
-	#def on
+	def training_step_end(self , training_step_outputs):
+		metrics = training_step_outputs['log']
+		loss = metrics['loss'].cpu().data.numpy().item()
+		# self.logger.experiment.log_metric(self.logger.run_id, key='training_loss',
+		#                                   value=loss)
+		self.log('training_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 	
+	#print('training_loss:  ',loss)
 	def validation_step(self, batch, batch_idx):
+
+		res = self._shared_eval_step(batch, batch_idx)
+		metrics = res['log']
+
+		#self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
+		self.log('val_loss', metrics['loss'], on_step=False, on_epoch=True, prog_bar=True,logger = True)
+		self.log('accValSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True,logger = True)
+		self.log('accValTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True,logger = True)
+		
+		# self.logger.experiment.log_metric(self.logger.run_id,key= 'val_loss', value= metrics['loss'])
+		# self.logger.experiment.log_metric(self.logger.run_id,'accValSource', metrics['accSource'])
+		# self.logger.experiment.log_metric(self.logger.run_id,'accValTarget', metrics['accTarget'])
+		#print('val_loss: ',  metrics['loss'],' ','accValSource: ',
+		 #                                    metrics['accSource'],' ','accValTarget: ',metrics['accTarget'])
+		return metrics
+	
+	def test_step(self, batch, batch_idx):
+		res = self._shared_eval_step(batch, batch_idx)
+		metrics = res['log']
+		# self.log_dict(metrics)
+		# self.logger.experiment.log_metric(self.logger.run_id,'accTestSource', metrics['accSource'])
+		# self.logger.experiment.log_metric(self.logger.run_id,'accTestTarget', metrics['accTarget'])
+		self.log('accTestSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True,logger = True)
+		self.log('accTestTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True,logger = True)
+		return metrics
+	
+	def _shared_eval_step(self, batch, batch_idx):
 		data, domain, label = batch['data'], batch['domain'], batch['label']
 		latent, pred = self.clf(data)
 		
@@ -218,35 +255,41 @@ class networkLight(LightningModule):
 		predSource = pred[sourceIdx]
 		trueTarget = label[targetIdx]
 		predTarget = pred[targetIdx]
-		outputs = (trueSource,predSource,trueTarget,predTarget)
-		return outputs
-		#pred = np.argmax(pred.cpu().data.numpy(), axis=1)
-	def validation_end(self, outputs):
+		outputs = (trueSource, predSource, trueTarget, predTarget)
+		# return outputs
 		trueSource, predSource, trueTarget, predTarget = outputs
 		m_loss, p_loss = self.myLoss(self.hparams.penalty)
 		trueSource = trueSource.long()  # why need this?
-		val_loss = self.hparams.alpha * m_loss(predSource, trueSource) + (1 - self.hparams.alpha) * p_loss(latent,
-		                                                                                                   domain)
-		accValSource = accuracy_score(trueSource.cpu().data.numpy(), np.argmax(predSource.cpu().data.numpy(), axis=1))
-		accValTarget = accuracy_score(trueTarget.cpu().data.numpy(), np.argmax(predTarget.cpu().data.numpy(), axis=1))
+		loss = m_loss(predSource, trueSource)  + self.hparams.alpha * p_loss(latent,domain,label)
+		accSource = accuracy_score(trueSource.cpu().data.numpy(), np.argmax(predSource.cpu().data.numpy(), axis=1))
+		accTarget = accuracy_score(trueTarget.cpu().data.numpy(), np.argmax(predTarget.cpu().data.numpy(), axis=1))
+		loss = loss.cpu().data.numpy().item()
 		
-		metrics = {"val_loss": val_loss.cpu().data.numpy().item(),
-		           'val_acc_source': accValSource, 'val_acc_target': accValTarget}
+		metrics = {"loss": loss,
+		           'accSource': accSource, 'accTarget': accTarget}
+		
 		tqdm_dict = metrics
-		
-		# self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
-		self.log('val_loss', val_loss, on_step=True, on_epoch=True, prog_bar=True)
-		self.log('accValSource', accValSource, on_step=True, on_epoch=True, prog_bar=True)
-		self.log('accValTarget', accValTarget, on_step=True, on_epoch=True, prog_bar=True)
 		result = {
 			'progress_bar': tqdm_dict,
 			'log': tqdm_dict
 		}
 		return result
-		
+	def predict(self,dataTest):
+		latent,domain,pred = [],[],[]
+		data = np.concatenate([x['data'] for x in dataTest])
+		d = [x['domain'] for x in dataTest]
+		label = [x['label'] for x in dataTest]
+
+		l, p = self.clf.forward(torch.tensor(np.expand_dims(data,axis = 1)))
+		pred = np.argmax(p.data.numpy(),axis = 1)
+		return l.data.numpy(),d,pred.tolist(),label
+	
 	def configure_optimizers(self):
-		return optim.Adam(self.clf.parameters(), lr=self.hparams.lr)
+		opt = optim.Adam(self.clf.parameters(), lr=self.hparams.lr)
+		scheduler = StepLR(opt, step_size=25, gamma=0.1)
+		return {"optimizer":opt,"lr_scheduler" : scheduler}
 	
 	def on_epoch_end(self):
 		pass
+	
 

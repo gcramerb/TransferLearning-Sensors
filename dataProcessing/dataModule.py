@@ -47,7 +47,7 @@ class CrossDatasetModule(LightningDataModule):
 		self.num_classes = 6
 
 
-	def setup(self,stage = None,valRate = 0.1,testRate = .1):
+	def setup(self,stage = None,valRate = 0.1,testRate = .2):
 
 		file = os.path.join(self.data_dir, f'{self.source}_f25_t2.npz')
 		with np.load(file, allow_pickle=True) as tmp:
@@ -90,4 +90,4 @@ class CrossDatasetModule(LightningDataModule):
 		return DataLoader(self.dataVal, batch_size=self.batch_size, num_workers=self.num_workers)
 
 	def test_dataloader(self):
-		return DataLoader(self.dataTest, batch_size=self.batch_size, num_workers=self.num_workers)
+		return DataLoader(self.dataTest, batch_size=len(self.dataTest), num_workers=self.num_workers)

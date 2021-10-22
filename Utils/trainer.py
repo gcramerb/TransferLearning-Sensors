@@ -169,17 +169,17 @@ from collections import OrderedDict
 class networkLight(LightningModule):
 	def __init__(
 			self,
-			latent_dim: int = 50,
 			lr: float = 0.0002,
 			batch_size: int = 128,
 			n_classes: int = 6,
-			alpha: float = 1.2,
+			alpha: float = 1.0,
 			penalty: str = 'mmd',
+			modelHyp:dict = None,
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
-		self.clf = classifier(self.hparams.n_classes)
+		self.clf = classifier(self.hparams.n_classes,self.hparams.modelHyp)
 		self.clf.build()
 		
 	
@@ -205,8 +205,8 @@ class networkLight(LightningModule):
 		pred = pred[sourceIdx]
 		m_loss, p_loss = self.myLoss(self.hparams.penalty)
 		true = true.long()  # why need this?
-		loss = m_loss(pred, true) + self.hparams.alpha * p_loss(latent, domain,label)
-		
+		#loss = m_loss(pred, true) + self.hparams.alpha * p_loss(latent, domain,true)
+		loss = m_loss(pred, true)
 		tqdm_dict = {"loss": loss}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
@@ -260,7 +260,8 @@ class networkLight(LightningModule):
 		trueSource, predSource, trueTarget, predTarget = outputs
 		m_loss, p_loss = self.myLoss(self.hparams.penalty)
 		trueSource = trueSource.long()  # why need this?
-		loss = m_loss(predSource, trueSource)  + self.hparams.alpha * p_loss(latent,domain,label)
+		#loss = m_loss(predSource, trueSource)  + self.hparams.alpha * p_loss(latent,domain,trueSource)
+		loss = m_loss(predSource, trueSource)
 		accSource = accuracy_score(trueSource.cpu().data.numpy(), np.argmax(predSource.cpu().data.numpy(), axis=1))
 		accTarget = accuracy_score(trueTarget.cpu().data.numpy(), np.argmax(predTarget.cpu().data.numpy(), axis=1))
 		loss = loss.cpu().data.numpy().item()

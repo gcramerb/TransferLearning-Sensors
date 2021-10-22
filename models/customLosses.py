@@ -121,7 +121,7 @@ class classDistance(nn.Module):
 		domain = domain.cpu()
 		sourceIdx = np.where(domain == 0)[0]
 		features = latent[sourceIdx]
-		classes = label[sourceIdx].cpu().data.numpy()
+		classes = label.cpu().data.numpy().copy()
 		
 		avail_labels = np.unique(classes)
 		

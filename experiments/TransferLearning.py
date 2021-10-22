@@ -40,13 +40,13 @@ parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='trialDef')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Dsads")
+parser.add_argument('--source', type=str, default="Pamap2")
 parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--model', type=str, default="clf")
 parser.add_argument('--penalty', type=str, default="clDist")
 parser.add_argument('--batchS', type=int, default=128)
 parser.add_argument('--nEpoch', type=int, default=100)
-parser.add_argument('--alpha', type=float, default=1.2)
+parser.add_argument('--alpha', type=float, default=0.0)
 parser.add_argument('--lr', type=float, default=0.0002)
 parser.add_argument('--saveModel', type=bool, default=False)
 
@@ -57,13 +57,13 @@ if args.slurm:
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	
 else:
-	args.nEpoch = 1
+	args.nEpoch = 300
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	args.outPath = '../results/'
 if __name__ == '__main__':
 	dm = CrossDatasetModule(data_dir = args.inPath )
 	dm.setup()
-	model = networkLight(penalty = args.penalty, alpha=args.alpha)
+	model = networkLight(penalty = args.penalty, alpha=args.alpha,lr = args.lr)
 	mlf_logger = MLFlowLogger(experiment_name=args.expName,save_dir = '../results/mlflow/')
 	mlf_logger.log_hyperparams(params = {'penalty':args.penalty,'alpha': args.alpha,
 	                                     'lr':args.lr,'source':args.source })

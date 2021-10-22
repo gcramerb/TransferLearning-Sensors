@@ -23,10 +23,8 @@ class classifier(nn.Module):
 		self.n_class = n_class
 		self._name = 'clf'
 		if hyp:
-			self.conv_window = hyp['conv_window']
-			self.conv_window2 = hyp['conv_window2']
-			self.pooling_window_1 = hyp['pooling_window_1']
-			self.same_pad = pooling_window_1
+			self.conv_dim = hyp['conv_dim']
+			self.pooling_1 = hyp['pooling_1']
 			self.pooling_2 = hyp['pooling_2']
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['encDim']
@@ -71,12 +69,12 @@ class classifier(nn.Module):
 			          padding='same',bias = False),
 			nn.BatchNorm2d(self.n_filters[3]),
 			nn.ReLU(),
-			nn.Dropout(p=0.05, inplace=False),
+			#nn.Dropout(p=0.05, inplace=False),
 			nn.Flatten(),
 			nn.Linear(480, self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.SELU(),
-			nn.Dropout(p=0.4, inplace=False)
+			#nn.Dropout(p=0.4, inplace=False)
 		)
 		
 		## decoder layers ##

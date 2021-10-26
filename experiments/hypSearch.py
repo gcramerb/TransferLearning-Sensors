@@ -14,11 +14,11 @@ import argparse
 sys.path.insert(0,'../')
 
 from models.autoencoder import ConvAutoencoder
-from models.customLosses import MMDLoss,OTLoss
+from models.customLosses import MMDLoss,OTLoss,classDistance
 from models.classifier import classifier
-from dataProcessing.create_dataset import crossDataset,getData
-from Utils.trainer_PL import Trainer
-
+from dataProcessing.create_dataset import crossDataset, targetDataset, getData
+from dataProcessing.dataModule import CrossDatasetModule
+from Utils.myTrainer import myTrainer
 
 from mlflow import pytorch
 import mlflow
@@ -34,18 +34,31 @@ parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
 args = parser.parse_args()
 
+if args.slurm:
+	args.inPath = '/storage/datasets/sensors/frankDatasets/'
+	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
+
+else:
+	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
+	args.outPath = '../results/tests/'
+
 def eval_and_log_metrics(prefix, actual, pred, epoch):
 	rmse = np.sqrt(mean_squared_error(actual, pred))
 	mlflow.log_metric("{}_rmse".format(prefix), rmse, step=epoch)
 	return rmse
 
 def suggest_hyperparameters(trial):
-	lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-	#alpha = trial.suggest_float("alpha", 0.2, 0.8, step=0.1)
-	bs = trial.suggest_int("bs",64,128,)
-	#penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
+	setupTrain = {}
+	setupTrain['lr'] = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+	setupTrain['alpha'] = trial.suggest_float("alpha", 0.1, 0.8, step=0.1)
+	setupTrain['bs'] = trial.suggest_int("bs",64,128,256)
+	setupTrain['step_size'] =  trial.suggest_int("bs",40,50)
 	
-	return lr, alpha,bs,penalty
+	#penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
+	setupTrain['penalty'] = 'ClDist'
+	setupTrain['nEpochs'] = 300
+	
+	return setupTrain
 
 
 def objective(trial):
@@ -63,23 +76,22 @@ def objective(trial):
 		
 		trainer = myTrainer('clf')
 
-		dm = CrossDatasetModule(data_dir=args.inPath, source=args.source, target=args.target, batch_size=args.batchS)
+		dm = CrossDatasetModule(data_dir=args.inPath, source=args.source, target=args.target, batch_size=setupTrain['bs'])
 		dm.setup()
 		trainer.setupTrain(setupTrain, dm)
 		start = time.time()
 		trainHist = trainer.train()
-		trainer.predict(metrics=True)
-		metric = net.train(dataTrain)
+		outcomes = trainer.predict(stage = 'val',metrics=True)
 		end = time.time()
+		metric = outcomes['val_loss']
 		timeToTrain = end - start
 		if metric <= best_val_loss:
 			best_val_loss = metric
 
-		yTrueTarget, yTrueSource, yPredTarget, yPredSource = net.predict(dataTest)
-		accTest = accuracy_score(yTrueTarget, yPredTarget)
-
-		mlflow.log_metric("train_loss", metric, step=0)
-		mlflow.log_metric("test_loss", accTest, step=0)
+		mlflow.log_metric("val_loss", metric, step=0)
+		mlflow.log_metric("last_train_loss", trainHist[-1], step=0)
+		mlflow.log_metric("accTestSource",outcomes['accTestSource'] , step=0)
+		mlflow.log_metric("accTestTarget", outcomes['accTestSource'], step=0)
 		mlflow.log_metric("timeToTrain", timeToTrain, step=0)
 
 	return best_val_loss
@@ -101,9 +113,8 @@ def run(n_trials):
 	print("  Params: ")
 	for key, value in trial.params.items():
 		print("    {}: {}".format(key, value))
-	
-	
+
 if __name__ == '__main__':
-	run(100)
+	run(1)
 
 

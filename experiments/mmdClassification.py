@@ -19,7 +19,7 @@ from models.classifier import classifier
 from models.customLosses import MMDLoss
 
 from dataProcessing.create_dataset import crossDataset,targetDataset, getData
-from Utils.trainer import Trainer
+from Utils.trainer_PL import Trainer
 
 import mlflow
 

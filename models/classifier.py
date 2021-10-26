@@ -48,17 +48,17 @@ class classifier(nn.Module):
 		for i in range(self.n_win):
 			self.CNN1.append(nn.Sequential(
 				nn.Conv2d(in_channels=1, kernel_size=self.conv_dim[i],
-				          out_channels=self.n_filters[i], padding='same', bias=False),
-				nn.BatchNorm2d(self.n_filters[i]),
-				nn.ReLU(),
+				          out_channels=self.n_filters[i], padding='same', bias=True),
+				#nn.BatchNorm2d(self.n_filters[i]),
+				nn.LeakyReLU(),
 				nn.MaxPool2d(self.pooling_1)))
 		
 		self.CNN2 = nn.Sequential(
 			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.conv_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
-			nn.BatchNorm2d(self.n_filters[2]),
-			nn.SELU(),
+			#nn.BatchNorm2d(self.n_filters[2]),
+			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2)
 		)
 		
@@ -70,15 +70,15 @@ class classifier(nn.Module):
 			# nn.Dropout(p=0.05, inplace=False),
 			nn.Flatten(),
 			nn.Linear(480, self.encoded_dim),
-			nn.BatchNorm1d(self.encoded_dim),
-			nn.SELU()
+			#nn.BatchNorm1d(self.encoded_dim),
+			nn.LeakyReLU()
 			# nn.Dropout(p=0.4, inplace=False)
 		)
 		
 		## decoder layers ##
 		self.discrimination = nn.Sequential(
 			nn.Linear(self.encoded_dim, self.n_class),
-			nn.Softmax(dim=0)
+			nn.Softmax(dim=1)
 		)
 	
 	def forward(self, X):

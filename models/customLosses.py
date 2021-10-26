@@ -96,37 +96,27 @@ class OTLoss(nn.Module):
 class classDistance(nn.Module):
 	def __init__(self):
 		super(classDistance, self).__init__()
+		self.eps = 1e-10
+		self.cos_sim = nn.CosineSimilarity(dim = 1,eps=self.eps)
+
 	
-	def cosine_similarity(self, x: torch.Tensor, y: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
+	def forward(self, latent, domain, labelSource):
 		"""
-		Computes cosine similarity between two tensors.
-		Value == 1 means the same vector
-		Value == 0 means perpendicular vectors
+		First we are going to aply distance between classes
+		:param latent:
+		:param domain:
+		:param label:
+		:return:
 		"""
-		x_n, y_n = x.norm(dim=1)[:, None], y.norm(dim=1)[:, None]
-		x_norm = x / torch.max(x_n, eps * torch.ones_like(x_n))
-		y_norm = y / torch.max(y_n, eps * torch.ones_like(y_n))
-		sim_mt = torch.mm(x_norm, y_norm.transpose(0, 1))
-		return sim_mt
-	
-	def cosine_dist(self, x: torch.Tensor, y: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
-		"""
-		Computes cosine distance between two tensors.
-		The cosine distance is the inverse cosine similarity
-		-> cosine_distance = abs(-cosine_distance) to make it
-		similar in behaviour to euclidean distance
-		"""
-		sim_mt = self.cosine_similarity(x, y, eps)
-		return torch.abs(1 - sim_mt).clamp(min=eps)
-	
-	def forward(self, latent, domain, label):
-		domain = domain.cpu()
+
+
+		
+		domain = domain.cpu().numpy()
 		sourceIdx = np.where(domain == 0)[0]
 		features = latent[sourceIdx]
-		classes = label[sourceIdx].cpu().data.numpy()
+		classes = labelSource.cpu().numpy()
 		
 		avail_labels = np.unique(classes)
-		
 		# Compute indixes of embeddings for each class.
 		class_positions = []
 		for lab in avail_labels:
@@ -134,22 +124,34 @@ class classDistance(nn.Module):
 		
 		# Compute average intra-class distance and center of mass.
 		com_class, dists_class = [], []
-		for class_pos in class_positions:
-			# dists = distance.cdist(features[class_pos], features[class_pos], 'cosine')
-			dists = self.cosine_dist(features[class_pos], features[class_pos])
-			
-			dists = torch.sum(dists) / (len(dists) ** 2 - len(dists))
-			# dists = np.linalg.norm(np.std(feature_coll_aux[class_pos],axis=0).reshape(1,-1)).reshape(-1)
-			com = torch.mean(features[class_pos], axis=0).reshape(1, -1)
-			com = nn.functional.normalize(com).reshape(-1)
-			dists_class.append(dists)
-			com_class.append(com)
+		for i in range(len(class_positions)):
+			for j in range(i+1,len(class_positions)):
+				x1 = features[class_positions[i],:,None]
+				x2 =  features[class_positions[j]].t()[None,:,:]
+				sim_mt = self.cos_sim(x1,x2)
+				# dists = torch.abs(1 - sim_mt).clamp(min=eps)
+				l_ =  len(sim_mt) ** 2
+				l__ = len(sim_mt)
+				d = l_ - l__
+				d = max(1,d)
+				dists = torch.sum(torch.sum(sim_mt)) /d
+				dists_class.append(dists)
+				
+				
+				# com = torch.mean(features[class_pos], axis=0).reshape(1, -1)
+				# com = nn.functional.normalize(com).reshape(-1)
+				#
+				# com_class.append(com)
 		
 		# Compute mean inter-class distances by the class-coms.
-		com_class = torch.stack(com_class)
-		mean_inter_dist = self.cosine_dist(com_class, com_class)
-		mean_inter_dist = torch.sum(mean_inter_dist) / (len(mean_inter_dist) ** 2 - len(mean_inter_dist))
-		
+		# com_class = torch.stack(com_class)
+		# mean_inter_sim =  cos_sim(com_class, com_class)
+		# mean_inter_dist = torch.abs(1 - mean_inter_sim).clamp(min=eps)
+		# mean_inter_dist = torch.sum(mean_inter_dist) / (len(mean_inter_dist) ** 2 - len(mean_inter_dist))
+		#
 		# Compute distance ratio
 		dists_class = torch.stack(dists_class)
-		return torch.mean(dists_class / mean_inter_dist)
+		res = torch.mean(dists_class)
+		return res
+	
+#		return torch.mean(dists_class / mean_inter_dist)

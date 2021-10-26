@@ -17,7 +17,7 @@ from models.autoencoder import ConvAutoencoder
 from models.customLosses import MMDLoss,OTLoss
 from models.classifier import classifier
 from dataProcessing.create_dataset import crossDataset,getData
-from Utils.trainer import Trainer
+from Utils.trainer_PL import Trainer
 
 
 from mlflow import pytorch
@@ -40,11 +40,12 @@ def eval_and_log_metrics(prefix, actual, pred, epoch):
 	return rmse
 
 def suggest_hyperparameters(trial):
-    lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
-    alpha = trial.suggest_float("alpha", 0.2, 0.8, step=0.1)
-    bs = trial.suggest_int("bs",128,512,64)
-    penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
-    return lr, alpha,bs,penalty
+	lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+	#alpha = trial.suggest_float("alpha", 0.2, 0.8, step=0.1)
+	bs = trial.suggest_int("bs",64,128,)
+	#penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
+	
+	return lr, alpha,bs,penalty
 
 
 def objective(trial):
@@ -54,49 +55,37 @@ def objective(trial):
 	# Start a new mlflow run
 	with mlflow.start_run():
 		# Get hyperparameter suggestions created by Optuna and log them as params using mlflow
-		lr, alpha,bs,penalty = suggest_hyperparameters(trial)
+		setupTrain = suggest_hyperparameters(trial)
 		mlflow.log_params(trial.params)
 		
-		# Use CUDA if GPU is available and log device as param using mlflow
-		device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-		
 		# Initialize network
-		hyp = {}
-		hyp['model'] = 'clf'
-		hyp['penalty'] = penalty
-		hyp['lr'] = lr
-		hyp['model_hyp'] = None
+
 		
-		net = Trainer(hyp)
-		net.configTrain(bs=bs, alpha = alpha)
-		if args.inPath is None:
-			args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-		source = getData(args.inPath, args.source, True)
-		target = getData(args.inPath, args.target, False)
-		dataTrain = crossDataset(source, target)
+		trainer = myTrainer('clf')
+
+		dm = CrossDatasetModule(data_dir=args.inPath, source=args.source, target=args.target, batch_size=args.batchS)
+		dm.setup()
+		trainer.setupTrain(setupTrain, dm)
 		start = time.time()
+		trainHist = trainer.train()
+		trainer.predict(metrics=True)
 		metric = net.train(dataTrain)
 		end = time.time()
 		timeToTrain = end - start
 		if metric <= best_val_loss:
 			best_val_loss = metric
-		del source
-		del target
-		source = getData(args.inPath, args.source, getLabel=True)
-		target = getData(args.inPath, args.target, getLabel=True)
-		dataTest = crossDataset(source, target, targetLab=True)
+
 		yTrueTarget, yTrueSource, yPredTarget, yPredSource = net.predict(dataTest)
 		accTest = accuracy_score(yTrueTarget, yPredTarget)
 
 		mlflow.log_metric("train_loss", metric, step=0)
 		mlflow.log_metric("test_loss", accTest, step=0)
-		mlflow.log_metric("timeTorTrain", timeToTrain, step=0)
+		mlflow.log_metric("timeToTrain", timeToTrain, step=0)
 
 	return best_val_loss
-
-if __name__ == '__main__':
+def run(n_trials):
 	study = optuna.create_study(study_name="pytorch-mlflow-optuna", direction="minimize")
-	study.optimize(objective, n_trials=3)
+	study.optimize(objective, n_trials=n_trials)
 	
 	# Print optuna study statistics
 	print("\n++++++++++++++++++++++++++++++++++\n")
@@ -112,4 +101,9 @@ if __name__ == '__main__':
 	print("  Params: ")
 	for key, value in trial.params.items():
 		print("    {}: {}".format(key, value))
+	
+	
+if __name__ == '__main__':
+	run(100)
+
 

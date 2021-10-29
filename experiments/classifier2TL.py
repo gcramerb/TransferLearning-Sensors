@@ -91,3 +91,63 @@ def run():
 if __name__ == "__main__":
 	
 	run()
+	
+	for i in range(self.n_win):
+		self.CNN1.append(nn.Sequential(
+			nn.Conv2d(in_channels=1, kernel_size=self.conv_dim[i],
+			          out_channels=self.n_filters[i], padding='same', bias=True),
+			
+			nn.BatchNorm2d(self.n_filters[i]),
+			nn.LeakyReLU(),
+			nn.MaxPool2d(self.pooling_1)))
+	
+	self.CNN2 = nn.Sequential(
+		nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.conv_dim[0],
+		          out_channels=self.n_filters[2],
+		          padding='same', bias=True),
+		nn.BatchNorm2d(self.n_filters[2]),
+		nn.LeakyReLU(),
+		nn.MaxPool2d(self.pooling_2)
+	)
+	
+	self.DenseLayer = nn.Sequential(
+		nn.Conv2d(in_channels=self.n_filters[3], kernel_size=self.conv_dim[0], out_channels=self.n_filters[3],
+		          padding='same', bias=True),
+		nn.BatchNorm2d(self.n_filters[3]),
+		nn.ReLU(),
+		# nn.Dropout(p=0.05, inplace=False),
+		nn.Flatten(),
+		nn.Linear(480, self.encoded_dim),
+		nn.BatchNorm1d(self.encoded_dim),
+		nn.LeakyReLU(),
+		nn.Dropout(p=self.DropoutRate, inplace=False)
+	)
+
+
+def forward(self, X):
+	AccEncoded = []
+	GyrEncoded = []
+	for layer in self.CNN1:
+		AccEncoded.append(layer(X[:, :, :, 0:3]))
+		GyrEncoded.append(layer(X[:, :, :, 3:6]))
+	
+	acc = torch.cat(AccEncoded, 1)
+	gyr = torch.cat(GyrEncoded, 1)
+	
+	acc = self.CNN2(acc)
+	gyr = self.CNN2(gyr)
+	merged = torch.cat([acc, gyr], 1)
+	encoded = self.DenseLayer(merged)
+	return encoded
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	

@@ -71,15 +71,20 @@ def getTrainSetup():
 	trainSetup['step_size'] = 30
 	trainSetup['penalty'] = args.penalty
 	trainSetup['lr'] = args.lr
-	dm = CrossDatasetModule(data_dir=args.inPath,source = args.source, target = args.target,batch_size =args.batchS)
-	dm.setup()
-	return trainSetup, dm
+	dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName=args.source, case='Source',
+	                               batch_size=args.batchS)
+	dm_source.setup(Loso=True)
+	dm_target = CrossDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
+	                               batch_size=args.batchS)
+	dm_target.setup(Loso=True)
+	return trainSetup, dm_source, dm_target
 
 def run():
 
 	trainer = myTrainer('clf')
-	trainSetup, dm = getTrainSetup()
-	trainer.setupTrain(trainSetup, dm)
+
+	trainSetup, dm_source, dm_target = getTrainSetup()
+	trainer.setupTrain(trainSetup, dm_source, dm_target)
 	trainHist = trainer.train()
 	trainer.predict(metrics = True)
 

@@ -28,13 +28,16 @@ class classifier(nn.Module):
 			self.pooling_2 = hyp['pooling_2']
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['encDim']
-		
+			self.DropoutRate = hyp["DropoutRate"]
+
 		else:
 			self.conv_dim = [(5, 3), (25, 3)]
 			self.pooling_1 = (2, 1)
 			self.pooling_2 = (5, 1)
 			self.n_filters = (4, 8, 16, 32, 64)
 			self.encoded_dim = 50
+			self.DropoutRate = 0.0
+
 		self.n_win = 2
 		self.CNN1 = nn.ModuleList([])
 	
@@ -49,7 +52,8 @@ class classifier(nn.Module):
 			self.CNN1.append(nn.Sequential(
 				nn.Conv2d(in_channels=1, kernel_size=self.conv_dim[i],
 				          out_channels=self.n_filters[i], padding='same', bias=True),
-				#nn.BatchNorm2d(self.n_filters[i]),
+				
+				nn.BatchNorm2d(self.n_filters[i]),
 				nn.LeakyReLU(),
 				nn.MaxPool2d(self.pooling_1)))
 		
@@ -57,7 +61,7 @@ class classifier(nn.Module):
 			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.conv_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
-			#nn.BatchNorm2d(self.n_filters[2]),
+			nn.BatchNorm2d(self.n_filters[2]),
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2)
 		)
@@ -70,9 +74,9 @@ class classifier(nn.Module):
 			# nn.Dropout(p=0.05, inplace=False),
 			nn.Flatten(),
 			nn.Linear(480, self.encoded_dim),
-			#nn.BatchNorm1d(self.encoded_dim),
-			nn.LeakyReLU()
-			# nn.Dropout(p=0.4, inplace=False)
+			nn.BatchNorm1d(self.encoded_dim),
+			nn.LeakyReLU(),
+			nn.Dropout(p=self.DropoutRate, inplace=False)
 		)
 		
 		## decoder layers ##

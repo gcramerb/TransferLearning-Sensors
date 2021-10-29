@@ -6,10 +6,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch import optim
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 
-
-
-import sys,os,time
-import argparse
+import sys,os,time, pickle, argparse
 #from geomloss import SamplesLoss
 sys.path.insert(0,'../')
 
@@ -50,71 +47,90 @@ def eval_and_log_metrics(prefix, actual, pred, epoch):
 def suggest_hyperparameters(trial):
 	setupTrain = {}
 	setupTrain['lr'] = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-	setupTrain['alpha'] = trial.suggest_float("alpha", 0.1, 0.8, step=0.1)
-	setupTrain['bs'] = trial.suggest_int("bs",64,128,256)
-	setupTrain['step_size'] =  trial.suggest_int("bs",40,50)
+	setupTrain['alpha'] = trial.suggest_float("alpha", 0.05, 0.9, step=0.05)
+	setupTrain['bs_source'] = trial.suggest_categorical("bs_source",[32,64,128,256,512])
+	#setupTrain['bs_target'] = trial.suggest_categorical("bs_target", [32, 64, 128, 256, 512])
+	setupTrain['bs_target'] = 512
+	setupTrain['step_size'] =  trial.suggest_categorical("step_size",[40,50])
 	
 	#penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
 	setupTrain['penalty'] = 'ClDist'
-	setupTrain['nEpochs'] = 300
+	setupTrain['nEpochs'] = 200
 	
-	return setupTrain
+	modelHyp = {}
+	modelHyp['conv_dim'] =  [(5, 3), (25, 3)]
+	modelHyp['pooling_1'] = (2, 1)
+	modelHyp['pooling_2'] = (5, 1)
+	modelHyp['n_filters'] = (4, 8, 16, 32, 64)
+	modelHyp['encDim'] = 50
+	modelHyp["DropoutRate"] = trial.suggest_float("DropoutRate", 0.0, 0.3, step=0.05)
+	return setupTrain,modelHyp
 
 
 def objective(trial):
 	# Initialize the best_val_loss value
 	best_val_loss = float('Inf')
-	
-	# Start a new mlflow run
-	with mlflow.start_run():
-		# Get hyperparameter suggestions created by Optuna and log them as params using mlflow
-		setupTrain = suggest_hyperparameters(trial)
-		mlflow.log_params(trial.params)
-		
-		# Initialize network
-
-		
-		trainer = myTrainer('clf')
-
-		dm = CrossDatasetModule(data_dir=args.inPath, source=args.source, target=args.target, batch_size=setupTrain['bs'])
-		dm.setup()
-		trainer.setupTrain(setupTrain, dm)
-		start = time.time()
-		trainHist = trainer.train()
-		outcomes = trainer.predict(stage = 'val',metrics=True)
-		end = time.time()
-		metric = outcomes['val_loss']
-		timeToTrain = end - start
-		if metric <= best_val_loss:
-			best_val_loss = metric
-
-		mlflow.log_metric("val_loss", metric, step=0)
-		mlflow.log_metric("last_train_loss", trainHist[-1], step=0)
-		mlflow.log_metric("accTestSource",outcomes['accTestSource'] , step=0)
-		mlflow.log_metric("accTestTarget", outcomes['accTestSource'], step=0)
-		mlflow.log_metric("timeToTrain", timeToTrain, step=0)
-
+	setupTrain,hypModel = suggest_hyperparameters(trial)
+	trainer = myTrainer('clf',hypModel)
+	dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName=args.source, case='Source',
+	                               batch_size=setupTrain['bs_source'])
+	dm_source.setup(Loso=True)
+	dm_target = CrossDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
+	                               batch_size=setupTrain['bs_target'])
+	dm_target.setup(Loso=True)
+	trainer.setupTrain(setupTrain, dm_source,dm_target)
+	start = time.time()
+	trainHist = trainer.train()
+	outcomes = trainer.predict(stage = 'val',metrics=True)
+	end = time.time()
+	metric = outcomes['val_loss']
+	timeToTrain = end - start
+	if metric <= best_val_loss:
+		best_val_loss = metric
 	return best_val_loss
 def run(n_trials):
 	study = optuna.create_study(study_name="pytorch-mlflow-optuna", direction="minimize")
 	study.optimize(objective, n_trials=n_trials)
-	
+	# Start a new mlflow run
 	# Print optuna study statistics
 	print("\n++++++++++++++++++++++++++++++++++\n")
-	print("Study statistics: ")
-	print("  Number of finished trials: ", len(study.trials))
-	
-	print("Best trial:")
-	trial = study.best_trial
-	
-	print("  Trial number: ", trial.number)
-	print("  Loss (trial value): ", trial.value)
-	
+	print("  Trial number: ", study.best_trial.number)
+	print("  Loss (trial value): ", study.best_trial.value)
 	print("  Params: ")
-	for key, value in trial.params.items():
+	for key, value in study.best_trial.params.items():
 		print("    {}: {}".format(key, value))
+	
+	mlflow.set_tracking_uri("../results/mlflow/")
+	setupTrain,hypModel = suggest_hyperparameters(study.best_trial)
+	for s in ['Dsads','Ucihar','Uschad','Pamap2']:
+		with mlflow.start_run(run_name = f'train_test in {s}'):
+			mlflow.log_params(study.best_trial.params)
+			trainer = myTrainer('clf', hypModel)
+			dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName=s, case='Source',
+			                        batch_size=setupTrain['bs_source'])
+			dm_source.setup(Loso = True)
+			dm_target = CrossDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
+			                        batch_size=setupTrain['bs_target'])
+			dm_target.setup(Loso = True)
+			trainer.setupTrain(setupTrain, dm_source,dm_target)
+			start = time.time()
+			trainHist = trainer.train()
+			stage = 'test'
+			outcomes = trainer.predict(stage='test', metrics=True)
+			end = time.time()
+			mlflow.set_tag('Dataset_Source',s)
+			with open("../results/mlflow/train_loss.txt", "wb") as fp:
+				pickle.dump(trainHist, fp)
+			with open("../results/mlflow/val_loss.txt", "wb") as fp:
+				pickle.dump( trainer.valLoss, fp)
+			mlflow.log_artifact(f"../results/mlflow/train_loss.txt")
+			mlflow.log_artifact(f"../results/mlflow/val_loss.txt")
+			
+			mlflow.log_metric('acc_' + stage+'_Source', outcomes['acc_' + stage+'_Source'], step=0)
+			mlflow.log_metric('acc_' + stage+'_Target', outcomes['acc_' + stage+'_Target'], step=0)
+
 
 if __name__ == '__main__':
-	run(1)
+	run(100)
 
 

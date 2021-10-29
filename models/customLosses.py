@@ -51,26 +51,23 @@ class MMDLoss(nn.Module):
 			XY += torch.exp(-0.5 * dxy / a)
 		return XX, YY, XY
 	
-	def forward(self, latent, domain, kernel='gaussian', label=None):
+	def forward(self, latentSource, latentTarget, kernel='gaussian'):
 		penalty = 0
 		batch_size = int(latent.size()[0])
-		domain = domain.cpu()
-		sourceIdx = np.where(domain == 0)[0]
-		targetIdx = np.where(domain == 1)[0]
-		
+
 		if kernel == 'gaussian':
-			xx = torch.mean(self.guassian_kernel(latent[sourceIdx], latent[sourceIdx], kernel_mul=self.kernel_mul,
+			xx = torch.mean(self.guassian_kernel(latentSource,latentSource, kernel_mul=self.kernel_mul,
 			                                     kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
-			yy = torch.mean(self.guassian_kernel(latent[targetIdx], latent[targetIdx], kernel_mul=self.kernel_mul,
+			yy = torch.mean(self.guassian_kernel(latentTarget, latentTarget, kernel_mul=self.kernel_mul,
 			                                     kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
-			xy = torch.mean(self.guassian_kernel(latent[sourceIdx], latent[targetIdx], kernel_mul=self.kernel_mul,
+			xy = torch.mean(self.guassian_kernel(latentSource, latentTarget, kernel_mul=self.kernel_mul,
 			                                     kernel_num=self.kernel_num, fix_sigma=self.fix_sigma))
 			# penalty = torch.mean(XX + YY - XY -YX)
 			mmd = xx + yy - 2 * xy
 			
 			return mmd
 		elif kernel == 'rbf':
-			xx, yy, xy = self.rbf_kernel(latent[sourceIdx], latent[targetIdx])
+			xx, yy, xy = self.rbf_kernel(latentSource,latentTarget)
 			return torch.mean(XX + YY - 2. * XY)
 
 
@@ -86,11 +83,8 @@ class OTLoss(nn.Module):
 		                                     truncate=5, cost=None, kernel=None, cluster_scale=None, debias=True,
 		                                     potentials=False, verbose=False, backend='auto')
 	
-	def forward(self, latent, domain, label=None):
-		domain = domain.cpu()
-		sourceIdx = np.where(domain == 0)[0]
-		targetIdx = np.where(domain == 1)[0]
-		return self.lossFunc(latent[sourceIdx], latent[sourceIdx])
+	def forward(self, latentSource, latentTarget, label=None):
+		return self.lossFunc(latentSource, latentTarget)
 
 
 class classDistance(nn.Module):
@@ -100,7 +94,7 @@ class classDistance(nn.Module):
 		self.cos_sim = nn.CosineSimilarity(dim = 1,eps=self.eps)
 
 	
-	def forward(self, latent, domain, labelSource):
+	def forward(self, latent, label):
 		"""
 		First we are going to aply distance between classes
 		:param latent:
@@ -109,13 +103,7 @@ class classDistance(nn.Module):
 		:return:
 		"""
 
-
-		
-		domain = domain.cpu().numpy()
-		sourceIdx = np.where(domain == 0)[0]
-		features = latent[sourceIdx]
-		classes = labelSource.cpu().numpy()
-		
+		classes = label.cpu().numpy()
 		avail_labels = np.unique(classes)
 		# Compute indixes of embeddings for each class.
 		class_positions = []
@@ -126,8 +114,8 @@ class classDistance(nn.Module):
 		com_class, dists_class = [], []
 		for i in range(len(class_positions)):
 			for j in range(i+1,len(class_positions)):
-				x1 = features[class_positions[i],:,None]
-				x2 =  features[class_positions[j]].t()[None,:,:]
+				x1 = latent[class_positions[i],:,None]
+				x2 =  latent[class_positions[j]].t()[None,:,:]
 				sim_mt = self.cos_sim(x1,x2)
 				# dists = torch.abs(1 - sim_mt).clamp(min=eps)
 				l_ =  len(sim_mt) ** 2
@@ -136,11 +124,8 @@ class classDistance(nn.Module):
 				d = max(1,d)
 				dists = torch.sum(torch.sum(sim_mt)) /d
 				dists_class.append(dists)
-				
-				
 				# com = torch.mean(features[class_pos], axis=0).reshape(1, -1)
 				# com = nn.functional.normalize(com).reshape(-1)
-				#
 				# com_class.append(com)
 		
 		# Compute mean inter-class distances by the class-coms.
@@ -150,7 +135,9 @@ class classDistance(nn.Module):
 		# mean_inter_dist = torch.sum(mean_inter_dist) / (len(mean_inter_dist) ** 2 - len(mean_inter_dist))
 		#
 		# Compute distance ratio
+
 		dists_class = torch.stack(dists_class)
+
 		res = torch.mean(dists_class)
 		return res
 	

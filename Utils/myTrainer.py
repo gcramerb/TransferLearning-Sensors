@@ -56,23 +56,30 @@ class myTrainer:
 		use_cuda = torch.cuda.is_available()
 		self.device = torch.device("cuda" if use_cuda else "cpu")
 		self.name = modelName
-		self.early_stopping = EarlyStopping(patience = 5)
-		if modelName == 'clf':
-			self.model = classifier(n_class=6,hyp = hypModel)
-			self.loss = torch.nn.CrossEntropyLoss()
-		elif modelName == 'AE':
-			self.model = ConvAutoencoder(hypModel)
-			self.loss = torch.nn.MSELoss()
+		self.early_stopping = EarlyStopping(patience = 10)
+		self.valLoss = []
+		self.clf = classifier(n_class=6,hyp = hypModel)
+		self.loss = torch.nn.CrossEntropyLoss()
+		# if False:
+		# 	self.model = ConvAutoencoder(hypModel)
+		# 	self.loss = torch.nn.MSELoss()
 
 	# from torchsummary import summary
 	# summary(self.model, (1, 50, 6))
 	
-	def setupTrain(self, trainSetup,datamodule):
+	def setupTrain(self, trainSetup,source,target):
+		"""
+		
+		:param trainSetup: (dict): all training configurations
+		:param source: (datamodule)
+		:param target: (datamodule)
+		:return: None
+		"""
 		self.alpha = trainSetup['alpha']
 		self.epochs = trainSetup['nEpochs']
-		self.model.build()
-		self.model = self.model.to(self.device).cuda()
-		self.optimizer = optim.Adam(self.model.parameters(), lr=trainSetup['lr'])
+		self.clf.build()
+		self.clf = self.clf.to(self.device).cuda()
+		self.optimizer = optim.Adam(self.clf.parameters(), lr=trainSetup['lr'])
 		self.scheduler = StepLR(self.optimizer, trainSetup['step_size'], gamma=0.5)
 		
 		if trainSetup['penalty'] == 'mmd':
@@ -82,7 +89,8 @@ class myTrainer:
 		elif trainSetup['penalty'] == 'ClDist':
 			self.penalty = classDistance()
 		self.name = self.name + '_' + trainSetup['penalty'] + '_'
-		self.datamodule = datamodule
+		self.dm_source = source
+		self.dm_target = target
 
 	def train(self, printGrad=False):
 		histTrainLoss = []
@@ -93,33 +101,20 @@ class myTrainer:
 			main_loss = 0.0
 			penalty_loss = 0.0
 			
-			for i, batch in enumerate(self.datamodule.train_dataloader()):
-				data, domain, label = batch['data'], batch['domain'], batch['label']
-				data, domain, label = data.to(self.device, dtype=torch.float), domain.to(self.device,
-				                                                                         dtype=torch.int), label.to(
-					self.device, dtype=torch.long)
-				# self.model.train()
+			for i, batch in enumerate(self.dm_source.train_dataloader()):
 				self.optimizer.zero_grad()
-				latent, pred = self.model(data)
-				sourceIdx = np.where(domain.cpu() == 0)[0]
-				sourceLabel = label[sourceIdx]
-				pred = pred[sourceIdx]
-
-				m_loss = self.loss(pred, sourceLabel)
-				p_loss = self.penalty(latent, domain,sourceLabel)
-				loss = m_loss + self.alpha * p_loss
-				
-				#loss = m_loss
+				label,pred,loss = self._shared_eval_step(batch)
 				#loss.mean().backward()
 				loss.backward()
 				self.optimizer.step()
 				train_loss += loss.mean().item()
-				main_loss += m_loss.mean().item()
-				penalty_loss += p_loss.mean().item()
+				# main_loss += m_loss.mean().item()
+				# penalty_loss += p_loss.mean().item()
 			self.scheduler.step()
 			train_loss = train_loss / i
 			penalty_loss = penalty_loss / i
 			main_loss = main_loss /i
+			
 			#print(next(self.model.parameters()).is_cuda)
 			stops = self.validate(train_loss)
 			histTrainLoss.append(train_loss)
@@ -133,62 +128,61 @@ class myTrainer:
 		return histTrainLoss
 
 	def validate(self,train_loss = None):
-		valTarget, valSource, predValTarget, predValSource, val_loss = self.predict(stage = 'val')
-		accValTarget = accuracy_score(valTarget, predValTarget)
-		accValSource = accuracy_score(valSource, predValSource)
+		labelValSource, labelValTarget, predValSource,predValTarget, val_loss = self.predict(stage = 'val')
+		accValSource = accuracy_score(labelValSource, predValSource)
+		accValTarget = accuracy_score(labelValTarget, predValTarget)
+
 		self.early_stopping(val_loss)
-		print('train_loss:  ',train_loss,'  | val_loss: ', val_loss, '|  acc Val -> |source: ', accValSource, '|   target: ', accValTarget)
+		self.valLoss.append(val_loss)
+		#print('train_loss:  ',train_loss,'  | val_loss: ', val_loss, '|  acc Val -> |source: ', accValSource, '|   target: ', accValTarget)
 		return self.early_stopping.early_stop
 
 	def predict(self,stage = 'val',metrics = False):
+		#use all target data to evaluate?
 		if stage is 'val':
-			dataloaderEval = self.datamodule.val_dataloader()
+			dataEval_source = self.dm_source.val_dataloader()
+			dataEval_target = self.dm_target.val_dataloader()
 		elif stage is 'test':
-			dataloaderEval = self.datamodule.test_dataloader()
+			dataEval_source = self.dm_source.test_dataloader()
+			dataEval_target = self.dm_target.test_dataloader()
 		else:
 			raise ValueError(f"Oops!  stage {stage} is not defined")
 		with torch.no_grad():
-			for i, batch in enumerate(dataloaderEval):
-				#TODO so funciona para batch = tamanho
-				valTarget, valSource, predValTarget, predValSource,loss =  self._shared_eval_step(batch)
+			for i, batch in enumerate(dataEval_source):
+				labelSource, predSource,loss =  self._shared_eval_step(batch)
+				predSource = np.argmax(predSource.cpu().numpy(), axis=1)
+				labelSource = labelSource.cpu().numpy()
+			for i, batch in enumerate(dataEval_target):
+
+				labelTarget, predTarget,_ =  self._shared_eval_step(batch)
+				predTarget = np.argmax(predTarget.cpu().numpy(), axis=1)
+				labelTarget = labelTarget.cpu().numpy()
+				
+
 		if metrics:
-			accTestTarget = accuracy_score(valTarget, predValTarget)
-			accTestSource = accuracy_score(valSource, predValSource)
+			accSource = accuracy_score(labelSource, predSource)
+			accTarget = accuracy_score(labelTarget, predTarget)
 			outcomes = {}
-			outcomes['accTestSource'] = accTestSource
-			outcomes['accTestTarget'] = accTestTarget
-			outcomes[stage + '_loss'] = loss
+			outcomes['acc_' + stage+'_Source'] = accSource
+			outcomes['acc_' + stage+'_Target'] = accTarget
+			outcomes[stage + '_loss'] = loss.item()
 			return outcomes
-			
-			#print('acc Test -> |source: ', accTestSource, '|   target: ', accTestTarget)
+
 		else:
-			return valTarget, valSource, predValTarget, predValSource,loss
+			return labelSource, labelTarget,predSource,predTarget,loss.item()
 	
 	def _shared_eval_step(self, batch):
 
-		data, domain, label = batch['data'], batch['domain'], batch['label']
+		data,  label = batch['data'], batch['label']
 		#we can put the data in GPU to process but with 'no_grad' pytorch way?
-		data, domain, label = data.to(self.device, dtype=torch.float), domain.to(self.device,
-		                                                                         dtype=torch.int), label.to(
-			self.device, dtype=torch.long)
-		
-		latent, pred = self.model(data)
-
-
-		sourceIdx = np.where(domain.cpu() == 0)[0]
-		targetIdx = np.where(domain.cpu() != 0)[0]
-		
-		sourceLabel = label[sourceIdx]
-		y_hatSource = pred[sourceIdx]
-		
-		m_loss = self.loss(y_hatSource, sourceLabel)
-		p_loss = self.penalty(latent, domain, sourceLabel)
+		data, label = data.to(self.device, dtype=torch.float), label.to(self.device, dtype=torch.long)
+		latent, pred = self.clf(data)
+		m_loss = self.loss(pred, label)
+		p_loss = self.penalty(latent, label)
 		loss = m_loss + self.alpha * p_loss
 
-		original = label.cpu().numpy()
-		pred = np.argmax(pred.cpu().numpy(), axis=1)
-		
-		return original[targetIdx], original[sourceIdx], pred[targetIdx], pred[sourceIdx], loss.item()
+
+		return label,pred, loss
 	
 	def save(self, savePath):
 		with open(savePath, 'w') as s:

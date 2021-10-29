@@ -59,6 +59,9 @@ class networkLight(LightningModule):
 	
 	# def adversarial_loss(self, y_hat, y):
 	#     return F.binary_cross_entropy(y_hat, y)
+	def set_requires_grad(model, requires_grad=True):
+		for param in self.model.parameters():
+			param.requires_grad = requires_grad
 	
 	def training_step(self, batch, batch_idx):
 

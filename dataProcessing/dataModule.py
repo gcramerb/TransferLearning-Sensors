@@ -9,9 +9,13 @@ import torch
 from Utils.data import categorical_to_int
 
 class myDataset(Dataset):
-	def __init__(self, X, Y):
+	def __init__(self, X, Y,norm = False):
 		self.X = X
 		self.Y = Y
+		if norm:
+			self.transform = transforms.Normalize()
+		else:
+			self.transform = None
 
 	def __len__(self):
 		return len(self.Y)
@@ -19,7 +23,11 @@ class myDataset(Dataset):
 	def __getitem__(self, idx):
 		if torch.is_tensor(idx):
 			idx = idx.tolist()
-		sample = {'data': self.X[idx],'label': self.Y[idx]}
+		sample = {'data': self.X[idx], 'label': self.Y[idx]}
+		if self.transforms:
+			return self.transform(sample)
+		
+		
 		return sample
 
 

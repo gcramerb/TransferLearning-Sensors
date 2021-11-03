@@ -51,12 +51,11 @@ class Encoder(nn.Module):
 			          padding='same', bias=True),
 			nn.BatchNorm2d(self.n_filters[3]),
 			nn.ReLU(),
-			# nn.Dropout(p=0.05, inplace=False),
 			nn.Flatten(),
 			nn.Linear(480, self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
-			nn.LeakyReLU(),
-			nn.Dropout(p=self.DropoutRate, inplace=False)
+			nn.LeakyReLU()
+			#nn.Dropout(p=self.DropoutRate, inplace=False)
 		)
 	def forward(self,X):
 		AccEncoded = []
@@ -75,33 +74,43 @@ class Encoder(nn.Module):
 		return encoded
 
 
-class Decoder:
-	def __init__(self, hyp=None):
-		super(Encoder, self).__init__()
+class Decoder(nn.Module):
+	def __init__(self, encoded_dim=50):
+		super(Decoder, self).__init__()
 		self._name = 'Decoder'
-	
+		self.encoded_dim = 50
+		self.n_filters = (4, 8, 16, 32, 64)
+		self.convTrans_window = (5,3)
+
 	## decoder layers ##
 	def build(self):
-		
-		self.DenseLayer = nn.Sequential(
+		self.linearDec = nn.Sequential(
 			nn.Linear(self.encoded_dim, 480),
-			nn.LeakyReLU(),
-			myReshape((self.n_filters[2], 5, 6)),
-			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
-			                   out_channels=self.n_filters[3],
-			                   padding=(2, 0), output_padding=(1, 0), dilation=(1, 1), stride=(5, 1)),
-			
-			nn.BatchNorm2d(self.n_filters[3]),
-			nn.ReLU())
-		
-		self.CNN2 = nn.Sequential(
-			nn.ConvTranspose2d(in_channels=self.n_filters[3], kernel_size=self.convTrans_window,
-			                   out_channels=self.n_filters[2], padding=(4, 0), dilation=(2, 1), stride=(2, 1)),
-			nn.BatchNorm2d(self.n_filters[0]),
-			nn.LeakyReLU())
-		for i in range(self.n_win):
-		self.CNN1.append(nn.Sequential(
-			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window, out_channels=1,
-			                   padding=(1, 0), stride=(1, 1)),
-			nn.ReLU()
+			nn.LeakyReLU()
 		)
+		self.convDec = nn.Sequential(
+			#myReshape(()),
+			nn.ConvTranspose2d(in_channels=self.n_filters[3], kernel_size=self.convTrans_window,
+			                   out_channels=self.n_filters[2],padding=(0, 1),output_padding = (0,0),
+			                    stride=(5, 1)),
+			#, output_padding=(1, 0), dilation=(1, 1),
+			
+			nn.BatchNorm2d(self.n_filters[2]),
+			nn.ReLU(),
+
+			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
+			                   out_channels=self.n_filters[1],output_padding = (1,1) ,padding=(4, 0),stride=(2, 2) ,groups = 2),
+			#,  dilation=(2, 1)
+			nn.BatchNorm2d(self.n_filters[1]),
+			nn.ReLU(),
+			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window, out_channels=1,
+			                   stride=(1, 1),padding = (0,2)
+			                   ),
+			#,padding=(1, 0)
+			#nn.LeakyReLU()
+		)
+	def forward(self,encoded):
+		dec= self.linearDec(encoded)
+		dec = dec.view(dec.shape[0],self.n_filters[3], 5, 3)
+		dec = self.convDec(dec)
+		return dec

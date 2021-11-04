@@ -55,15 +55,16 @@ def suggest_hyperparameters(trial):
 	
 	#penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
 	setupTrain['penalty'] = 'ClDist'
-	setupTrain['nEpochs'] = 200
+	setupTrain['nEpochs'] = 300
 	
 	modelHyp = {}
 	modelHyp['conv_dim'] =  [(5, 3), (25, 3)]
 	modelHyp['pooling_1'] = (2, 1)
 	modelHyp['pooling_2'] = (5, 1)
-	modelHyp['n_filters'] = (4, 8, 16, 32, 64)
+	modelHyp['n_filters'] = (8, 16, 32, 64)
 	modelHyp['encDim'] = 50
-	modelHyp["DropoutRate"] = trial.suggest_float("DropoutRate", 0.0, 0.3, step=0.05)
+	#modelHyp["DropoutRate"] = trial.suggest_float("DropoutRate", 0.0, 0.3, step=0.05)
+	modelHyp["DropoutRate"] = 0.0
 	return setupTrain,modelHyp
 
 
@@ -94,43 +95,41 @@ def run(n_trials):
 	# Start a new mlflow run
 	# Print optuna study statistics
 	print("\n++++++++++++++++++++++++++++++++++\n")
+	print('Source dataset: ',args.source)
 	print("  Trial number: ", study.best_trial.number)
 	print("  Loss (trial value): ", study.best_trial.value)
 	print("  Params: ")
 	for key, value in study.best_trial.params.items():
 		print("    {}: {}".format(key, value))
-	
 	mlflow.set_tracking_uri("../results/mlflow/")
-	setupTrain,hypModel = suggest_hyperparameters(study.best_trial)
-	for s in ['Dsads','Ucihar','Uschad','Pamap2']:
-		with mlflow.start_run(run_name = f'train_test in {s}'):
-			mlflow.log_params(study.best_trial.params)
+	setupTrain, hypModel = suggest_hyperparameters(study.best_trial)
+	for s in ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']:
+		with mlflow.start_run(run_name=f'train_test in {s}'):
+			# mlflow.log_params(study.best_trial.params)
 			trainer = myTrainer('clf', hypModel)
 			dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName=s, case='Source',
-			                        batch_size=setupTrain['bs_source'])
-			dm_source.setup(Loso = True)
+			                               batch_size=setupTrain['bs_source'])
+			dm_source.setup(Loso=True)
 			dm_target = CrossDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
-			                        batch_size=setupTrain['bs_target'])
-			dm_target.setup(Loso = True)
-			trainer.setupTrain(setupTrain, dm_source,dm_target)
+			                               batch_size=setupTrain['bs_target'])
+			dm_target.setup(Loso=True)
+			trainer.setupTrain(setupTrain, dm_source, dm_target)
 			start = time.time()
 			trainHist = trainer.train()
 			stage = 'test'
+			trainer.save(f'../saved/model_{s}.pkl')
 			outcomes = trainer.predict(stage='test', metrics=True)
 			end = time.time()
-			mlflow.set_tag('Dataset_Source',s)
-			with open("../results/mlflow/train_loss.txt", "wb") as fp:
+			mlflow.set_tag('Dataset_Source', s)
+			with open("../results/mlflow/train_loss.pkl", "wb") as fp:
 				pickle.dump(trainHist, fp)
-			with open("../results/mlflow/val_loss.txt", "wb") as fp:
-				pickle.dump( trainer.valLoss, fp)
-			mlflow.log_artifact(f"../results/mlflow/train_loss.txt")
-			mlflow.log_artifact(f"../results/mlflow/val_loss.txt")
-			
-			mlflow.log_metric('acc_' + stage+'_Source', outcomes['acc_' + stage+'_Source'], step=0)
-			mlflow.log_metric('acc_' + stage+'_Target', outcomes['acc_' + stage+'_Target'], step=0)
+			with open("../results/mlflow/val_loss.pkl", "wb") as fp:
+				pickle.dump(trainer.valLoss, fp)
+			mlflow.log_artifact(f"../results/mlflow/train_loss.pkl")
+			mlflow.log_artifact(f"../results/mlflow/val_loss.pkl")
 
+			mlflow.log_metric('acc_' + stage + '_Source', outcomes['acc_' + stage + '_Source'], step=0)
+			mlflow.log_metric('acc_' + stage + '_Target', outcomes['acc_' + stage + '_Target'], step=0)
 
 if __name__ == '__main__':
-	run(100)
-
-
+	params = run(200)

@@ -32,6 +32,9 @@ class ConvAutoencoder(nn.Module):
 		## encoder layers ##
 		self.Encoder.build()
 		self.Decoder.build()
+		# from torchsummary import summary
+		# summary(self.Decoder.to('cuda'), (1,50 ))
+
 
 
 

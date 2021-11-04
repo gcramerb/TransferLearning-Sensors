@@ -13,7 +13,7 @@ from torch import optim
 # torch.backends.cudnn.deterministic = True
 # torch.autograd.set_detect_anomaly(True)
 
-import sys, os, argparse
+import sys, os, argparse, pickle
 import numpy as np
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 
@@ -186,11 +186,11 @@ class myTrainer:
 	
 	def save(self, savePath):
 		with open(savePath, 'w') as s:
-			pickle.dump(self.model, s, protocol=pickle.HIGHEST_PROTOCOL)
+			pickle.dump(self.clf, s, protocol=pickle.HIGHEST_PROTOCOL)
 	
 	def loadModel(self, filePath):
 		with open(filePath, 'rb') as m:
-			self.model = pickle.load(m)
+			self.clf = pickle.load(m)
 	
 	def getGrads(self):
 		for name, param in self.model.named_parameters():

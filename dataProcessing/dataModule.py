@@ -9,11 +9,15 @@ import torch
 from Utils.data import categorical_to_int
 
 class myDataset(Dataset):
-	def __init__(self, X, Y,norm = False):
+	def __init__(self, X, Y,norm = True):
 		self.X = X
 		self.Y = Y
+		#print('Shgape: ', X.shape)
 		if norm:
-			self.transform = transforms.Normalize()
+			self.mean = (np.mean(X[:, 0, :, :]), np.mean(X[:, 1, :, :]))
+			self.std = (np.std(X[:, 0, :, :]), np.std(X[:, 1, :, :]))
+			self.transform = transforms.Normalize(self.mean,self.std)
+				#transforms.Compose([transforms.ToTensor(),
 		else:
 			self.transform = None
 
@@ -23,12 +27,10 @@ class myDataset(Dataset):
 	def __getitem__(self, idx):
 		if torch.is_tensor(idx):
 			idx = idx.tolist()
-		sample = {'data': self.X[idx], 'label': self.Y[idx]}
-		if self.transforms:
-			return self.transform(sample)
-		
-		
-		return sample
+		if self.transform:
+			return {'data': self.transform(torch.tensor(self.X[idx])), 'label': self.Y[idx]}
+
+		return  {'data': self.X[idx], 'label': self.Y[idx]}
 
 
 class CrossDatasetModule(LightningDataModule):
@@ -58,6 +60,8 @@ class CrossDatasetModule(LightningDataModule):
 		#self.num_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
 		Y = np.argmax(y, axis=1).astype('long')
+		
+		X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
 		
 		if Loso:
 

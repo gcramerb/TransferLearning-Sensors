@@ -9,7 +9,7 @@ import sys, pickle
 import numpy as np
 from copy import deepcopy
 
-from .blocks import Encoder,Decoder
+from .blocks import Encoder1,Decoder
 
 # define the NN architecture
 class ConvAutoencoder(nn.Module):
@@ -19,8 +19,8 @@ class ConvAutoencoder(nn.Module):
 	def __init__(self, hyp=None):
 		super(ConvAutoencoder, self).__init__()
 		self._name = 'AE'
-		self.Encoder = Encoder(hyp)
-		self.Decoder = Decoder()
+		self.Encoder = Encoder1(hyp)
+		self.Decoder = Decoder(hyp['encDim'])
 
 
 	

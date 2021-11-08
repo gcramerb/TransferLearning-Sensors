@@ -17,7 +17,7 @@ from models.autoencoder import ConvAutoencoder
 from Utils.trainingConfig import EarlyStopping
 from Utils.visualization import plotReconstruction as myPlot
 
-from dataProcessing.dataModule import CrossDatasetModule
+from dataProcessing.dataModule import SingleDatasetModule
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
@@ -26,6 +26,7 @@ parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--dataFormat', type=str, default="Matrix")
 parser.add_argument('--model', type=str, default="clf")
 parser.add_argument('--penalty', type=str, default="mmd")
 args = parser.parse_args()
@@ -35,16 +36,26 @@ if args.slurm:
 	showPlot = False
 
 else:
-	n_ep = 150
+	n_ep = 100
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	from Utils.visualization import plotReconstruction as myPlot
 
+def get_trainSetup():
+	modelHyp = {}
+	modelHyp['kernel_dim'] =  [(5, 3), (15, 1)]
+	modelHyp['n_filters'] = (4,8, 20, 32)
+	modelHyp['encDim'] =  64
+	modelHyp["DropoutRate"] = 0.0
+	return modelHyp
+
+	
 
 def run():
-	dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName='Uschad', case='Source',
-	                               batch_size=128)
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName='Uschad', case='Source',
+	                                batch_size=128)
 	dm_source.setup(Loso=True)
-	AE = ConvAutoencoder()
+	modelHyp = get_trainSetup()
+	AE = ConvAutoencoder(modelHyp)
 	AE.build()
 	loss = torch.nn.MSELoss()
 	
@@ -53,12 +64,12 @@ def run():
 	device = torch.device("cuda" if use_cuda else "cpu")
 	AE = AE.to(device).cuda()
 	optimizer = optim.Adam(AE.parameters(), lr=0.01)
-	scheduer = StepLR(optimizer, 30, gamma=0.5)
+	scheduer = StepLR(optimizer, 40, gamma=0.5)
 	
 	Es = EarlyStopping(patience=10)
 	
 	for epoch in range(epochs):
-		# monitor training loss
+		# monitor training loss1
 		train_loss = 0.0
 		for i, batch in enumerate(dm_source.train_dataloader()):
 			optimizer.zero_grad()
@@ -86,12 +97,12 @@ def run():
 			AE = AE.to('cpu')
 			enc, rec = AE(data)
 			rec = rec[sample]
-			rec[0] = rec[0] * dm_source.dataTest.std[0] + dm_source.dataTest.mean[0]
-			rec[1] = rec[1] * dm_source.dataTest.std[1] + dm_source.dataTest.mean[1]
-			true = data[sample]
-			true[0] = true[0] * dm_source.dataTest.std[0] + dm_source.dataTest.mean[0]
-			true[1] = true[1] * dm_source.dataTest.std[1] + dm_source.dataTest.mean[1]
-			myPlot(rec, true, show=showPlot, file='rec_{args.source}.png')
+			# rec[0] = rec[0] * dm_source.dataTest.std[0] + dm_source.dataTest.mean[0]
+			# rec[1] = rec[1] * dm_source.dataTest.std[1] + dm_source.dataTest.mean[1]
+			# true = data[sample]
+			# true[0] = true[0] * dm_source.dataTest.std[0] + dm_source.dataTest.mean[0]
+			# true[1] = true[1] * dm_source.dataTest.std[1] + dm_source.dataTest.mean[1]
+			myPlot(rec, data[sample], show=showPlot, file='rec_{args.source}.png')
 
 
 if __name__ == '__main__':

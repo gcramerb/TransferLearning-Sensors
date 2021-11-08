@@ -10,27 +10,35 @@ import numpy as np
 from copy import deepcopy
 
 from .customLosses import MMDLoss, OTLoss
-from .blocks import Encoder
+from .blocks import Encoder1,Encoder2
 
 # define the NN architecture
 class classifier(nn.Module):
 	"""
 
 	"""
-	def __init__(self, n_class, hyp=None):
+	def __init__(self, n_class, modelName = 'clf1', hyp=None,inputShape = (1,50,6)):
 		super(classifier, self).__init__()
 		self.n_class = n_class
-		self._name = 'clf'
-		self.Encoder = Encoder()
+		self._name = modelName
+		if modelName =='clf1':
+			self.Encoder = Encoder1(hyp=hyp,inputShape=inputShape)
+		elif modelName == "clf2":
+			self.Encoder = Encoder2(hyp=hyp,inputShape=inputShape)
+		else:
+			raise ValueError("Put a value model name!" )
 	@property
 	def name(self):
 		return self._name
 	def build(self):
+		
 		self.Encoder.build()
 		self.discrimination = nn.Sequential(
 			nn.Linear(self.Encoder.encoded_dim, self.n_class),
 			nn.Softmax(dim=1)
 		)
+		# from torchsummary import summary
+		# summary(self.Encoder.to('cuda'), (2,50,3))
 
 	def forward(self, X):
 		encoded = self.Encoder.forward(X)

@@ -27,7 +27,7 @@ from models.customLosses import MMDLoss, OTLoss, classDistance
 
 
 from dataProcessing.create_dataset import crossDataset, targetDataset, getData
-from dataProcessing.dataModule import CrossDatasetModule
+from dataProcessing.dataModule import SingleDatasetModule
 
 import torch
 import torch.nn as nn
@@ -52,43 +52,43 @@ from dataProcessing.create_dataset import crossDataset, targetDataset, getData
 
 
 class myTrainer:
-	def __init__(self, modelName, hypModel=None):
+	def __init__(self):
 		use_cuda = torch.cuda.is_available()
 		self.device = torch.device("cuda" if use_cuda else "cpu")
-		self.name = modelName
-		self.early_stopping = EarlyStopping(patience = 10)
-		self.valLoss = []
-		self.clf = classifier(n_class=6,hyp = hypModel)
-		self.loss = torch.nn.CrossEntropyLoss()
-		# if False:
-		# 	self.model = ConvAutoencoder(hypModel)
-		# 	self.loss = torch.nn.MSELoss()
 
-	# from torchsummary import summary
-	# summary(self.model, (1, 50, 6))
-	
-	def setupTrain(self, trainSetup,source,target):
+
+	def setupTrain(self, modelName,setup,source,target,hypModel):
 		"""
-		
-		:param trainSetup: (dict): all training configurations
+		:param setup: (dict): all training configurations
 		:param source: (datamodule)
 		:param target: (datamodule)
 		:return: None
 		"""
-		self.alpha = trainSetup['alpha']
-		self.epochs = trainSetup['nEpochs']
+		if source.dataFormat == 'Matrix':
+			self.clf = classifier(n_class=6,modelName=modelName, hyp=hypModel,inputShape=(1,50,6))
+		elif source.dataFormat == "Channel":
+			self.clf = classifier(n_class=6,modelName=modelName, hyp=hypModel, inputShape=(2,50,3))
+		else:
+			raise ValueError("put a valid DataFormat" )
+		
+		self.loss = torch.nn.CrossEntropyLoss()
+		self.early_stopping = EarlyStopping(patience = 10)
+		self.valLoss = []
+		
+		self.alpha = setup['alpha']
+		self.epochs = setup['nEpochs']
 		self.clf.build()
 		self.clf = self.clf.to(self.device).cuda()
-		self.optimizer = optim.Adam(self.clf.parameters(), lr=trainSetup['lr'])
-		self.scheduler = StepLR(self.optimizer, trainSetup['step_size'], gamma=0.5)
+		self.optimizer = optim.Adam(self.clf.parameters(), lr=setup['lr'])
+		self.scheduler = StepLR(self.optimizer, setup['step_size'], gamma=0.5)
 		
-		if trainSetup['penalty'] == 'mmd':
+		if setup['penalty'] == 'mmd':
 			self.penalty = MMDLoss()
-		elif trainSetup['penalty'] == 'ot':
+		elif setup['penalty'] == 'ot':
 			self.penalty = OTLoss()
-		elif trainSetup['penalty'] == 'ClDist':
+		elif setup['penalty'] == 'ClDist':
 			self.penalty = classDistance()
-		self.name = self.name + '_' + trainSetup['penalty'] + '_'
+
 		self.dm_source = source
 		self.dm_target = target
 
@@ -96,7 +96,7 @@ class myTrainer:
 		histTrainLoss = []
 		# number of epochs to train the model
 		for epoch in range(self.epochs):
-			# monitor training loss
+			# monitor training loss1
 			train_loss = 0.0
 			main_loss = 0.0
 			penalty_loss = 0.0
@@ -104,7 +104,7 @@ class myTrainer:
 			for i, batch in enumerate(self.dm_source.train_dataloader()):
 				self.optimizer.zero_grad()
 				label,pred,loss = self._shared_eval_step(batch)
-				#loss.mean().backward()
+				#loss1.mean().backward()
 				loss.backward()
 				self.optimizer.step()
 				train_loss += loss.mean().item()
@@ -121,7 +121,7 @@ class myTrainer:
 			if stops:
 				print(f'Early Stopped at epoch {epoch}')
 				break
-			# print(train_loss, '  ', main_loss, '  ', penalty_loss, '\n')
+			#print(train_loss, '  ', main_loss, '  ', penalty_loss, '\n')
 			if printGrad:
 				self.getGrads()
 
@@ -134,7 +134,7 @@ class myTrainer:
 
 		self.early_stopping(val_loss)
 		self.valLoss.append(val_loss)
-		#print('train_loss:  ',train_loss,'  | val_loss: ', val_loss, '|  acc Val -> |source: ', accValSource, '|   target: ', accValTarget)
+		print('train_loss:  ',train_loss,'  | val_loss: ', val_loss, '|  acc Val -> |source: ', accValSource, '|   target: ', accValTarget)
 		return self.early_stopping.early_stop
 
 	def predict(self,stage = 'val',metrics = False):
@@ -185,7 +185,7 @@ class myTrainer:
 		return label,pred, loss
 	
 	def save(self, savePath):
-		with open(savePath, 'w') as s:
+		with open(savePath, 'wb') as s:
 			pickle.dump(self.clf, s, protocol=pickle.HIGHEST_PROTOCOL)
 	
 	def loadModel(self, filePath):
@@ -195,5 +195,5 @@ class myTrainer:
 	def getGrads(self):
 		for name, param in self.model.named_parameters():
 			print(name, param.grad.mean().item())
-		print('\n\n')
+		print('\n')
 		

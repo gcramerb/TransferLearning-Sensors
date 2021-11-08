@@ -23,7 +23,7 @@ from pytorch_lightning.loggers import MLFlowLogger
 from collections import OrderedDict
 
 from Utils.trainer_PL import networkLight
-from dataProcessing.dataModule import CrossDatasetModule
+from dataProcessing.dataModule import SingleDatasetModule
 import mlflow
 
 parser = argparse.ArgumentParser()
@@ -53,7 +53,7 @@ else:
 	args.outPath = '../results/tests/'
 
 if __name__ == '__main__':
-	dm = CrossDatasetModule(data_dir=args.inPath)
+	dm = SingleDatasetModule(data_dir=args.inPath)
 	dm.setup()
 	model = networkLight(penalty=args.penalty, alpha=args.alpha, lr=args.lr)
 	mlf_logger = MLFlowLogger(experiment_name=args.expName, save_dir='../results/mlflow/')

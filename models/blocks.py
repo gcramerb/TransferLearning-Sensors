@@ -1,44 +1,40 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-class Encoder(nn.Module):
+
+
+class Encoder1(nn.Module):
 	"""
 
 	"""
-	def __init__(self,  hyp=None):
-		super(Encoder, self).__init__()
+	def __init__(self,  hyp=None,inputShape = (1,50,6)):
+		super(Encoder1, self).__init__()
 		self._name = 'Encoder'
+		self.inputShape = inputShape
 		if hyp:
-			self.conv_dim = hyp['conv_dim']
-			self.pooling_1 = hyp['pooling_1']
-			self.pooling_2 = hyp['pooling_2']
+			self.kernel_dim = hyp['kernel_dim']
+			self.pooling_1 = (2, 3)
+			self.pooling_2 = (5, 1)
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['encDim']
 			self.DropoutRate = hyp["DropoutRate"]
 
-		else:
-			self.conv_dim = [(5, 3), (25, 3)]
-			self.pooling_1 = (2, 1)
-			self.pooling_2 = (5, 3)
-			self.n_filters = (8, 16, 32, 64)
-			self.encoded_dim = 50
-			self.DropoutRate = 0.0
-		
+
 		self.n_win = 2
 		self.CNN1 = nn.ModuleList([])
 	## encoder layers ##
 	def build(self):
 		for i in range(self.n_win):
 			self.CNN1.append(nn.Sequential(
-				nn.Conv2d(in_channels=2, kernel_size=self.conv_dim[i],
-				          out_channels=self.n_filters[i], padding='same', bias=True,groups = 2),
+				nn.Conv2d(in_channels=self.inputShape[0], kernel_size=self.kernel_dim[i],
+				          out_channels=self.n_filters[i], padding='same', bias=True, groups = self.inputShape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
 				nn.LeakyReLU(),
 				nn.MaxPool2d(self.pooling_1)))
 		
 		self.CNN2 = nn.Sequential(
-			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.conv_dim[0],
+			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.kernel_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
 			nn.BatchNorm2d(self.n_filters[2]),
@@ -47,14 +43,14 @@ class Encoder(nn.Module):
 		)
 		
 		self.DenseLayer = nn.Sequential(
-			nn.Conv2d(in_channels=self.n_filters[2], kernel_size=self.conv_dim[0], out_channels=self.n_filters[3],
+			nn.Conv2d(in_channels=self.n_filters[2], kernel_size=self.kernel_dim[0], out_channels=self.n_filters[3],
 			          padding='same', bias=True),
 			nn.BatchNorm2d(self.n_filters[3]),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 			nn.Flatten(),
-			nn.Linear(self.n_filters[3]*5, self.encoded_dim),
+			nn.Linear(self.n_filters[3]*5*int(self.inputShape[-1]/3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
-			nn.LeakyReLU()
+			nn.ReLU()
 			#nn.Dropout(p=self.DropoutRate, inplace=False)
 		)
 	def forward(self,X):
@@ -69,11 +65,63 @@ class Encoder(nn.Module):
 		return encoded
 
 
+class Encoder2(nn.Module):
+
+	def __init__(self, hyp=None,inputShape = (1,50,6)):
+		super(Encoder2, self).__init__()
+		self._name = 'Encoder'
+		self.inputShape = inputShape
+		if hyp:
+			self.kernel_dim = hyp['kernel_dim']
+			self.pooling_1 = (2, 3)
+			self.pooling_2 = (5, 1)
+			self.n_filters = hyp['n_filters']
+			self.encoded_dim = hyp['encDim']
+			#self.DropoutRate = hyp["DropoutRate"]
+
+		self.n_win = 2
+		self.CNN1 = nn.ModuleList([])
+	
+	## encoder layers ##
+	def build(self):
+		for i in range(self.n_win):
+			self.CNN1.append(nn.Sequential(
+				nn.Conv2d(in_channels=self.inputShape[0], kernel_size=self.kernel_dim[i],
+				          out_channels=self.n_filters[i], padding='same', bias=True, groups=self.inputShape[0]),
+				
+				nn.BatchNorm2d(self.n_filters[i]),
+				nn.LeakyReLU(),
+				nn.MaxPool2d(self.pooling_1)))
+
+		self.DenseLayer = nn.Sequential(
+			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.kernel_dim[0],
+			          out_channels=self.n_filters[3],
+			          padding='same', bias=True),
+			nn.BatchNorm2d(self.n_filters[3]),
+			nn.LeakyReLU(),
+			nn.MaxPool2d(self.pooling_2),
+			nn.Flatten(),
+			nn.Linear(self.n_filters[3]*5*int(self.inputShape[-1]/3), self.encoded_dim),
+			nn.BatchNorm1d(self.encoded_dim),
+			nn.ReLU()
+			# nn.Dropout(p=self.DropoutRate, inplace=False)
+		)
+	
+	def forward(self, X):
+		
+		sensEncod = []
+		for layer in self.CNN1:
+			sensEncod.append(layer(X))
+		sensors = torch.cat(sensEncod, 1)
+		encoded = self.DenseLayer(sensors)
+		return encoded
+
+
 class Decoder(nn.Module):
 	def __init__(self, encoded_dim=50):
 		super(Decoder, self).__init__()
 		self._name = 'Decoder'
-		self.encoded_dim = 50
+		self.encoded_dim = encoded_dim
 		self.n_filters = (8, 16, 32, 64)
 		self.convTrans_window = (5,3)
 
@@ -96,7 +144,7 @@ class Decoder(nn.Module):
 			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
 			                   out_channels=self.n_filters[1],output_padding = (1,0) ,padding=(4, 0),stride=(2, 1) ,groups = 2),
 			#,  dilation=(2, 1)
-			nn.BatchNorm2d(self.n_filters[1]),
+			#nn.BatchNorm2d(self.n_filters[1]),
 			nn.ReLU(),
 			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window, out_channels=2,
 			                   stride=(1, 1),padding = (0,1)

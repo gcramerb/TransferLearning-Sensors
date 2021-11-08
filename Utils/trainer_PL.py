@@ -79,38 +79,38 @@ class networkLight(LightningModule):
 
 		#
 		# opt.zero_grad()
-		# self.manual_backward(loss)
+		# self.manual_backward(loss1)
 		# opt.step()
 		#
-		tqdm_dict = {"loss": loss}
+		tqdm_dict = {"loss1": loss}
 
-		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
+		output = OrderedDict({"loss1": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
 	
 	def training_step_end(self, training_step_outputs):
 		metrics = training_step_outputs['log']
-		loss = metrics['loss'].item()
-		#print(loss)
+		loss = metrics['loss1'].item()
+		#print(loss1)
 		#print(self.model.CNN2[0].weight.grad)
 		# self.logger.experiment.log_metric(self.logger.run_id, key='training_loss',
-		#                                   value=loss)
+		#                                   value=loss1)
 		self.log('training_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
 		print('training_loss:  ',loss)
 	def validation_step(self, batch, batch_idx):
-
-		res = self._shared_eval_step(batch, batch_idx)
-		metrics = res['log']
+		with torch.no_grad():
+			res = self._shared_eval_step(batch, batch_idx)
+			metrics = res['log']
 
 		# self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
-		self.log('val_loss', metrics['loss'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log('val_loss', metrics['loss1'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		self.log('accValSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		self.log('accValTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-		# self.logger.experiment.log_metric(self.logger.run_id,key= 'val_loss', value= metrics['loss'])
+		# self.logger.experiment.log_metric(self.logger.run_id,key= 'val_loss', value= metrics['loss1'])
 		# self.logger.experiment.log_metric(self.logger.run_id,'accValSource', metrics['accSource'])
 		# self.logger.experiment.log_metric(self.logger.run_id,'accValTarget', metrics['accTarget'])
-		# print('val_loss: ',  metrics['loss'],' ','accValSource: ',
+		# print('val_loss: ',  metrics['loss1'],' ','accValSource: ',
 		#                                    metrics['accSource'],' ','accValTarget: ',metrics['accTarget'])
 		return metrics
 
@@ -141,12 +141,12 @@ class networkLight(LightningModule):
 
 		trueSource = trueSource.long()  # why need this?
 		loss = self.m_loss(predSource, trueSource)  + self.hparams.alpha * self.p_loss(latent,domain,trueSource)
-		#loss = self.m_loss(predSource, trueSource)
+		#loss1 = self.m_loss(predSource, trueSource)
 		accSource = accuracy_score(trueSource.cpu().numpy(), np.argmax(predSource.cpu().numpy(), axis=1))
 		accTarget = accuracy_score(trueTarget.cpu().numpy(), np.argmax(predTarget.cpu().numpy(), axis=1))
 		loss = loss.item()
 
-		metrics = {"loss": loss,
+		metrics = {"loss1": loss,
 		           'accSource': accSource, 'accTarget': accTarget}
 
 		tqdm_dict = metrics
@@ -171,7 +171,7 @@ class networkLight(LightningModule):
 	def configure_optimizers(self):
 		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr)
 		lr_scheduler = StepLR(opt, step_size=30, gamma=0.5)
-		#return {"optimizer": opt, "lr_scheduler": self.scheduler}
+		#return {"optimizerClf": opt, "lr_scheduler": self.schedulerClf}
 		return [opt], [lr_scheduler]
 
 	def on_epoch_end(self):
@@ -183,11 +183,11 @@ class networkLight(LightningModule):
 	# 	"""If set to ``False`` you are responsible for calling ``.backward()``, ``.step()``, ``.zero_grad()``."""
 	# 	return False
 	
-	# def manual_backward(self, loss, optimizer):
+	# def manual_backward(self, loss1, optimizerClf):
 	# 	print('manual back')
-	# 	loss.backward()
-		#optimizer.step()
-	# def manual_backward(self, loss) -> None:
+	# 	loss1.backward()
+		#optimizerClf.step()
+	# def manual_backward(self, loss1) -> None:
 	# 	# make sure we're using manual opt
 	# 	self._verify_is_manual_optimization("manual_backward")
 	#

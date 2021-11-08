@@ -9,7 +9,7 @@ import torch
 from Utils.data import categorical_to_int
 
 class myDataset(Dataset):
-	def __init__(self, X, Y,norm = True):
+	def __init__(self, X, Y,norm = False):
 		self.X = X
 		self.Y = Y
 		#print('Shgape: ', X.shape)
@@ -27,18 +27,19 @@ class myDataset(Dataset):
 	def __getitem__(self, idx):
 		if torch.is_tensor(idx):
 			idx = idx.tolist()
-		if self.transform:
+		if False:
 			return {'data': self.transform(torch.tensor(self.X[idx])), 'label': self.Y[idx]}
 
 		return  {'data': self.X[idx], 'label': self.Y[idx]}
 
 
-class CrossDatasetModule(LightningDataModule):
+class SingleDatasetModule(LightningDataModule):
 	def __init__(
 			self,
 			data_dir: str = None,
 			datasetName: str = "Dsads",
 			case: str = "Source",
+			dataFormat: str = 'Matrix',
 			batch_size: int = 128,
 			num_workers: int = 1,
 	):
@@ -49,6 +50,7 @@ class CrossDatasetModule(LightningDataModule):
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.num_classes = 6
+		self.dataFormat = dataFormat
 		self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False):
@@ -60,11 +62,12 @@ class CrossDatasetModule(LightningDataModule):
 		#self.num_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
 		Y = np.argmax(y, axis=1).astype('long')
-		
-		X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
+		if self.dataFormat == 'Matrix':
+			pass
+		elif self.dataFormat == "Channel":
+			X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
 		
 		if Loso:
-
 			fold_test, fold_val = np.random.randint(len(folds), size=2)
 			test_idx = folds[fold_test][1]
 			val_idx = folds[fold_val][1]
@@ -83,6 +86,92 @@ class CrossDatasetModule(LightningDataModule):
 			trainL = trainL - valLen
 			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
 			                                            generator=torch.Generator().manual_seed(0))
+	def train_dataloader(self):
+		return DataLoader(
+			self.dataTrain,
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+	
+	def val_dataloader(self):
+		return DataLoader(self.dataVal,
+		                  batch_size=len(self.dataVal),
+		                  shuffle=True,
+		                  num_workers=self.num_workers,
+		                  drop_last=True)
+	
+	def test_dataloader(self):
+		return DataLoader(self.dataTest,
+		                  batch_size=len(self.dataTest),
+		                  shuffle=True,
+		                  num_workers=self.num_workers,
+		                  drop_last=True)
+	
+class CrossDatasetModule(LightningDataModule):
+	def __init__(
+			self,
+			data_dir: str = None,
+			sourceName: str = "Dsads",
+			targetName: str = "Ucihar",
+			dataFormat: str = 'Matrix',
+			batch_size: int = 128,
+			num_workers: int = 1,
+	):
+		super().__init__()
+		self.data_dir = data_dir
+		self.sourceName = sourceName
+		self.targetName = targetName
+		self.batch_size = batch_size
+		self.num_workers = num_workers
+		self.num_classes = 6
+		self.dataFormat = dataFormat
+		self.transform = transforms.Normalize(0, 1, inplace=False)
+	
+	def setup(self, stage=None, valRate=0.1, testRate=.2, Loso=False):
+		file = os.path.join(self.data_dir, f'{self.sourceName}_f25_t2.npz')
+		with np.load(file, allow_pickle=True) as tmp:
+			Xsource = tmp['X'].astype('float32')
+			y = tmp['y']
+			foldsSource = tmp['folds']
+		# self.num_classes = len(pd.unique(self.Y))
+		y = categorical_to_int(y).astype('int')
+		Ysource = np.argmax(y, axis=1).astype('long')
+		
+		file = os.path.join(self.data_dir, f'{self.targetName}_f25_t2.npz')
+		with np.load(file, allow_pickle=True) as tmp:
+			Xtarget = tmp['X'].astype('float32')
+			y = tmp['y']
+			foldsTarget = tmp['folds']
+		# self.num_classes = len(pd.unique(self.Y))
+		y = categorical_to_int(y).astype('int')
+		Ytarget = np.argmax(y, axis=1).astype('long')
+		if self.dataFormat == 'Matrix':
+			pass
+		elif self.dataFormat == "Channel":
+			Xtarget = np.concatenate([Xtarget[:, :, :, 0:3], Xtarget[:, :, :, 3:6]], axis=1)
+			Xsource = np.concatenate([Xsource[:, :, :, 0:3], Xsource[:, :, :, 3:6]], axis=1)
+		
+		if Loso:
+			foldTestSource, foldValSource = np.random.randint(len(foldsSource), size=2)
+			testIdxSource = foldsSource[foldTestSource][1]
+			valIdxSource = foldsSource[foldValSource][1]
+			trainIdxSource = list(set(foldsSource[foldTestSource][0]) - set(foldsSource[foldValSource][1]))
+			
+			foldTestTarget, foldValTarget = np.random.randint(len(foldsTarget), size=2)
+			testIdxTarget = foldsTarget[foldTarget][1]
+			valIdxTarget = foldsTarget[foldValTarget][1]
+			trainIdxTarget = list(set(foldsTarget[foldTestTarget][0]) - set(foldsTarget[foldValTarget][1]))
+
+			train = (Xsource[trainIdxSource],Xtarget[trainIdxTarget]),(Ysource[],Ytarget[])
+			val = (Xsource[valIdxSource],Xtarget[valIdxSource]),(Ysource[valIdxSource],Ytarget[valIdxSource])
+			test = (Xsource[testIdxSource],Xtarget[testIdxSource]),(Ysource[testIdxSource],Ytarget[testIdxSource])
+			
+			self.dataTrain, self.dataVal, self.dataTest = myDataset(train), myDataset(val), myDataset(test)
+
+		else:
+			raise ValueError("traditional split not yet implemented")
+
 	def train_dataloader(self):
 		return DataLoader(
 			self.dataTrain,

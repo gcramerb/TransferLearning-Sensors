@@ -14,7 +14,7 @@ from models.autoencoder import ConvAutoencoder
 from models.customLosses import MMDLoss,OTLoss,classDistance
 from models.classifier import classifier
 from dataProcessing.create_dataset import crossDataset, targetDataset, getData
-from dataProcessing.dataModule import CrossDatasetModule
+from dataProcessing.dataModule import SingleDatasetModule
 from Utils.myTrainer import myTrainer
 
 from mlflow import pytorch
@@ -29,6 +29,7 @@ parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--dataFormat', type=str, default="Matrix")
 args = parser.parse_args()
 
 if args.slurm:
@@ -39,10 +40,6 @@ else:
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	args.outPath = '../results/tests/'
 
-def eval_and_log_metrics(prefix, actual, pred, epoch):
-	rmse = np.sqrt(mean_squared_error(actual, pred))
-	mlflow.log_metric("{}_rmse".format(prefix), rmse, step=epoch)
-	return rmse
 
 def suggest_hyperparameters(trial):
 	setupTrain = {}
@@ -50,42 +47,49 @@ def suggest_hyperparameters(trial):
 	setupTrain['alpha'] = trial.suggest_float("alpha", 0.05, 0.9, step=0.05)
 	setupTrain['bs_source'] = trial.suggest_categorical("bs_source",[32,64,128,256,512])
 	#setupTrain['bs_target'] = trial.suggest_categorical("bs_target", [32, 64, 128, 256, 512])
-	setupTrain['bs_target'] = 512
-	setupTrain['step_size'] =  trial.suggest_categorical("step_size",[40,50])
+	setupTrain['bs_target'] = 256
+	setupTrain['step_size'] =  trial.suggest_categorical("step_size",[20,40,50])
 	
-	#penalty = trial.suggest_categorical("loss", ["mmd", "ot"])
+	#penalty = trial.suggest_categorical("loss1", ["mmd", "ot"])
 	setupTrain['penalty'] = 'ClDist'
 	setupTrain['nEpochs'] = 300
 	
+	
 	modelHyp = {}
-	modelHyp['conv_dim'] =  [(5, 3), (25, 3)]
-	modelHyp['pooling_1'] = (2, 1)
-	modelHyp['pooling_2'] = (5, 1)
-	modelHyp['n_filters'] = (8, 16, 32, 64)
-	modelHyp['encDim'] = 50
+	kernel =  trial.suggest_int('kernel 2_1',15,25,step=5)
+	modelHyp['kernel_dim'] =  [(5, 3), (kernel, 1)]
+	f1 = trial.suggest_int('filter 1',4,8,step=2)
+	f2 = trial.suggest_int('filter 2',8,16,step=2)
+	f3 = trial.suggest_int('filter 3',16,24,step=2)
+	f4 = trial.suggest_int('filter 4',32,48,step=2)
+	modelHyp['n_filters'] = (f1,f2, f3, f4)
+	modelHyp['encDim'] =  trial.suggest_int('encDim',30,120,step=10)
 	#modelHyp["DropoutRate"] = trial.suggest_float("DropoutRate", 0.0, 0.3, step=0.05)
 	modelHyp["DropoutRate"] = 0.0
-	return setupTrain,modelHyp
+	modelName = trial.suggest_categorical('modelName', ['clf2','clf1'])
+	return setupTrain,modelHyp,modelName
 
 
 def objective(trial):
 	# Initialize the best_val_loss value
 	best_val_loss = float('Inf')
-	setupTrain,hypModel = suggest_hyperparameters(trial)
-	trainer = myTrainer('clf',hypModel)
-	dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName=args.source, case='Source',
-	                               batch_size=setupTrain['bs_source'])
+	setupTrain,hypModel,modelName = suggest_hyperparameters(trial)
+	trainer = myTrainer()
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, case='Source',
+	                                batch_size=setupTrain['bs_source'], dataFormat = args.dataFormat)
 	dm_source.setup(Loso=True)
-	dm_target = CrossDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
-	                               batch_size=setupTrain['bs_target'])
+	dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
+	                                batch_size=setupTrain['bs_target'], dataFormat = args.dataFormat)
 	dm_target.setup(Loso=True)
-	trainer.setupTrain(setupTrain, dm_source,dm_target)
+	trainer.setupTrain(modelName,setup = setupTrain, source = dm_source,target=dm_target,hypModel =hypModel)
 	start = time.time()
 	trainHist = trainer.train()
 	outcomes = trainer.predict(stage = 'val',metrics=True)
 	end = time.time()
+	print(outcomes)
 	metric = outcomes['val_loss']
 	timeToTrain = end - start
+
 	if metric <= best_val_loss:
 		best_val_loss = metric
 	return best_val_loss
@@ -102,18 +106,18 @@ def run(n_trials):
 	for key, value in study.best_trial.params.items():
 		print("    {}: {}".format(key, value))
 	mlflow.set_tracking_uri("../results/mlflow/")
-	setupTrain, hypModel = suggest_hyperparameters(study.best_trial)
+	setupTrain,hypModel,modelName = suggest_hyperparameters(study.best_trial)
 	for s in ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']:
 		with mlflow.start_run(run_name=f'train_test in {s}'):
 			# mlflow.log_params(study.best_trial.params)
-			trainer = myTrainer('clf', hypModel)
-			dm_source = CrossDatasetModule(data_dir=args.inPath, datasetName=s, case='Source',
-			                               batch_size=setupTrain['bs_source'])
+			trainer = myTrainer()
+			dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=s, case='Source',
+			                                batch_size=setupTrain['bs_source'])
 			dm_source.setup(Loso=True)
-			dm_target = CrossDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
-			                               batch_size=setupTrain['bs_target'])
+			dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
+			                                batch_size=setupTrain['bs_target'])
 			dm_target.setup(Loso=True)
-			trainer.setupTrain(setupTrain, dm_source, dm_target)
+			trainer.setupTrain(modelName,setup = setupTrain, source = dm_source,target=dm_target,hypModel =hypModel)
 			start = time.time()
 			trainHist = trainer.train()
 			stage = 'test'
@@ -132,4 +136,4 @@ def run(n_trials):
 			mlflow.log_metric('acc_' + stage + '_Target', outcomes['acc_' + stage + '_Target'], step=0)
 
 if __name__ == '__main__':
-	params = run(200)
+	params = run(400)

@@ -107,7 +107,30 @@ class SingleDatasetModule(LightningDataModule):
 		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=True)
+
+
+class myCrossDataset(Dataset):
+	def __init__(self, data, norm=False):
+		source, target = data
+		self.Xsource, self.Ysource = source
+		self.Xtarget, self.Ytarget = target
+
+		if norm:
+			self.mean = (np.mean(X[:, 0, :, :]), np.mean(X[:, 1, :, :]))
+			self.std = (np.std(X[:, 0, :, :]), np.std(X[:, 1, :, :]))
+			self.transform = transforms.Normalize(self.mean, self.std)
+		# transforms.Compose([transforms.ToTensor(),
+		else:
+			self.transform = None
 	
+	def __len__(self):
+		return min(len(self.Ysource),len(self.Ytarget))
+
+	def __getitem__(self, idx):
+		if torch.is_tensor(idx):
+			idx = idx.tolist()
+		return {'source': (self.Xsource[idx],self.Ysource[idx]), 'target': (self.Xtarget[idx],self.Ytarget[idx])}
+
 class CrossDatasetModule(LightningDataModule):
 	def __init__(
 			self,
@@ -159,15 +182,15 @@ class CrossDatasetModule(LightningDataModule):
 			trainIdxSource = list(set(foldsSource[foldTestSource][0]) - set(foldsSource[foldValSource][1]))
 			
 			foldTestTarget, foldValTarget = np.random.randint(len(foldsTarget), size=2)
-			testIdxTarget = foldsTarget[foldTarget][1]
+			testIdxTarget = foldsTarget[foldTestTarget][1]
 			valIdxTarget = foldsTarget[foldValTarget][1]
 			trainIdxTarget = list(set(foldsTarget[foldTestTarget][0]) - set(foldsTarget[foldValTarget][1]))
 
-			train = (Xsource[trainIdxSource],Xtarget[trainIdxTarget]),(Ysource[],Ytarget[])
-			val = (Xsource[valIdxSource],Xtarget[valIdxSource]),(Ysource[valIdxSource],Ytarget[valIdxSource])
-			test = (Xsource[testIdxSource],Xtarget[testIdxSource]),(Ysource[testIdxSource],Ytarget[testIdxSource])
+			train = (Xsource[trainIdxSource],Ysource[trainIdxSource]),(Xtarget[trainIdxTarget],Ytarget[trainIdxTarget])
+			val = (Xsource[valIdxSource],Ysource[valIdxSource]),(Xtarget[valIdxTarget],Ytarget[valIdxTarget])
+			test = (Xsource[testIdxSource],Ysource[testIdxSource]),(Xtarget[testIdxTarget],Ytarget[testIdxTarget])
 			
-			self.dataTrain, self.dataVal, self.dataTest = myDataset(train), myDataset(val), myDataset(test)
+			self.dataTrain, self.dataVal, self.dataTest = myCrossDataset(train), myCrossDataset(val), myCrossDataset(test)
 
 		else:
 			raise ValueError("traditional split not yet implemented")

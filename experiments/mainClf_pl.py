@@ -22,7 +22,7 @@ from pytorch_lightning.callbacks import Callback,EarlyStopping,ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 from collections import OrderedDict
 
-from Utils.trainer_PL import networkLight
+from Utils.trainer_pl import networkLight
 from dataProcessing.dataModule import SingleDatasetModule
 import mlflow
 

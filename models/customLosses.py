@@ -53,7 +53,7 @@ class MMDLoss(nn.Module):
 	
 	def forward(self, latentSource, latentTarget, kernel='gaussian'):
 		penalty = 0
-		batch_size = int(latent.size()[0])
+		batch_size = int(latentSource.size()[0])
 
 		if kernel == 'gaussian':
 			xx = torch.mean(self.guassian_kernel(latentSource,latentSource, kernel_mul=self.kernel_mul,

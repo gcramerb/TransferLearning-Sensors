@@ -118,12 +118,15 @@ class Encoder2(nn.Module):
 
 
 class Decoder(nn.Module):
-	def __init__(self, encoded_dim=50):
+	def __init__(self, encoded_dim=50,output_shape = (1,50,6)):
 		super(Decoder, self).__init__()
 		self._name = 'Decoder'
 		self.encoded_dim = encoded_dim
 		self.n_filters = (8, 16, 32, 64)
 		self.convTrans_window = (5,3)
+		self.output_shape = output_shape
+		self.out_stride = int(output_shape[-1]/2)
+		self.pad_out = output_shape[0] -1
 
 	## decoder layers ##
 	def build(self):
@@ -132,28 +135,29 @@ class Decoder(nn.Module):
 			nn.LeakyReLU()
 		)
 		self.convDec = nn.Sequential(
-			#myReshape(()),
-			nn.ConvTranspose2d(in_channels=self.n_filters[3], kernel_size=self.convTrans_window,
-			                   out_channels=self.n_filters[2],padding=(0, 1),output_padding = (0,0),
-			                    stride=(5, 1)),
-			#, output_padding=(1, 0), dilation=(1, 1),
+			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
+			                   out_channels=self.n_filters[1],padding=(2, 1),output_padding = (1,0),
+			                    stride=(2, 1), dilation=(1, 1)
+			                   ),
+			#, ,output_padding=(1, 0)
 			
-			nn.BatchNorm2d(self.n_filters[2]),
+			nn.BatchNorm2d(self.n_filters[1]),
 			nn.ReLU(),
 
-			nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
-			                   out_channels=self.n_filters[1],output_padding = (1,0) ,padding=(4, 0),stride=(2, 1) ,groups = 2),
+			#nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
+			#                   out_channels=self.n_filters[1],output_padding = (1,0) ,padding=(4, 0),stride=(2, 1) ,groups = 2),
 			#,  dilation=(2, 1)
 			#nn.BatchNorm2d(self.n_filters[1]),
-			nn.ReLU(),
-			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window, out_channels=2,
-			                   stride=(1, 1),padding = (0,1)
-			                   ),
+			#nn.ReLU(),
+			nn.ConvTranspose2d(in_channels=self.n_filters[1], kernel_size=self.convTrans_window, out_channels=self.output_shape[0],
+			                   stride=(5, self.out_stride),padding = (0,self.pad_out),groups = self.output_shape[0]
+			                   )
 			#,padding=(1, 0)
 			#nn.LeakyReLU()
 		)
+		
 	def forward(self,encoded):
 		dec= self.linearDec(encoded)
-		dec = dec.view(dec.shape[0],self.n_filters[3], 5, 1)
+		dec = dec.view(dec.shape[0],self.n_filters[2], 5, 2)
 		dec = self.convDec(dec)
 		return dec

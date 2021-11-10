@@ -15,8 +15,6 @@ from models.classifier import classifier,classifierTest
 from models.autoencoder import ConvAutoencoder
 from models.customLosses import MMDLoss,OTLoss, classDistance
 #import geomloss
-from dataProcessing.create_dataset import crossDataset, targetDataset, getData
-
 
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.callbacks import Callback
@@ -31,10 +29,12 @@ class TLmodel(LightningModule):
 	
 	def __init__(
 			self,
-			lr: float = 0.002,
-			batch_size: list = [64,256],
+			lr_source: float = 0.002,
+			lr_target: float = 0.002,
+			batch_size: int = 128,
 			n_classes: int = 6,
 			alphaS: float = 1.0,
+			betaS: float = 0.5,
 			alphaT: float = 1.0,
 			penalty: str = 'mmd',
 			data_shape: tuple = (1,50,6),
@@ -49,6 +49,7 @@ class TLmodel(LightningModule):
 		self.AE = ConvAutoencoder(self.hparams.modelHyp)
 		self.clf.build()
 		self.AE.build()
+		self.test_metrics = []
 		
 		# from torchsummary import summary
 		# summary(self.AE.to('cuda'), (1,50,6))
@@ -69,68 +70,154 @@ class TLmodel(LightningModule):
 
 	def forward(self, X):
 		return self.clf(X)
-
-	def _shared_eval_step(self, batch,optimizer_idx,stage ='train'):
+	def _get_metrics(self,labSource,predSource,labTarget,predTarget,AEloss = None,clfLoss = None):
+		accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predSource.cpu().numpy(), axis=1))
+		accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predTarget.cpu().numpy(), axis=1))
+		if AEloss is not None:
+			metrics = {'AEloss': AEloss.item(),
+			           'clfLoss': clfLoss.item(),
+			           'accSource': accSource,
+			           'accTarget': accTarget
+			           }
+		else:
+			metrics = {'accSource': accSource,
+			           'accTarget': accTarget
+			           }
+		return metrics
+		
+		
+	def _shared_eval_step(self, batch,stage = 'val'):
+		
 		source, target = batch['source'], batch['target']
 		dataSource, labSource = source
 		dataTarget, labTarget = target
 		
-		# TODO: o labSource está errado!
+		labTarget = labTarget.long()
+		labSource = labSource.long()
 		
-		# we can put the data in GPU to process but with 'no_grad' pytorch way?
-		dataSource = dataSource.to(self.device, dtype=torch.float)
-		dataTarget = dataTarget.to(self.device, dtype=torch.float)
-		labSource = labSource.to(self.device, dtype=torch.long)
-		labTarget = labTarget.to(self.device, dtype=torch.long)
+		latentT,rec = self.AE.forward(dataTarget)
+		predTarget = self.clf.forward_from_latent(latentT)
+		latentS, predSource = self.clf(dataSource)
+		if stage == 'val':
+			discrepLoss = self.discLoss(latentT, latentS)
+			clfLoss =  self.clfLoss(predSource, labSource) + self.hparams.alphaS * self.clDist(latentS, labSource) + self.hparams.betaS * discrepLoss
+			AEloss = self.recLoss(dataTarget, rec) + self.hparams.alphaT * discrepLoss
+			metrics = self._get_metrics(labSource, predSource, labTarget, predTarget,AEloss,clfLoss)
+		elif stage =='test':
+			metrics = self._get_metrics(labSource, predSource, labTarget, predTarget)
+		return metrics
 
-		if optimizer_idx ==0:
-			latent, predSource = self.clf(dataSource) #call forward method
-			m_loss = self.clfLoss(predSource, labSource)
-			p_loss = self.clDist(latent, labSource)
-			loss = m_loss + self.hparams.alphaS * p_loss
-		elif optimizer_idx ==1:
-			latentT, decoded = self.AE.forward(dataTarget)
-			m_loss = self.recLoss(dataTarget, decoded)
-			latentS,predSource = self.clf(dataSource)
-			p_loss = self.discLoss(latentT,latentS)
-			loss = m_loss + self.hparams.alphaT * p_loss
-		else:
-			raise ValueError(f"Optimizer number {optimizer_idx} not defined !!!")
-
-		if stage =='val' or stage=='test':
-			
-			_, predTarget = self.clf(dataTarget)
-			accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predSource.cpu().numpy(), axis=1))
-			accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predTarget.cpu().numpy(), axis=1))
-			loss = loss.item()
-			metrics = {f"loss_{self.optNames[optimizer_idx]}": loss,
-			           'accSource': accSource, 'accTarget': accTarget}
-			return metrics
-		return loss
 			
 	def training_step(self, batch, batch_idx, optimizer_idx):
-		loss = self._shared_eval_step(batch=batch,optimizer_idx=optimizer_idx)
+		source, target = batch['source'], batch['target']
+		dataSource, labSource = source
+		dataTarget, labTarget = target
+		
+		# we can put the data in GPU to process but with 'no_grad' pytorch way?
+		# dataSource = dataSource.to(self.device, dtype=torch.float)
+		# dataTarget = dataTarget.to(self.device, dtype=torch.float)
+		# labSource = labSource.to(self.device, dtype=torch.long)
+		# labTarget = labTarget.to(self.device, dtype=torch.long)
+		
+		if optimizer_idx == 0:
+			latentS, predSource = self.clf(dataSource)  # call forward method
+			m_loss = self.clfLoss(predSource, labSource.long())
+			p_loss = self.clDist(latentS, labSource)
+			
+			latentT, decoded = self.AE.forward(dataTarget)
+			discrepancy = self.discLoss(latentT, latentS)
+			loss = m_loss + self.hparams.alphaS * p_loss + self.hparams.betaS * discrepancy
+		elif optimizer_idx == 1:
+			latentT, decoded = self.AE.forward(dataTarget)
+			m_loss = self.recLoss(dataTarget, decoded)
+			latentS, predSource = self.clf(dataSource)
+			p_loss = self.discLoss(latentT, latentS)
+			loss = m_loss + self.hparams.alphaT * p_loss
 		tqdm_dict = {f"{self.optNames[optimizer_idx]}_loss": loss}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
-
+	
+	def training_epoch_end(self,output):
+		train_lossClf = []
+		train_lossAE = []
+		if len(output) ==2:
+			for clfMetrics in output[0]:
+				train_lossClf.append(clfMetrics['loss'].item())
+			for AEmetrics in output[1]:
+				train_lossAE.append(AEmetrics['loss'].item())
+			self.log('train_loss_classifier',np.mean(train_lossClf), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+			self.log('train_loss_AE', np.mean(train_lossAE), on_step=False, on_epoch=True, prog_bar=True,
+			         logger=True)
+	def validation_epoch_end(self,out):
+		out = out[0]
+		for k,v in out.items():
+			self.log('val_' + k,v, on_step=False, on_epoch=True, prog_bar=True,logger=True)
+		
 	def set_requires_grad(model, requires_grad=True):
 		for param in self.clf.parameters():
 			param.requires_grad = requires_grad
 		for param in self.AE.parameters():
 			param.requires_grad = requires_grad
 			
-	def configure_optimizers(self):
-		lr = self.hparams.lr
-		opt_clf = torch.optim.Adam(self.clf.parameters(), lr=lr)
-		opt_AE = torch.optim.Adam(self.AE.parameters(), lr=lr)
-		return [opt_clf, opt_AE], []
+
 
 	def validation_step(self, batch, batch_idx):
-
-		metrics = self._shared_eval_step(batch,  optimizer_idx = 1, stage = 'val')
+		metrics = self._shared_eval_step(batch,stage = 'val')
 		# self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
-		self.log('val_loss', metrics[f"loss_{self.optNames[1]}"], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accValSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accValTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log(f"val_loss_AE", metrics['AEloss'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log(f"val_loss_clf", metrics['clfLoss'], on_step=False, on_epoch=True, prog_bar=True,
+		         logger=True)
+		#self.log('accValSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		#self.log('accValTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
+	
+
+	def test_step(self, batch, batch_idx):
+		metrics = self._shared_eval_step(batch,stage = 'test')
+
+		self.log('accTestSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log('accTestTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		return metrics
+	
+	def predict(self,dataLoaderTest):
+		with torch.no_grad():
+			latentSource = []
+			latentTarget = []
+			predSource =[]
+			predTarget = []
+			trueSource = []
+			trueTarget = []
+			for batch in dataLoaderTest:
+				source, target = batch['source'], batch['target']
+				dataSource, labS = source
+				dataTarget, labT = target
+				l, pdS = self.clf(dataSource)
+				latentSource.append(l.cpu().numpy())
+				predSource.append(np.argmax(pdS.cpu().numpy(),axis = 1))
+				trueSource.append(labS.cpu().numpy())
+				l, rec = self.AE(dataTarget)
+				latentTarget.append(l.cpu().numpy())
+				pdT = self.clf.forward_from_latent(l)
+				predTarget.append(np.argmax(pdT.cpu().numpy(),axis = 1))
+				trueTarget.append(labT.cpu().numpy())
+				
+				a = 1
+		predictions = {}
+		predictions['latentSource'] = np.concatenate(latentSource,axis =0)
+		predictions['predSource'] = np.concatenate(predSource,axis =0)
+		predictions['trueSource'] = np.concatenate(trueSource,axis =0)
+		predictions['latentTarget'] = np.concatenate(latentTarget,axis =0)
+		predictions['predTarget'] = np.concatenate(predTarget,axis =0)
+		predictions['trueTarget'] = np.concatenate(trueTarget,axis =0)
+	
+		return predictions
+		
+
+	def on_test_end(self):
+		accSource = np.mean([a['accSource'] for a in self.test_metrics])
+		accTarget = np.mean([a['accTarget'] for a in self.test_metrics])
+		print(accSource,accTarget)
+	def configure_optimizers(self):
+		opt_clf = torch.optim.Adam(self.clf.parameters(), lr=self.hparams.lr_source)
+		opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
+		return [opt_clf, opt_AE], []

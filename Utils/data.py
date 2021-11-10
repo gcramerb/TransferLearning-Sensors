@@ -21,5 +21,5 @@ def categorical_to_int(y):
 	y2 = np.array(list(map(lambda x: myActNames[x], y1)))
 	y3 = np.zeros([len(y),len(pd.unique(y))])
 	for i in range(len(y3)):
-		y3[i,y2[i]] = 1
+		y3[i,y2[i]] = np.long(1)
 	return y3

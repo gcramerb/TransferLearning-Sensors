@@ -137,7 +137,7 @@ class CrossDatasetModule(LightningDataModule):
 			data_dir: str = None,
 			sourceName: str = "Dsads",
 			targetName: str = "Ucihar",
-			dataFormat: str = 'Matrix',
+			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 1,
 	):
@@ -148,7 +148,7 @@ class CrossDatasetModule(LightningDataModule):
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.num_classes = 6
-		self.dataFormat = dataFormat
+		self.input_shape = input_shape
 		self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2, Loso=False):
@@ -158,7 +158,7 @@ class CrossDatasetModule(LightningDataModule):
 			y = tmp['y']
 			foldsSource = tmp['folds']
 		# self.num_classes = len(pd.unique(self.Y))
-		y = categorical_to_int(y).astype('int')
+		y = categorical_to_int(y).astype('long')
 		Ysource = np.argmax(y, axis=1).astype('long')
 		
 		file = os.path.join(self.data_dir, f'{self.targetName}_f25_t2.npz')
@@ -167,11 +167,10 @@ class CrossDatasetModule(LightningDataModule):
 			y = tmp['y']
 			foldsTarget = tmp['folds']
 		# self.num_classes = len(pd.unique(self.Y))
-		y = categorical_to_int(y).astype('int')
+		y = categorical_to_int(y).astype('long')
 		Ytarget = np.argmax(y, axis=1).astype('long')
-		if self.dataFormat == 'Matrix':
-			pass
-		elif self.dataFormat == "Channel":
+
+		if self.input_shape[-1] == 3:
 			Xtarget = np.concatenate([Xtarget[:, :, :, 0:3], Xtarget[:, :, :, 3:6]], axis=1)
 			Xsource = np.concatenate([Xsource[:, :, :, 0:3], Xsource[:, :, :, 3:6]], axis=1)
 		
@@ -193,7 +192,19 @@ class CrossDatasetModule(LightningDataModule):
 			self.dataTrain, self.dataVal, self.dataTest = myCrossDataset(train), myCrossDataset(val), myCrossDataset(test)
 
 		else:
-			raise ValueError("traditional split not yet implemented")
+			source = Xsource,Ysource
+			target = Xtarget,Ytarget
+			data = source,target
+			dataset = myCrossDataset(data)
+			nSamples = len(dataset)
+			valLen = int(nSamples * valRate)
+			testLen = int(nSamples * testRate)
+			trainL = nSamples - testLen
+			self.dataTrain, self.dataTest = random_split(dataset, [trainL, testLen],
+			                                             generator=torch.Generator().manual_seed(42))
+			trainL = trainL - valLen
+			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
+			                                            generator=torch.Generator().manual_seed(0))
 
 	def train_dataloader(self):
 		return DataLoader(
@@ -212,7 +223,7 @@ class CrossDatasetModule(LightningDataModule):
 	
 	def test_dataloader(self):
 		return DataLoader(self.dataTest,
-		                  batch_size=len(self.dataTest),
+		                  batch_size=512,
 		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=True)

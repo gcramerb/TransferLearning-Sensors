@@ -9,7 +9,6 @@ import seaborn as sn
 import sys
 
 
-#TODO : organizar essa função toda..
 
 def plotReconstruction(rec,true, savePath = None, label = None,show=False,file = 'arqTest.png'):
 	sensors = ['Accelerometer', ' Gyroscope', 'Magnetometer']

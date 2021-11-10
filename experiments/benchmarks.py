@@ -141,14 +141,6 @@ def classification(datasetList,result):
 	with open(outFile, 'w') as fp:
 		json.dump(result, fp)
 if __name__ == '__main__':
-	
-	#TODO
-	# Experimentos:
-	# 	Separar apenas as atividades que sao comuns
-	# 	Separar os sensores Comuns.
-	# 	Treinar A -> testar B
-	# 	Treinar A + B -> testar B
-	# 		Como que acessa os folds de teste provenientes apenas de B.
 
 	#processData()
 	result = {}

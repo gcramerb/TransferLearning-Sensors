@@ -44,6 +44,9 @@ class classifier(nn.Module):
 		encoded = self.Encoder.forward(X)
 		pred = self.discrimination(encoded)
 		return encoded, pred
+	def forward_from_latent(self,latent):
+		return self.discrimination(latent)
+		
 
 
 # define the NN architecture

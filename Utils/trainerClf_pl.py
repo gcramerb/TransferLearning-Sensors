@@ -15,7 +15,6 @@ from models.classifier import classifier,classifierTest
 from models.autoencoder import ConvAutoencoder
 from models.customLosses import MMDLoss,OTLoss, classDistance
 #import geomloss
-from dataProcessing.create_dataset import crossDataset, targetDataset, getData
 
 
 from pytorch_lightning import LightningDataModule, LightningModule

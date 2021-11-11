@@ -72,7 +72,7 @@ class MMDLoss(nn.Module):
 
 
 class OTLoss(nn.Module):
-	def __init__(self, loss='sinkhorn', p=2, blur=0.05, scaling=0.9):
+	def __init__(self, loss='sinkhorn', p=2, blur=0.1, scaling=1.5):
 		super(OTLoss, self).__init__()
 		self.loss = loss
 		self.p = p

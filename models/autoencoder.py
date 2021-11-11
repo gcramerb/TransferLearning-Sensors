@@ -9,17 +9,20 @@ import sys, pickle
 import numpy as np
 from copy import deepcopy
 
-from .blocks import Encoder1,Decoder
+from .blocks import Encoder1,Encoder2,Decoder
 
 # define the NN architecture
 class ConvAutoencoder(nn.Module):
 	"""
 	
 	"""
-	def __init__(self, hyp=None):
+	def __init__(self, FeName = 'fe1',hyp=None):
 		super(ConvAutoencoder, self).__init__()
 		self._name = 'AE'
-		self.Encoder = Encoder1(hyp)
+		if FeName =='fe1':
+			self.Encoder = Encoder1(hyp)
+		else:
+			self.Encoder = Encoder2(hyp)
 		self.Decoder = Decoder(hyp['encDim'])
 
 

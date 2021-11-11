@@ -25,128 +25,67 @@ from collections import OrderedDict
 class networkLight(LightningModule):
 	def __init__(
 			self,
-			lr: float = 0.0002,
-			batch_size: int = 128,
+			lr: float = 0.002,
 			n_classes: int = 6,
 			alpha: float = 1.0,
-			penalty: str = 'mmd',
+			inputShape:tuple = (1,50,6),
+			FeName: str = 'fe1',
 			modelHyp: dict = None,
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
-		self.model = classifier(6, self.hparams.modelHyp)
+		self.model = classifier(6,FeName, self.hparams.modelHyp,inputShape = inputShape)
 		self.model.build()
-		self.m_loss , self.p_loss = self.myLoss(self.hparams.penalty)
-		#self.automatic_optimization = True
-		
-	
-	def myLoss(self, penalty):
+		self.m_loss = torch.nn.CrossEntropyLoss()
+		self.p_loss = classDistance()
 
-		if penalty == 'mmd':
-			 penalty_loss =  MMDLoss()
-		elif penalty == "ot":
-			penalty_loss = OTLoss()
-		elif penalty == 'ClDist':
-			penalty_loss = classDistance()
-		else:
-			penalty_loss = None
-		return torch.nn.CrossEntropyLoss(),penalty_loss
-	
+
 	def forward(self, X):
 		return self.model(X)
-	
-	# def adversarial_loss(self, y_hat, y):
-	#     return F.binary_cross_entropy(y_hat, y)
+
 	def set_requires_grad(model, requires_grad=True):
 		for param in self.model.parameters():
 			param.requires_grad = requires_grad
 	
 	def training_step(self, batch, batch_idx):
-
 		# opt = self.optimizers()
-		data, domain, label = batch['data'], batch['domain'], batch['label']
-
-		latent, pred = self(data)
-
-		sourceIdx = np.where(domain.cpu().numpy() == 0)[0]
-		true = label[sourceIdx]
-		pred = pred[sourceIdx]
-
-		true = true.long()  # why need this?
-		loss = self.m_loss(pred, true) + self.hparams.alpha * self.p_loss(latent, domain,true)
-
-		#
-		# opt.zero_grad()
-		# self.manual_backward(loss1)
-		# opt.step()
-		#
-		tqdm_dict = {"loss1": loss}
-
-		output = OrderedDict({"loss1": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
+		data,  label = batch['data'], batch['label']
+		latent, pred = self.model(data)
+		label = label.long()  # why need this?
+		loss = self.m_loss(pred, label) + self.hparams.alpha * self.p_loss(latent, label)
+		tqdm_dict = {"train_loss": loss}
+		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
-	
-	def training_step_end(self, training_step_outputs):
-		metrics = training_step_outputs['log']
-		loss = metrics['loss1'].item()
-		#print(loss1)
-		#print(self.model.CNN2[0].weight.grad)
-		# self.logger.experiment.log_metric(self.logger.run_id, key='training_loss',
-		#                                   value=loss1)
-		self.log('training_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-		print('training_loss:  ',loss)
 	def validation_step(self, batch, batch_idx):
-		with torch.no_grad():
-			res = self._shared_eval_step(batch, batch_idx)
-			metrics = res['log']
+		res = self._shared_eval_step(batch, batch_idx)
+		metrics = res['log']
 
-		# self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
-		self.log('val_loss', metrics['loss1'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accValSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accValTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log('val_loss', metrics['loss'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log('accVal', metrics['acc'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-		# self.logger.experiment.log_metric(self.logger.run_id,key= 'val_loss', value= metrics['loss1'])
-		# self.logger.experiment.log_metric(self.logger.run_id,'accValSource', metrics['accSource'])
-		# self.logger.experiment.log_metric(self.logger.run_id,'accValTarget', metrics['accTarget'])
-		# print('val_loss: ',  metrics['loss1'],' ','accValSource: ',
-		#                                    metrics['accSource'],' ','accValTarget: ',metrics['accTarget'])
 		return metrics
 
 	def test_step(self, batch, batch_idx):
 		res = self._shared_eval_step(batch, batch_idx)
 		metrics = res['log']
-		# self.log_dict(metrics)
-		# self.logger.experiment.log_metric(self.logger.run_id,'accTestSource', metrics['accSource'])
-		# self.logger.experiment.log_metric(self.logger.run_id,'accTestTarget', metrics['accTarget'])
-		self.log('accTestSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accTestTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log('accTest', metrics['acc'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
 
 	def _shared_eval_step(self, batch, batch_idx):
-		data, domain, label = batch['data'], batch['domain'], batch['label']
+		data, label = batch['data'], batch['label']
 		latent, pred = self(data)
-		#pred = self(data)
 
-		sourceIdx = np.where(domain.cpu().numpy() == 0)[0]
-		targetIdx = np.where(domain.cpu().numpy() != 0)[0]
-		trueSource = label[sourceIdx]
-		predSource = pred[sourceIdx]
-		trueTarget = label[targetIdx]
-		predTarget = pred[targetIdx]
-		outputs = (trueSource, predSource, trueTarget, predTarget)
-		# return outputs
-		trueSource, predSource, trueTarget, predTarget = outputs
+		label  = label.long()  # why need this?
+		
+		loss = self.m_loss(pred, label)  + self.hparams.alpha * self.p_loss(latent,label)
 
-		trueSource = trueSource.long()  # why need this?
-		loss = self.m_loss(predSource, trueSource)  + self.hparams.alpha * self.p_loss(latent,domain,trueSource)
-		#loss1 = self.m_loss(predSource, trueSource)
-		accSource = accuracy_score(trueSource.cpu().numpy(), np.argmax(predSource.cpu().numpy(), axis=1))
-		accTarget = accuracy_score(trueTarget.cpu().numpy(), np.argmax(predTarget.cpu().numpy(), axis=1))
+		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.cpu().numpy(), axis=1))
 		loss = loss.item()
 
-		metrics = {"loss1": loss,
-		           'accSource': accSource, 'accTarget': accTarget}
+		metrics = {"loss": loss,
+		           'acc': acc}
 
 		tqdm_dict = metrics
 		result = {
@@ -155,47 +94,26 @@ class networkLight(LightningModule):
 		}
 		return result
 
-	def predict(self, dataTest):
-		pass
-		# print('predict')
-		# latent, domain, pred = [], [], []
-		# data = np.concatenate([x['data'] for x in dataTest])
-		# d = [x['domain'] for x in dataTest]
-		# label = [x['label'] for x in dataTest]
-		#
-		# #l, p = self.model.forward(torch.tensor(np.expand_dims(data, axis=1)))
-		# pred = np.argmax(p.numpy(), axis=1)
-		# return l.numpy(), d, pred.tolist(), label
+	def predict(self, dataLoaderTest):
+		with torch.no_grad():
+			latent = []
+			pred = []
+			true = []
+			for batch in dataLoaderTest:
+				data, label = batch['data'], batch['label']
+				l, pdS = self.model(data)
+				latent.append(l.cpu().numpy())
+				pred.append(np.argmax(pdS.cpu().numpy(), axis=1))
+				true.append(label.cpu().numpy())
+		predictions = {}
+		predictions['latent'] = np.concatenate(latent, axis=0)
+		predictions['pred'] = np.concatenate(pred, axis=0)
+		predictions['true'] = np.concatenate(true, axis=0)
+		return predictions
 
 	def configure_optimizers(self):
 		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr)
 		lr_scheduler = StepLR(opt, step_size=30, gamma=0.5)
 		#return {"optimizerClf": opt, "lr_scheduler": self.schedulerClf}
 		return [opt], [lr_scheduler]
-
-	def on_epoch_end(self):
-		print('epoch_end')
-		pass
-
-	# def automatic_optimization(self):
-	# 	print('auto opt')
-	# 	"""If set to ``False`` you are responsible for calling ``.backward()``, ``.step()``, ``.zero_grad()``."""
-	# 	return False
-	
-	# def manual_backward(self, loss1, optimizerClf):
-	# 	print('manual back')
-	# 	loss1.backward()
-		#optimizerClf.step()
-	# def manual_backward(self, loss1) -> None:
-	# 	# make sure we're using manual opt
-	# 	self._verify_is_manual_optimization("manual_backward")
-	#
-	# def configure_optimizers(self):
-	# 	return optim.Adam(self.model.parameters(), lr=self.hparams.lr)
-	
-	def on_epoch_end(self):
-		pass
-
-
-
 

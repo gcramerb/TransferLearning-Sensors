@@ -38,19 +38,17 @@ class SingleDatasetModule(LightningDataModule):
 			self,
 			data_dir: str = None,
 			datasetName: str = "Dsads",
-			case: str = "Source",
-			dataFormat: str = 'Matrix',
+			inputShape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 1,
 	):
 		super().__init__()
 		self.data_dir = data_dir
 		self.datasetName = datasetName
-		self.case = case
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.num_classes = 6
-		self.dataFormat = dataFormat
+		self.inputShape = inputShape
 		self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False):
@@ -62,9 +60,7 @@ class SingleDatasetModule(LightningDataModule):
 		#self.num_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
 		Y = np.argmax(y, axis=1).astype('long')
-		if self.dataFormat == 'Matrix':
-			pass
-		elif self.dataFormat == "Channel":
+		if self.inputShape[0] == 2:
 			X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
 		
 		if Loso:
@@ -130,6 +126,8 @@ class myCrossDataset(Dataset):
 		if torch.is_tensor(idx):
 			idx = idx.tolist()
 		return {'source': (self.Xsource[idx],self.Ysource[idx]), 'target': (self.Xtarget[idx],self.Ytarget[idx])}
+
+
 
 class CrossDatasetModule(LightningDataModule):
 	def __init__(

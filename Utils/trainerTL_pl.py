@@ -39,14 +39,15 @@ class TLmodel(LightningModule):
 			penalty: str = 'mmd',
 			data_shape: tuple = (1,50,6),
 			modelHyp: dict = None,
+			FeName: str = 'fe1',
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
 
         # networks
-		self.clf = classifier(6, modelName = 'clf1',hyp =self.hparams.modelHyp,inputShape = self.hparams.data_shape)
-		self.AE = ConvAutoencoder(self.hparams.modelHyp)
+		self.clf = classifier(6, FeName = FeName,hyp =self.hparams.modelHyp,inputShape = self.hparams.data_shape)
+		self.AE = ConvAutoencoder(FeName = FeName,hyp = self.hparams.modelHyp)
 		self.clf.build()
 		self.AE.build()
 		self.test_metrics = []
@@ -201,7 +202,7 @@ class TLmodel(LightningModule):
 				predTarget.append(np.argmax(pdT.cpu().numpy(),axis = 1))
 				trueTarget.append(labT.cpu().numpy())
 				
-				a = 1
+
 		predictions = {}
 		predictions['latentSource'] = np.concatenate(latentSource,axis =0)
 		predictions['predSource'] = np.concatenate(predSource,axis =0)

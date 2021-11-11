@@ -17,13 +17,13 @@ class classifier(nn.Module):
 	"""
 
 	"""
-	def __init__(self, n_class, modelName = 'clf1', hyp=None,inputShape = (1,50,6)):
+	def __init__(self, n_class, FeName = 'fe1', hyp=None,inputShape = (1,50,6)):
 		super(classifier, self).__init__()
 		self.n_class = n_class
-		self._name = modelName
-		if modelName =='clf1':
+		self._name = FeName
+		if FeName =='fe1':
 			self.Encoder = Encoder1(hyp=hyp,inputShape=inputShape)
-		elif modelName == "clf2":
+		elif FeName == "fe2":
 			self.Encoder = Encoder2(hyp=hyp,inputShape=inputShape)
 		else:
 			raise ValueError("Put a value model name!" )

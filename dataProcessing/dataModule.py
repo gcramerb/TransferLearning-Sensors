@@ -51,7 +51,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.inputShape = inputShape
 		self.transform = transforms.Normalize(0, 1, inplace=False)
 	
-	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False):
+	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True):
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
@@ -62,8 +62,8 @@ class SingleDatasetModule(LightningDataModule):
 		Y = np.argmax(y, axis=1).astype('long')
 		if self.inputShape[0] == 2:
 			X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
-		
-		if Loso:
+
+		if Loso and split:
 			fold_test, fold_val = np.random.randint(len(folds), size=2)
 			test_idx = folds[fold_test][1]
 			val_idx = folds[fold_val][1]
@@ -71,7 +71,7 @@ class SingleDatasetModule(LightningDataModule):
 			self.dataTrain,self.dataVal,self.dataTest = myDataset(X[train_idx],Y[train_idx]),myDataset(X[val_idx],Y[val_idx]),myDataset(X[test_idx],Y[test_idx])
 
 
-		else:
+		elif not Loso and split:
 			dataset = myDataset(X,Y)
 			nSamples = len(dataset)
 			valLen = int(nSamples * valRate)
@@ -81,7 +81,19 @@ class SingleDatasetModule(LightningDataModule):
 			                                             generator=torch.Generator().manual_seed(42))
 			trainL = trainL - valLen
 			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
-			                                            generator=torch.Generator().manual_seed(0))
+			
+	                                            generator=torch.Generator().manual_seed(0))
+		else:
+			self.dataset = myDataset(X, Y)
+			
+	def dataloader(self):
+		return DataLoader(
+			self.dataset,
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		
 	def train_dataloader(self):
 		return DataLoader(
 			self.dataTrain,

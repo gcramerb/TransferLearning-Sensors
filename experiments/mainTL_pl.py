@@ -24,7 +24,7 @@ from collections import OrderedDict
 
 from Utils.trainerClf_pl import networkLight
 from Utils.trainerTL_pl import TLmodel
-from dataProcessing.dataModule import CrossDatasetModule
+from dataProcessing.dataModule import CrossDatasetModule,SingleDatasetModule
 import mlflow
 #mlflow.set_tracking_uri("http://localhost:5000")
 
@@ -50,9 +50,9 @@ else:
 
 def getModelHparams():
 	clfParam = {}
-	clfParam['kernel_dim'] = [(5, 3), (15, 1)]
+	clfParam['kernel_dim'] = [(5, 3), (15, 3)]
 	clfParam['n_filters'] = (2,4,8,16)
-	clfParam['encDim'] =32
+	clfParam['encDim'] =64
 	clfParam["DropoutRate"] = 0.0
 	clfParam['FeName'] = 'fe1'
 	return clfParam
@@ -61,8 +61,9 @@ def getHparams():
 	params = {}
 	params['lr_source'] = 0.01
 	params['lr_target'] = 0.001
-	params['batch_size'] = 128
-	params['n_epochs'] = 40
+	params['bs_source'] = 64
+	params['bs_target'] = 128
+	params['n_epochs'] = 1
 	params['alphaS'] = 0.2
 	params['betaS'] = 0.05
 	params['alphaT'] = 0.5
@@ -72,12 +73,19 @@ def getHparams():
 
 if __name__ == '__main__':
 	trainParams = getHparams()
-	dm = CrossDatasetModule(data_dir=args.inPath,
-	                        input_shape = trainParams['input_shape'],
-	                        sourceName = args.source,
-	                        targetName = args.target
+	dm_source = SingleDatasetModule(data_dir=args.inPath,
+	                        inputShape = trainParams['input_shape'],
+	                        datasetName = args.source,
+	                        batch_size = trainParams['bs_source']
 							)
-	dm.setup(Loso = False)
+	dm_source.setup(Loso = False)
+	dm_target = SingleDatasetModule(data_dir=args.inPath,
+	                        inputShape = trainParams['input_shape'],
+	                        datasetName = args.target,
+	                        batch_size = trainParams['bs_target']
+							)
+	dm_target.setup(split = False)
+	
 	hparam = getModelHparams()
 
 	mlf_logger = MLFlowLogger(experiment_name='TL_trial1', save_dir='../results/mlflowTL/')
@@ -96,15 +104,19 @@ if __name__ == '__main__':
 	                FeName = hparam['FeName'])
 	chkp_callback = ModelCheckpoint(dirpath='../saved/',
 	                                save_last=True )
-
+	model.setDatasets(dm_source, dm_target)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=5,
 	                  max_epochs=trainParams['n_epochs'],
 	                  logger=mlf_logger,
 	                  progress_bar_refresh_rate=1,
-	                  callbacks = [chkp_callback])
-	trainer.fit(model, datamodule=dm)
-	#hat = model.predict(dm.test_dataloader())
-	trainer.save_checkpoint(f"../saved/TLmodel{args.source}_to_{args.target}_{trainParams['discrepancy']}.ckpt")
+	                  callbacks = [chkp_callback],
+	                  multiple_trainloader_mode = 'max_size_cycle')
+	model.setDatasets(dm_source,dm_target)
+	trainer.fit(model)
+	#hat = model.predict(dm)
+	
+	#trainer.save_checkpoint(f"../saved/TLmodel{args.source}_to_{args.target}_{trainParams['discrepancy']}.ckpt")
 	print(f"{args.source}_to_{args.target}\n")
-	print(trainer.test(datamodule=dm))
+	#print(trainer.test(model = model,dataloaders=[dm.test_dataloader(),dm.train_dataloader()]))
+	print(trainer.test(model=model))

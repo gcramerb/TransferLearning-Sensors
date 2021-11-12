@@ -53,7 +53,7 @@ else:
 
 def getModelHparams():
 	clfParam = {}
-	clfParam['kernel_dim'] = [(5, 3), (15, 1)]
+	clfParam['kernel_dim'] = [(5, 3), (15, 3)]
 	clfParam['n_filters'] = (2,4,8,16)
 	clfParam['encDim'] =32
 	clfParam["DropoutRate"] = 0.0

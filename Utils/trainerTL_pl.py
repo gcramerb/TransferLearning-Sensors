@@ -18,6 +18,7 @@ from models.customLosses import MMDLoss,OTLoss, classDistance
 
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.trainer.supporters import CombinedLoader
 from collections import OrderedDict
 
 
@@ -66,12 +67,15 @@ class TLmodel(LightningModule):
 			raise ValueError('specify a valid discrepancy loss!')
 		
 		self.clDist = classDistance()
-		self.optNames = ['Classifier','Reconstructior']
+		self.modelName = ['Classifier', 'Reconstructior']
+		self.datasetName = ['Source','Target']
 		
 
 	def forward(self, X):
 		return self.clf(X)
 	def _get_metrics(self,labSource,predSource,labTarget,predTarget,AEloss = None,clfLoss = None):
+		
+		
 		accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predSource.cpu().numpy(), axis=1))
 		accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predTarget.cpu().numpy(), axis=1))
 		if AEloss is not None:
@@ -88,31 +92,65 @@ class TLmodel(LightningModule):
 		
 		
 	def _shared_eval_step(self, batch,stage = 'val'):
-		
-		source, target = batch['source'], batch['target']
-		dataSource, labSource = source
-		dataTarget, labTarget = target
-		
-		labTarget = labTarget.long()
-		labSource = labSource.long()
-		
+
+		source,target = batch[0],batch[1]
+		dataSource,labSource = source['data'],source['label'].long()
+		dataTarget, labTarget = target['data'], target['label'].long()
+
+		latentS, predS = self.clf(dataSource)
 		latentT,rec = self.AE.forward(dataTarget)
-		predTarget = self.clf.forward_from_latent(latentT)
-		latentS, predSource = self.clf(dataSource)
-		if stage == 'val':
-			discrepLoss = self.discLoss(latentT, latentS)
-			clfLoss =  self.clfLoss(predSource, labSource) + self.hparams.alphaS * self.clDist(latentS, labSource) + self.hparams.betaS * discrepLoss
-			AEloss = self.recLoss(dataTarget, rec) + self.hparams.alphaT * discrepLoss
-			metrics = self._get_metrics(labSource, predSource, labTarget, predTarget,AEloss,clfLoss)
+		predT = self.clf.forward_from_latent(latentT)
+		
+		if stage == 'train':
+			discrepancy_loss = self.discLoss(latentT, latentS)
+			m_loss_clf = self.clfLoss(predS, labSource)
+			p_loss_clf = self.clDist(latentS, labSource)
+			m_loss_AE = self.recLoss(dataTarget, rec)
+			
+			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
+			AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
+			
+			metrics = {f'{stage}_m_loss_clf': m_loss_clf.item(),
+			           f'{stage}_m_loss_AE': m_loss_AE.item(),
+			           f'{stage}_discrepancy_loss': discrepancy_loss.item(),
+			           f'{stage}_clf_loss': clf_loss.item(),
+			           f'{stage}_AE_loss': AE_loss.item()}
+			
+		elif stage == 'val':
+			accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predS.cpu().numpy(), axis=1))
+			accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predT.cpu().numpy(), axis=1))
+			
+			discrepancy_loss = self.discLoss(latentT, latentS)
+			m_loss_clf =self.clfLoss(predS, labSource)
+			p_loss_clf = self.clDist(latentS, labSource)
+			m_loss_AE = self.recLoss(dataTarget, rec)
+			
+			
+			clf_loss =  m_loss_clf + self.hparams.alphaS * p_loss_clf  + self.hparams.betaS * discrepancy_loss
+			AE_loss =  m_loss_AE + self.hparams.alphaT * discrepancy_loss
+
+
+			metrics ={f'{stage}_acc_source':accSource,
+			          f'{stage}_acc_target':accTarget,
+					  f'{stage}_m_loss_clf':m_loss_clf.item(),
+					  f'{stage}_m_loss_AE':m_loss_AE.item(),
+					  f'{stage}_discrepancy_loss':discrepancy_loss.item(),
+			          f'{stage}_clf_loss':clf_loss.item(),
+			          f'{stage}_AE_loss':AE_loss.item()}
+
 		elif stage =='test':
-			metrics = self._get_metrics(labSource, predSource, labTarget, predTarget)
+			accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predS.cpu().numpy(), axis=1))
+			accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predT.cpu().numpy(), axis=1))
+			
+			metrics ={'acc_source':accSource,
+			          'acc_target':accTarget}
 		return metrics
 
 			
 	def training_step(self, batch, batch_idx, optimizer_idx):
-		source, target = batch['source'], batch['target']
-		dataSource, labSource = source
-		dataTarget, labTarget = target
+		source, target = batch[0], batch[1]
+		dataSource, labSource = source['data'],source['label'].long()
+		dataTarget, labTarget = target['data'],target['label']
 		
 		# we can put the data in GPU to process but with 'no_grad' pytorch way?
 		# dataSource = dataSource.to(self.device, dtype=torch.float)
@@ -122,7 +160,7 @@ class TLmodel(LightningModule):
 		
 		if optimizer_idx == 0:
 			latentS, predSource = self.clf(dataSource)  # call forward method
-			m_loss = self.clfLoss(predSource, labSource.long())
+			m_loss = self.clfLoss(predSource, labSource)
 			p_loss = self.clDist(latentS, labSource)
 			
 			latentT, decoded = self.AE.forward(dataTarget)
@@ -134,26 +172,25 @@ class TLmodel(LightningModule):
 			latentS, predSource = self.clf(dataSource)
 			p_loss = self.discLoss(latentT, latentS)
 			loss = m_loss + self.hparams.alphaT * p_loss
-		tqdm_dict = {f"{self.optNames[optimizer_idx]}_loss": loss}
-		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
+		
+		tqdm_dict = {f"{self.modelName[optimizer_idx]}_loss": loss}
+		metrics = self._shared_eval_step(batch,stage = 'train')
+		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": metrics})
 		return output
 	
 	def training_epoch_end(self,output):
-		train_lossClf = []
-		train_lossAE = []
-		if len(output) ==2:
-			for clfMetrics in output[0]:
-				train_lossClf.append(clfMetrics['loss'].item())
-			for AEmetrics in output[1]:
-				train_lossAE.append(AEmetrics['loss'].item())
-			self.log('train_loss_classifier',np.mean(train_lossClf), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-			self.log('train_loss_AE', np.mean(train_lossAE), on_step=False, on_epoch=True, prog_bar=True,
-			         logger=True)
-	def validation_epoch_end(self,out):
-		out = out[0]
-		for k,v in out.items():
-			self.log('val_' + k,v, on_step=False, on_epoch=True, prog_bar=True,logger=True)
+		metrics = {}
+		opt0 = [i['log'] for i in output[0]]
+		opt1=[i['log'] for i in output[1]]
 		
+		keys_ = opt0[0].keys()
+		for k in keys_:
+			metrics[k] = np.mean([i[k] for i in opt0 ] + [i[k] for i in opt1])
+		for k, v in metrics.items():
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+
+
 	def set_requires_grad(model, requires_grad=True):
 		for param in self.clf.parameters():
 			param.requires_grad = requires_grad
@@ -163,24 +200,27 @@ class TLmodel(LightningModule):
 
 
 	def validation_step(self, batch, batch_idx):
-		metrics = self._shared_eval_step(batch,stage = 'val')
-		# self.logger.experiment.log_dict('1',metrics,'val_metrics.txt')
-		self.log(f"val_loss_AE", metrics['AEloss'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log(f"val_loss_clf", metrics['clfLoss'], on_step=False, on_epoch=True, prog_bar=True,
-		         logger=True)
-		#self.log('accValSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		#self.log('accValTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		with torch.no_grad():
+			metrics = self._shared_eval_step(batch,stage = 'val')
+
 		return metrics
 	
+	def validation_epoch_end(self, out):
+		keys_ = out[0].keys()
+		metrics = {}
+		for k in keys_:
+			val = [i[k] for i in out]
+			metrics[k] = np.mean(val)
+		for k, v in metrics.items():
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
 	def test_step(self, batch, batch_idx):
 		metrics = self._shared_eval_step(batch,stage = 'test')
-
-		self.log('accTestSource', metrics['accSource'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accTestTarget', metrics['accTarget'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		for k,v in metrics.items():
+			self.log(k,v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
-	
-	def predict(self,dataLoaderTest):
+
+	def predict(self,datamodule):
 		with torch.no_grad():
 			latentSource = []
 			latentTarget = []
@@ -188,20 +228,22 @@ class TLmodel(LightningModule):
 			predTarget = []
 			trueSource = []
 			trueTarget = []
-			for batch in dataLoaderTest:
+			for batch in datamodule.test_dataloader():
 				source, target = batch['source'], batch['target']
 				dataSource, labS = source
-				dataTarget, labT = target
 				l, pdS = self.clf(dataSource)
 				latentSource.append(l.cpu().numpy())
 				predSource.append(np.argmax(pdS.cpu().numpy(),axis = 1))
 				trueSource.append(labS.cpu().numpy())
+				
+			for batch in datamodule.train_dataloader():
+				source, target = batch['source'], batch['target']
+				dataTarget, labT = target
 				l, rec = self.AE(dataTarget)
 				latentTarget.append(l.cpu().numpy())
 				pdT = self.clf.forward_from_latent(l)
 				predTarget.append(np.argmax(pdT.cpu().numpy(),axis = 1))
 				trueTarget.append(labT.cpu().numpy())
-				
 
 		predictions = {}
 		predictions['latentSource'] = np.concatenate(latentSource,axis =0)
@@ -210,15 +252,30 @@ class TLmodel(LightningModule):
 		predictions['latentTarget'] = np.concatenate(latentTarget,axis =0)
 		predictions['predTarget'] = np.concatenate(predTarget,axis =0)
 		predictions['trueTarget'] = np.concatenate(trueTarget,axis =0)
-	
 		return predictions
-		
 
-	def on_test_end(self):
-		accSource = np.mean([a['accSource'] for a in self.test_metrics])
-		accTarget = np.mean([a['accTarget'] for a in self.test_metrics])
-		print(accSource,accTarget)
+
 	def configure_optimizers(self):
 		opt_clf = torch.optim.Adam(self.clf.parameters(), lr=self.hparams.lr_source)
 		opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
 		return [opt_clf, opt_AE], []
+	
+	def train_dataloader(self):
+		return [self.dm_source.train_dataloader(),
+		        self.dm_target.dataloader()]
+	
+	def test_dataloader(self):
+		loaders = [self.dm_source.test_dataloader(),
+		        self.dm_target.dataloader()]
+		combined_loaders = CombinedLoader(loaders, "max_size_cycle")
+		return combined_loaders
+	
+	def val_dataloader(self):
+		loaders = [self.dm_source.val_dataloader(),
+		        self.dm_target.dataloader()]
+		combined_loaders = CombinedLoader(loaders, "max_size_cycle")
+		return combined_loaders
+
+	def setDatasets(self,dm_source,dm_target):
+		self.dm_source = dm_source
+		self.dm_target = dm_target

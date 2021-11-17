@@ -35,7 +35,7 @@ class networkLight(LightningModule):
 	):
 		super().__init__()
 		self.save_hyperparameters()
-		self.model = classifier(6,FeName, self.hparams.modelHyp,inputShape = inputShape)
+		self.model = classifier(6,self.hparams.FeName, self.hparams.modelHyp,inputShape = inputShape)
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss()
 		self.p_loss = classDistance()
@@ -61,30 +61,30 @@ class networkLight(LightningModule):
 	def validation_step(self, batch, batch_idx):
 		res = self._shared_eval_step(batch, batch_idx)
 		metrics = res['log']
-
-		self.log('val_loss', metrics['loss'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		self.log('accVal', metrics['acc'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-
+		for k,v in metrics.items():
+			self.log(f'val_{k}',v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
 
 	def test_step(self, batch, batch_idx):
 		res = self._shared_eval_step(batch, batch_idx)
 		metrics = res['log']
-		self.log('accTest', metrics['acc'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
+		self.log('test_acc', metrics['acc'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
 
 	def _shared_eval_step(self, batch, batch_idx):
-		data, label = batch['data'], batch['label']
-		latent, pred = self(data)
+		data, label = batch['data'], batch['label'].long()
+		latent, pred = self.model(data)
 
-		label  = label.long()  # why need this?
-		
-		loss = self.m_loss(pred, label)  + self.hparams.alpha * self.p_loss(latent,label)
+		m_loss = self.m_loss(pred, label)
+		p_loss = self.p_loss(latent,label)
+		loss = m_loss  + self.hparams.alpha * p_loss
 
 		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.cpu().numpy(), axis=1))
 		loss = loss.item()
 
 		metrics = {"loss": loss,
+		           'm_loss':m_loss,
+		           'p_loss': p_loss,
 		           'acc': acc}
 
 		tqdm_dict = metrics
@@ -113,7 +113,7 @@ class networkLight(LightningModule):
 
 	def configure_optimizers(self):
 		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr)
-		lr_scheduler = StepLR(opt, step_size=30, gamma=0.5)
+		lr_scheduler = StepLR(opt, step_size=self.hparams.step_size, gamma=0.5)
 		#return {"optimizerClf": opt, "lr_scheduler": self.schedulerClf}
 		return [opt], [lr_scheduler]
 

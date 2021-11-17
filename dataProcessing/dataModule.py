@@ -62,7 +62,7 @@ class SingleDatasetModule(LightningDataModule):
 		Y = np.argmax(y, axis=1).astype('long')
 		if self.inputShape[0] == 2:
 			X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
-
+		self.dataset = myDataset(X, Y)
 		if Loso and split:
 			fold_test, fold_val = np.random.randint(len(folds), size=2)
 			test_idx = folds[fold_test][1]
@@ -83,14 +83,14 @@ class SingleDatasetModule(LightningDataModule):
 			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
 			
 	                                            generator=torch.Generator().manual_seed(0))
-		else:
-			self.dataset = myDataset(X, Y)
+
+		
 			
 	def dataloader(self):
 		return DataLoader(
 			self.dataset,
 			shuffle=True,
-			batch_size=self.batch_size,
+			batch_size=1024,
 			num_workers=self.num_workers,
 			drop_last=True)
 		

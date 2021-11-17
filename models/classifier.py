@@ -17,7 +17,11 @@ class classifier(nn.Module):
 	"""
 
 	"""
-	def __init__(self, n_class, FeName = 'fe1', hyp=None,inputShape = (1,50,6)):
+	def __init__(self,
+	             n_class,
+	             FeName = None,
+	             hyp=None,
+	             inputShape = (1,50,6)):
 		super(classifier, self).__init__()
 		self.n_class = n_class
 		self._name = FeName

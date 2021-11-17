@@ -16,17 +16,17 @@ class ConvAutoencoder(nn.Module):
 	"""
 	
 	"""
-	def __init__(self, FeName = 'fe1',hyp=None):
+	def __init__(self, FeName = 'fe1',hyp=None,inputShape = (1,50,6)):
 		super(ConvAutoencoder, self).__init__()
 		self._name = 'AE'
 		if FeName =='fe1':
-			self.Encoder = Encoder1(hyp)
+			self.Encoder = Encoder1(hyp,inputShape=inputShape)
 		else:
-			self.Encoder = Encoder2(hyp)
-		self.Decoder = Decoder(hyp['encDim'])
+			self.Encoder = Encoder2(hyp,inputShape = inputShape)
+		self.Decoder = Decoder(hyp['encDim'],
+		                       n_filters = hyp['n_filters'],
+		                       outputShape = inputShape)
 
-
-	
 	@property
 	def name(self):
 		return self._name
@@ -35,8 +35,8 @@ class ConvAutoencoder(nn.Module):
 		## encoder layers ##
 		self.Encoder.build()
 		self.Decoder.build()
-		# from torchsummary import summary
-		# summary(self.Decoder.to('cuda'), (1,50 ))
+		#from torchsummary import summary
+		#summary(self.Decoder.to('cuda'), (1,80 ))
 
 
 

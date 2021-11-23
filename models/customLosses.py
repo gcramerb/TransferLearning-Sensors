@@ -78,10 +78,20 @@ class OTLoss(nn.Module):
 		self.p = p
 		self.blur = blur
 		self.scaling = scaling
-		self.lossFunc = geomloss.SamplesLoss(loss=self.loss, p=self.p, blur=self.blur, reach=None, diameter=None,
+		self.lossFunc = geomloss.SamplesLoss(loss=self.loss,
+		                                     p=self.p,
+		                                     blur=self.blur,
+		                                     reach=None,
+		                                     diameter=None,
 		                                     scaling=self.scaling,
-		                                     truncate=5, cost=None, kernel=None, cluster_scale=None, debias=True,
-		                                     potentials=False, verbose=False, backend='auto')
+		                                     truncate=5,
+		                                     cost=None,
+		                                     kernel=None,
+		                                     cluster_scale=None,
+		                                     debias=True,
+		                                     potentials=False,
+		                                     verbose=False,
+		                                     backend='auto')
 	
 	def forward(self, latentSource, latentTarget, label=None):
 		return self.lossFunc(latentSource, latentTarget)

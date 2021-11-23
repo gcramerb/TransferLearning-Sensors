@@ -65,9 +65,9 @@ class myTrainer:
 		:return: None
 		"""
 		if source.dataFormat == 'Matrix':
-			self.clf = classifier(n_class=6,modelName=modelName, hyp=hypModel,inputShape=(1,50,6))
+			self.clf = classifier(n_classes=6, hyp=hypModel, inputShape=(1, 50, 6))
 		elif source.dataFormat == "Channel":
-			self.clf = classifier(n_class=6,modelName=modelName, hyp=hypModel, inputShape=(2,50,3))
+			self.clf = classifier(n_classes=6, hyp=hypModel, inputShape=(2, 50, 3))
 		else:
 			raise ValueError("put a valid DataFormat" )
 		

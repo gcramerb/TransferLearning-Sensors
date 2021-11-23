@@ -35,15 +35,16 @@ parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 
 
-parser.add_argument('--saveModel', type=bool, default=False)
+parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
 
 if args.slurm:
+	verbose = 0
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 
 else:
-	
+	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	args.outPath = '../results/tests/'
 
@@ -65,9 +66,9 @@ else:
 #
 def getModelHparams():
 	clfParam = {}
-	clfParam['kernel_dim'] = [(5, 3), (15,3)]
-	clfParam['n_filters'] = (4, 14, 24, 26)
-	clfParam['encDim'] = 64
+	clfParam['kernel_dim'] = [(5, 3), (25,3)]
+	clfParam['n_filters'] = (4, 16, 18, 24)
+	clfParam['encDim'] = 120
 	clfParam["inputShape"] = (1, 50, 6)
 	
 	return clfParam
@@ -75,10 +76,11 @@ def getModelHparams():
 
 def getTrainHparms():
 	trainParams = {}
-	trainParams['nEpoch'] = 50
-	trainParams['batch_size'] = 64
-	trainParams['alpha'] = 0
-	trainParams['lr'] = 0.001
+	trainParams['nEpoch'] = 100
+	trainParams['batch_size'] = 128
+	trainParams['alpha'] = 0.5
+	trainParams['lr'] = 0.0023318647476059827
+	trainParams['step_size'] = 10
 	return trainParams
 
 
@@ -96,10 +98,11 @@ if __name__ == '__main__':
 	                     lr=trainParams['lr'],
 	                     inputShape = clfParams["inputShape"],
 	                     FeName = 'fe2',
+	                     step_size = trainParams['step_size'],
 	                     modelHyp = clfParams)
-	early_stopping = EarlyStopping('val_loss', mode='min', patience=10)
-	#mlf_logger = MLFlowLogger(experiment_name='nameLogger', save_dir='../results/mlflow/')
-	wandb_logger = WandbLogger(project='classifier', log_model='all')
+
+
+	wandb_logger = WandbLogger(project='classifier', log_model='all',name = 'best_until_now')
 	
 	early_stopping = EarlyStopping('val_loss', mode='min', patience=5)
 	chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True)
@@ -109,12 +112,11 @@ if __name__ == '__main__':
 	                  logger=wandb_logger,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=trainParams['nEpoch'],
-	                  progress_bar_refresh_rate=1,
+	                  progress_bar_refresh_rate=verbose,
 	                  callbacks = [early_stopping])
 	wandb_logger.watch(model)
 	trainer.fit(model, datamodule=dm)
 	if args.saveModel:
-		trainer.save_checkpoint(f"../saved/model1{args.source}.ckpt")
+		trainer.save_checkpoint(f"../saved/clf1_{args.source}.ckpt")
 	print(f"Training in {args.source} \n")
 	print(trainer.test(model,datamodule = dm))
-	#mlf_logger.finalize()

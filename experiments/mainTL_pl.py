@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 
@@ -31,11 +30,13 @@ import mlflow
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='trialDef')
+parser.add_argument('--expName', type=str, default='train_sep_trial2')
+parser.add_argument('--paramsPath', type=str, default='params/params4.json')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--n_classes', type=int, default=6)
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
@@ -48,32 +49,41 @@ else:
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	args.outPath = '../results/tests/'
 
-def getModelHparams():
-	clfParam = {}
-	clfParam['kernel_dim'] = [(5, 3), (15, 3)]
-	clfParam['n_filters'] = (4,14,24,26)
-	clfParam['encDim'] =80
-	clfParam["DropoutRate"] = 0.0
-	clfParam['FeName'] = 'fe1'
-	return clfParam
-#Trial 39 finished with value: 0.9835648834705353 and parameters: {'lr': 2.2073152695750636e-05, 'alpha': 0.45000000000000007, 'bs_source': 32, 'step_size': 15, 'kernel2_1': 25, 'kernel2_2': 3, 'filter 1': 2, 'filter 2': 12, 'filter 3': 24, 'filter 4': 28, 'encDim': 96, 'FeName': 'fe2', 'dataFormat': (1, 50, 6)}.
-def getHparams():
+def getHparams(file_path = None):
 	params = {}
-	params['lr_source'] = 0.003
+	params['lr_source'] = 0.0023318647476059827
 	params['lr_target'] = 0.001
-	params['bs_source'] = 64
-	params['bs_target'] = 64
-	#params['step_size'] = 25
-	params['n_epochs'] = 100
-	params['alphaS'] = 0.5
+	params['bs_source'] = 128
+	params['bs_target'] = 128
+	params['step_size'] = 25
+	params['n_eph_S'] = 40
+	params['n_eph_T'] = 10
+	
+	params['alphaS'] = 1
 	params['betaS'] = 0.5
-	params['alphaT'] = 3
+	params['alphaT'] = 5
 	params['discrepancy'] = 'ot'
-	params['input_shape'] = (2,50,3)
-	return params
+	params['input_shape'] = (1,50,6)
+	clfParams = {}
+	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
+	clfParams['n_filters'] = (4,16,18,24)
+	clfParams['encDim'] = 120
+	clfParams["DropoutRate"] = 0.0
+	clfParams['FeName'] = 'fe2'
+
+	if file_path:
+		import json
+		with open(file_path) as f:
+			data = json.load(f)
+		
+		for k in data.keys():
+			params[k] = data[k]
+		clfParams['encDim'] = data['encDim']
+
+	return params,clfParams
 
 if __name__ == '__main__':
-	trainParams = getHparams()
+	trainParams, modelParams = getHparams(args.paramsPath)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                        inputShape = trainParams['input_shape'],
 	                        datasetName = args.source,
@@ -87,9 +97,8 @@ if __name__ == '__main__':
 							)
 	dm_target.setup(Loso = False,split = True)
 	
-	hparam = getModelHparams()
 
-	wandb_logger = WandbLogger(project='TL', log_model='all',name = 'first ')
+	wandb_logger = WandbLogger(project='TL', log_model='all',name =args.expName)
 	
 	model = TLmodel(penalty=trainParams['discrepancy'],
 	                alphaS=trainParams['alphaS'],
@@ -97,25 +106,28 @@ if __name__ == '__main__':
 	                alphaT = trainParams['alphaT'],
 	                lr_source = trainParams['lr_source'],
 	                lr_target=trainParams['lr_target'],
+	                n_classes = args.n_classes,
 	                data_shape = trainParams['input_shape'],
-	                modelHyp = hparam,
-	                FeName = hparam['FeName'])
+	                modelHyp = modelParams,
+	                FeName = modelParams['FeName'],
+	                max_eph_S = trainParams['n_eph_S'])
+	
 	chkp_callback = ModelCheckpoint(dirpath='../saved/',
 	                                save_last=True )
-	early_stopping = EarlyStopping('val_clf_loss', mode='min', patience=10)
+	#early_stopping = EarlyStopping('valloss_clf', mode='min', patience=10)
 	model.setDatasets(dm_source, dm_target)
 	trainer = Trainer(gpus=1,
-	                  check_val_every_n_epoch=10,
-	                  max_epochs=trainParams['n_epochs'],
+	                  check_val_every_n_epoch=1,
+	                  max_epochs=trainParams['n_eph_S'] +trainParams['n_eph_T'] ,
 	                  logger=wandb_logger,
 	                  progress_bar_refresh_rate=1,
-	                  callbacks = [chkp_callback,early_stopping],
+	                  #callbacks = [chkp_callback,early_stopping],
 	                  multiple_trainloader_mode = 'max_size_cycle')
-	model.setDatasets(dm_source,dm_target)
+	
 	trainer.fit(model)
 	#hat = model.predict(dm)
-	
-	#trainer.save_checkpoint(f"../saved/TLmodel{args.source}_to_{args.target}_{trainParams['discrepancy']}.ckpt")
+	if args.saveModel:
+		trainer.save_checkpoint(f"../saved/TLmodel{args.source}_to_{args.target}_{trainParams['discrepancy']}.ckpt")
 	print(f"{args.source}_to_{args.target}\n")
 	#print(trainer.test(model = model,dataloaders=[dm.test_dataloader(),dm.train_dataloader()]))
 	print(trainer.test(model=model))

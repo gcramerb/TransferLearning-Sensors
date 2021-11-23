@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision import transforms
+
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 
@@ -41,22 +41,28 @@ class TLmodel(LightningModule):
 			data_shape: tuple = (1,50,6),
 			modelHyp: dict = None,
 			FeName: str = 'fe1',
+			max_eph_S: int = 40,
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
 
         # networks
-		self.clf = classifier(6,
-		                      FeName = self.hparams.FeName,
-		                      hyp =self.hparams.modelHyp,
-		                      inputShape = self.hparams.data_shape)
+		self.clf = classifier(n_classes = self.hparams.n_classes,
+		                      FeName=self.hparams.FeName,
+		                      hyp=self.hparams.modelHyp,
+		                      inputShape=self.hparams.data_shape)
+		
 		self.AE = ConvAutoencoder(FeName = self.hparams.FeName,
 		                          hyp = self.hparams.modelHyp,
 		                          inputShape = self.hparams.data_shape)
+		
 		self.clf.build()
 		self.AE.build()
 		self.test_metrics = []
+		self.train_clf = True
+		# for ae in self.AE.parameters():
+		# 	ae.requires_grad = False
 		
 		# from torchsummary import summary
 		# summary(self.AE.to('cuda'), (1,50,6))
@@ -112,14 +118,16 @@ class TLmodel(LightningModule):
 			p_loss_clf = self.clDist(latentS, labSource)
 			m_loss_AE = self.recLoss(dataTarget, rec)
 			
-			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
+			#clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
+			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
+			
 			AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
 			
 			metrics = {f'{stage}_m_loss_clf': m_loss_clf.detach(),
 			           f'{stage}_m_loss_AE': m_loss_AE.detach(),
-			           f'{stage}_discrepancy_loss': discrepancy_loss.detach(),
-			           f'{stage}_clf_loss': clf_loss.detach(),
-			           f'{stage}_AE_loss': AE_loss.detach()}
+			           f'{stage}loss_disc': discrepancy_loss.detach(),
+			           f'{stage}loss_clf': clf_loss.detach(),
+			           f'{stage}loss_AE': AE_loss.detach()}
 			
 		elif stage =='val':
 			#accSource = accuracy_score(labSource.detach().cpu(), np.argmax(predS.detach().cpu(), axis=1))
@@ -129,21 +137,22 @@ class TLmodel(LightningModule):
 			p_loss_clf = self.clDist(latentS, labSource)
 			m_loss_AE = self.recLoss(dataTarget, rec)
 			
-			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
+			#clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
+			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
 			AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
 			metrics = {f'{stage}_m_loss_clf': m_loss_clf.detach(),
 			           f'{stage}_m_loss_AE': m_loss_AE.detach(),
-			           f'{stage}_discrepancy_loss': discrepancy_loss.detach(),
-			           f'{stage}_clf_loss': clf_loss.detach(),
-			           f'{stage}_AE_loss': AE_loss.detach()}
+			           f'{stage}loss_disc': discrepancy_loss.detach(),
+			           f'{stage}loss_clf': clf_loss.detach(),
+			           f'{stage}loss_AE': AE_loss.detach()}
 			# f'{stage}_acc_source': accSource,
 			# f'{stage}_acc_target': accTarget,
 		elif stage =='test':
 			accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predS.cpu().numpy(), axis=1))
 			accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predT.cpu().numpy(), axis=1))
 			
-			metrics ={'acc_source':accSource,
-			          'acc_target':accTarget}
+			metrics ={'test_acc_source':accSource,
+			          'all_acc_target':accTarget}
 		return metrics
 
 			
@@ -163,15 +172,16 @@ class TLmodel(LightningModule):
 			m_loss = self.clfLoss(predSource, labSource)
 			p_loss = self.clDist(latentS, labSource)
 			
-			latentT, decoded = self.AE.forward(dataTarget)
-			discrepancy = self.discLoss(latentT, latentS)
-			loss = m_loss + self.hparams.alphaS * p_loss + self.hparams.betaS * discrepancy
+			#latentT, decoded = self.AE.forward(dataTarget)
+			#discrepancy = self.discLoss(latentT, latentS)
+			#loss = m_loss + self.hparams.alphaS * p_loss + self.hparams.betaS * discrepancy
+			loss = m_loss + self.hparams.alphaS * p_loss
 		elif optimizer_idx == 1:
 			latentT, decoded = self.AE.forward(dataTarget)
 			m_loss = self.recLoss(dataTarget, decoded)
 			latentS, predSource = self.clf(dataSource)
 			p_loss = self.discLoss(latentT, latentS)
-			loss = m_loss + self.hparams.alphaT * p_loss
+			loss = m_loss +  self.hparams.alphaT * p_loss
 		
 		tqdm_dict = {f"{self.modelName[optimizer_idx]}_loss": loss}
 		metrics = self._shared_eval_step(batch,stage = 'train')
@@ -220,7 +230,7 @@ class TLmodel(LightningModule):
 			self.log(k,v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
 
-	def predict(self,datamodule):
+	def predict(self,dm_source,dm_target,getProb = False):
 		with torch.no_grad():
 			latentSource = []
 			latentTarget = []
@@ -228,17 +238,17 @@ class TLmodel(LightningModule):
 			predTarget = []
 			trueSource = []
 			trueTarget = []
-			for batch in datamodule.test_dataloader():
-				source, target = batch['source'], batch['target']
-				dataSource, labS = source
+			for source in dm_source.test_dataloader():
+				dataSource, labS = source['data'], source['label'].long()
 				l, pdS = self.clf(dataSource)
 				latentSource.append(l.cpu().numpy())
 				predSource.append(np.argmax(pdS.cpu().numpy(),axis = 1))
 				trueSource.append(labS.cpu().numpy())
 				
-			for batch in datamodule.train_dataloader():
-				source, target = batch['source'], batch['target']
-				dataTarget, labT = target
+			for target in dm_target.dataloader():
+
+				dataTarget,labT = target['data'],target['label'].long()
+
 				l, rec = self.AE(dataTarget)
 				latentTarget.append(l.cpu().numpy())
 				pdT = self.clf.forward_from_latent(l)
@@ -258,8 +268,42 @@ class TLmodel(LightningModule):
 	def configure_optimizers(self):
 		opt_clf = torch.optim.Adam(self.clf.parameters(), lr=self.hparams.lr_source)
 		opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
-		return [opt_clf, opt_AE], []
+		lr_sch_clf = StepLR(opt_clf, step_size=20, gamma=0.5)
+		lr_sch_AE = StepLR(opt_AE, step_size=5, gamma=0.5)
+		return [opt_clf, opt_AE], [lr_sch_clf,lr_sch_AE]
 	
+	# Alternating schedule for optimizer steps (e.g. GANs)
+	def optimizer_step(
+			self,
+			epoch,
+			batch_idx,
+			optimizer,
+			optimizer_idx,
+			optimizer_closure,
+			on_tpu=False,
+			using_native_amp=False,
+			using_lbfgs=False,
+	):
+		# update generator every step
+		if epoch == self.hparams.max_eph_S:
+			self.train_clf = False
+			# for p in self.clf.parameters():
+			# 	p.requires_grad = False
+			# for ae in self.AE.parameters():
+			# 	ae.requires_grad = True
+
+		if optimizer_idx == 0:
+			if self.train_clf:
+				optimizer.step(closure=optimizer_closure)
+			else:
+				optimizer_closure()
+		# update discriminator every 2 steps
+		if optimizer_idx == 1:
+			if not self.train_clf:
+				optimizer.step(closure=optimizer_closure)
+			else:
+				optimizer_closure()
+
 	def train_dataloader(self):
 		return [self.dm_source.train_dataloader(),
 		        self.dm_target.train_dataloader()]

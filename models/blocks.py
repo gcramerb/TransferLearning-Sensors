@@ -34,28 +34,33 @@ class Encoder1(nn.Module):
 				          groups = self.inputShape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
-				nn.LeakyReLU(),
-				nn.MaxPool2d(self.pooling_1)))
+				nn.MaxPool2d(self.pooling_1),
+				nn.LeakyReLU()
+						)
+					)
 		
 		self.CNN2 = nn.Sequential(
-			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.kernel_dim[0],
+			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1],
+			          kernel_size=self.kernel_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
 			nn.BatchNorm2d(self.n_filters[2]),
-			nn.LeakyReLU(),
-			nn.MaxPool2d(self.pooling_2)
+			nn.MaxPool2d(self.pooling_2),
+			nn.LeakyReLU()
 		)
 		
 		self.DenseLayer = nn.Sequential(
-			nn.Conv2d(in_channels=self.n_filters[2], kernel_size=self.kernel_dim[0], out_channels=self.n_filters[3],
+			nn.Conv2d(in_channels=self.n_filters[2],
+			          kernel_size=self.kernel_dim[0],
+			          out_channels=self.n_filters[3],
 			          padding='same', bias=True),
+			
 			nn.BatchNorm2d(self.n_filters[3]),
 			nn.LeakyReLU(),
 			nn.Flatten(),
 			nn.Linear(self.n_filters[3]*5*int(self.inputShape[-1]/3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.ReLU()
-			#nn.Dropout(p=self.DropoutRate, inplace=False)
 		)
 	def forward(self,X):
 
@@ -89,23 +94,27 @@ class Encoder2(nn.Module):
 	## encoder layers ##
 	def build(self):
 		for i in range(self.n_win):
-			self.CNN1.append(nn.Sequential(
+			self.CNN1.append(
+				nn.Sequential(
 				nn.Conv2d(in_channels=self.inputShape[0], kernel_size=self.kernel_dim[i],
 				          out_channels=self.n_filters[i], padding='same', bias=True, groups=self.inputShape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
-				nn.LeakyReLU(),
-				nn.MaxPool2d(self.pooling_1)))
+				nn.MaxPool2d(self.pooling_1),
+				nn.LeakyReLU()
+					)
+				)
 
 		self.DenseLayer = nn.Sequential(
-			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1], kernel_size=self.kernel_dim[0],
-			          out_channels=self.n_filters[3],
+			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1],
+			          kernel_size=self.kernel_dim[0],
+			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
-			nn.BatchNorm2d(self.n_filters[3]),
+			nn.BatchNorm2d(self.n_filters[2]),
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),
-			nn.Linear(self.n_filters[3]*5*int(self.inputShape[-1]/3), self.encoded_dim),
+			nn.Linear(self.n_filters[2]*5*int(self.inputShape[-1]/3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.ReLU()
 			# nn.Dropout(p=self.DropoutRate, inplace=False)
@@ -142,7 +151,7 @@ class Decoder(nn.Module):
 	## decoder layers ##
 	def build(self):
 		self.linearDec = nn.Sequential(
-			nn.Linear(self.encoded_dim, self.n_filters[2]*5*self.outputShape[0]),
+			nn.Linear(self.encoded_dim, self.n_filters[2]*5*2),
 			nn.LeakyReLU()
 		)
 		self.convDec = nn.Sequential(
@@ -158,12 +167,7 @@ class Decoder(nn.Module):
 			
 			nn.BatchNorm2d(self.n_filters[1]),
 			nn.LeakyReLU(),
-			
-			# nn.ConvTranspose2d(in_channels=self.n_filters[2], kernel_size=self.convTrans_window,
-			#                   out_channels=self.n_filters[1],output_padding = (1,0) ,padding=(4, 0),stride=(2, 1) ,groups = 2),
-			# ,  dilation=(2, 1)
-			# nn.BatchNorm2d(self.n_filters[1]),
-			# nn.ReLU(),
+
 			nn.ConvTranspose2d(in_channels=self.n_filters[1],
 			                   kernel_size=self.convTrans_window,
 			                   out_channels=self.outputShape[0],
@@ -171,12 +175,10 @@ class Decoder(nn.Module):
 			                   padding=(0, self.pad_out),
 			                   groups=self.outputShape[0]
 			                   )
-			# ,padding=(1, 0)
-			# nn.LeakyReLU()
 		)
 	
 	def forward(self, encoded):
 		dec = self.linearDec(encoded)
-		dec = dec.view(dec.shape[0], self.n_filters[2],5,self.outputShape[0])
+		dec = dec.view(dec.shape[0], self.n_filters[2],5,2)
 		dec = self.convDec(dec)
 		return dec

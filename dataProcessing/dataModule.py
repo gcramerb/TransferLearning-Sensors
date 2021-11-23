@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from torch.utils.data import DataLoader, random_split, Dataset
-from  torchvision import transforms
+
 import os, random
 import numpy as np
 import pandas as pd
@@ -49,7 +49,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.num_workers = num_workers
 		self.num_classes = 6
 		self.inputShape = inputShape
-		self.transform = transforms.Normalize(0, 1, inplace=False)
+		#self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True):
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2.npz')
@@ -90,7 +90,7 @@ class SingleDatasetModule(LightningDataModule):
 		return DataLoader(
 			self.dataset,
 			shuffle=True,
-			batch_size=1024,
+			batch_size=len(self.dataset),
 			num_workers=self.num_workers,
 			drop_last=True)
 		

@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 
@@ -30,12 +29,13 @@ class networkLight(LightningModule):
 			alpha: float = 1.0,
 			inputShape:tuple = (1,50,6),
 			FeName: str = 'fe1',
+			step_size = 10,
 			modelHyp: dict = None,
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
-		self.model = classifier(6,self.hparams.FeName, self.hparams.modelHyp,inputShape = inputShape)
+		self.model = classifier(6, self.hparams.FeName, self.hparams.modelHyp, inputShape=inputShape)
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss()
 		self.p_loss = classDistance()
@@ -57,13 +57,34 @@ class networkLight(LightningModule):
 		tqdm_dict = {"train_loss": loss}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
-
+	
+	def training_epoch_end(self, output):
+		metrics = {}
+		opt = [i['log'] for i in output]
+		
+		keys_ = opt[0].keys()
+		for k in keys_:
+			metrics[k] = torch.mean(torch.stack([i[k] for i in opt] ))
+		for k, v in metrics.items():
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+	
 	def validation_step(self, batch, batch_idx):
 		res = self._shared_eval_step(batch, batch_idx)
 		metrics = res['log']
-		for k,v in metrics.items():
-			self.log(f'val_{k}',v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
+
+	def validation_epoch_end(self, out):
+		keys_ = out[0].keys()
+		metrics = {}
+		for k in keys_:
+			val = [i[k] for i in out]
+			if k =='acc':
+				metrics['val_'+k] = np.mean(val)
+			else:
+				metrics['val_' + k] = torch.mean(torch.stack(val))
+		for k, v in metrics.items():
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
 
 	def test_step(self, batch, batch_idx):
 		res = self._shared_eval_step(batch, batch_idx)
@@ -80,7 +101,6 @@ class networkLight(LightningModule):
 		loss = m_loss  + self.hparams.alpha * p_loss
 
 		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.cpu().numpy(), axis=1))
-		loss = loss.item()
 
 		metrics = {"loss": loss,
 		           'm_loss':m_loss,

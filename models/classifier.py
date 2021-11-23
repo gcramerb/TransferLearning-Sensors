@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 
-from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import sys, pickle
 import numpy as np
@@ -18,12 +17,12 @@ class classifier(nn.Module):
 
 	"""
 	def __init__(self,
-	             n_class,
+	             n_classes,
 	             FeName = None,
 	             hyp=None,
 	             inputShape = (1,50,6)):
 		super(classifier, self).__init__()
-		self.n_class = n_class
+		self.n_classes = n_classes
 		self._name = FeName
 		if FeName =='fe1':
 			self.Encoder = Encoder1(hyp=hyp,inputShape=inputShape)
@@ -38,7 +37,7 @@ class classifier(nn.Module):
 		
 		self.Encoder.build()
 		self.discrimination = nn.Sequential(
-			nn.Linear(self.Encoder.encoded_dim, self.n_class),
+			nn.Linear(self.Encoder.encoded_dim, self.n_classes),
 			nn.Softmax(dim=1)
 		)
 		# from torchsummary import summary

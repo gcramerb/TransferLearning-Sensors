@@ -73,10 +73,8 @@ def objective(trial):
 	best_acc = float(-1)
 	
 	setupTrain, hypModel, FeName, inputShape = suggest_hyperparameters(trial)
-	dm = SingleDatasetModule(data_dir=args.inPath,
-	                         datasetName=args.source,
-	                         batch_size=setupTrain['bs'],
-	                         inputShape = inputShape)
+	dm = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, inputShape=inputShape,
+	                         batch_size=setupTrain['bs'])
 	dm.setup(Loso=True)
 	model = networkLight(alpha=setupTrain['alpha'],
 	                     lr=setupTrain['lr'],
@@ -119,10 +117,8 @@ def run(n_trials):
 	
 	for s in ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']:
 
-		dm_source = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=s,
-		                                batch_size=setupTrain['bs'],
-		                                inputShape = inputShape)
+		dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=s, inputShape=inputShape,
+		                                batch_size=setupTrain['bs'])
 		dm_source.setup(Loso=False)
 		model = networkLight(alpha=setupTrain['alpha'],
 		                     lr=setupTrain['lr'],

@@ -51,8 +51,7 @@ def get_trainSetup():
 	
 
 def run():
-	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName='Uschad', case='Source',
-	                                batch_size=128)
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName='Uschad', batch_size=128)
 	dm_source.setup(Loso=True)
 	modelHyp = get_trainSetup()
 	AE = ConvAutoencoder(modelHyp)

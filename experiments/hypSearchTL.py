@@ -80,17 +80,11 @@ def objective(trial):
 	trainParams = suggest_hyperparameters(trial)
 	modelHparams = getModelHparams()
 	
-	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                        inputShape = trainParams['input_shape'],
-	                        datasetName = args.source,
-	                        batch_size = trainParams['bs_source']
-							)
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source,
+	                                inputShape=trainParams['input_shape'], batch_size=trainParams['bs_source'])
 	dm_source.setup(Loso = False)
-	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                        inputShape = trainParams['input_shape'],
-	                        datasetName = args.target,
-	                        batch_size = trainParams['bs_target']
-							)
+	dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target,
+	                                inputShape=trainParams['input_shape'], batch_size=trainParams['bs_target'])
 	dm_target.setup(Loso = False,split = True)
 
 	model = TLmodel(penalty=trainParams['discrepancy'],

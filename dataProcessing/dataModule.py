@@ -38,6 +38,7 @@ class SingleDatasetModule(LightningDataModule):
 			self,
 			data_dir: str = None,
 			datasetName: str = "Dsads",
+			n_classes: int = 6,
 			inputShape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 1,
@@ -47,12 +48,12 @@ class SingleDatasetModule(LightningDataModule):
 		self.datasetName = datasetName
 		self.batch_size = batch_size
 		self.num_workers = num_workers
-		self.num_classes = 6
+		self.num_classes = n_classes
 		self.inputShape = inputShape
 		#self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True):
-		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2.npz')
+		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.num_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
 			y = tmp['y']
@@ -147,6 +148,7 @@ class CrossDatasetModule(LightningDataModule):
 			data_dir: str = None,
 			sourceName: str = "Dsads",
 			targetName: str = "Ucihar",
+			n_classes: int = 6,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 1,
@@ -157,12 +159,12 @@ class CrossDatasetModule(LightningDataModule):
 		self.targetName = targetName
 		self.batch_size = batch_size
 		self.num_workers = num_workers
-		self.num_classes = 6
+		self.num_classes = n_classes
 		self.input_shape = input_shape
 		self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2, Loso=False):
-		file = os.path.join(self.data_dir, f'{self.sourceName}_f25_t2.npz')
+		file = os.path.join(self.data_dir, f'{self.sourceName}_f25_t2_{self.num_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			Xsource = tmp['X'].astype('float32')
 			y = tmp['y']
@@ -171,7 +173,7 @@ class CrossDatasetModule(LightningDataModule):
 		y = categorical_to_int(y).astype('long')
 		Ysource = np.argmax(y, axis=1).astype('long')
 		
-		file = os.path.join(self.data_dir, f'{self.targetName}_f25_t2.npz')
+		file = os.path.join(self.data_dir, f'{self.targetName}_f25_t2_{self.num_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			Xtarget = tmp['X'].astype('float32')
 			y = tmp['y']

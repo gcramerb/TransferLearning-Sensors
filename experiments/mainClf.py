@@ -73,11 +73,9 @@ def getTrainSetup():
 	trainSetup['step_size'] = 50
 	trainSetup['penalty'] = args.penalty
 	trainSetup['lr'] = args.lr_source
-	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, case='Source',
-	                                batch_size=args.bs_source)
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, batch_size=args.bs_source)
 	dm_source.setup(Loso=True)
-	dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target, case='Target',
-	                                batch_size=args.bs_target)
+	dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target, batch_size=args.bs_target)
 	dm_target.setup(Loso=True)
 	return trainSetup, dm_source, dm_target
 

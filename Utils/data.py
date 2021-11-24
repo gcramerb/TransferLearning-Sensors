@@ -7,13 +7,13 @@ myActNames = {
 	'walking up': 1,
 	'descending stairs': 2,
 	'walking down': 2,
-	'sitting':3,
-	'standing':4,
-	'lying':5,
-	'lying on back':5,
-	'lying on right':5,
-	'laying':5,
-	'sleeping':5
+	'lying':3,
+	'lying on back':3,
+	'lying on right':3,
+	'laying':3,
+	'sleeping':3,
+	'sitting': 4,
+	'standing': 5,
 }
 
 def categorical_to_int(y):

@@ -24,19 +24,18 @@ from collections import OrderedDict
 from Utils.trainerClf_pl import networkLight
 from Utils.trainerTL_pl import TLmodel
 from dataProcessing.dataModule import CrossDatasetModule,SingleDatasetModule
-import mlflow
-#mlflow.set_tracking_uri("http://localhost:5000")
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='train_sep_trial2')
-parser.add_argument('--paramsPath', type=str, default='params/params4.json')
+parser.add_argument('--expName', type=str, default='train_4act_trial4')
+parser.add_argument('--paramsPath', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
-parser.add_argument('--n_classes', type=int, default=6)
+parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
@@ -51,17 +50,17 @@ else:
 
 def getHparams(file_path = None):
 	params = {}
-	params['lr_source'] = 0.0023318647476059827
-	params['lr_target'] = 0.001
+	params['lr_source'] = 0.0023
+	params['lr_target'] = 0.00005
 	params['bs_source'] = 128
 	params['bs_target'] = 128
 	params['step_size'] = 25
-	params['n_eph_S'] = 40
-	params['n_eph_T'] = 10
+	params['n_epch'] = 80
+	params['epch_rate'] = 8
 	
 	params['alphaS'] = 1
 	params['betaS'] = 0.5
-	params['alphaT'] = 5
+	params['alphaT'] = 2.5
 	params['discrepancy'] = 'ot'
 	params['input_shape'] = (1,50,6)
 	clfParams = {}
@@ -85,20 +84,20 @@ def getHparams(file_path = None):
 if __name__ == '__main__':
 	trainParams, modelParams = getHparams(args.paramsPath)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                        inputShape = trainParams['input_shape'],
-	                        datasetName = args.source,
-	                        batch_size = trainParams['bs_source']
-							)
+	                                datasetName=args.source,
+	                                n_classes = args.n_classes,
+	                                inputShape=trainParams['input_shape'],
+	                                batch_size=trainParams['bs_source'])
 	dm_source.setup(Loso = False)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                        inputShape = trainParams['input_shape'],
-	                        datasetName = args.target,
-	                        batch_size = trainParams['bs_target']
-							)
+	                                datasetName=args.target,
+	                                n_classes=args.n_classes,
+	                                inputShape=trainParams['input_shape'],
+	                                batch_size=trainParams['bs_target'])
 	dm_target.setup(Loso = False,split = True)
 	
 
-	wandb_logger = WandbLogger(project='TL', log_model='all',name =args.expName)
+	#wandb_logger = WandbLogger(project='TL', log_model='all',name =args.expName)
 	
 	model = TLmodel(penalty=trainParams['discrepancy'],
 	                alphaS=trainParams['alphaS'],
@@ -110,7 +109,7 @@ if __name__ == '__main__':
 	                data_shape = trainParams['input_shape'],
 	                modelHyp = modelParams,
 	                FeName = modelParams['FeName'],
-	                max_eph_S = trainParams['n_eph_S'])
+	                epch_rate = trainParams['epch_rate'])
 	
 	chkp_callback = ModelCheckpoint(dirpath='../saved/',
 	                                save_last=True )
@@ -118,8 +117,8 @@ if __name__ == '__main__':
 	model.setDatasets(dm_source, dm_target)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,
-	                  max_epochs=trainParams['n_eph_S'] +trainParams['n_eph_T'] ,
-	                  logger=wandb_logger,
+	                  max_epochs=trainParams['n_epch'],
+	                  #logger=wandb_logger,
 	                  progress_bar_refresh_rate=1,
 	                  #callbacks = [chkp_callback,early_stopping],
 	                  multiple_trainloader_mode = 'max_size_cycle')

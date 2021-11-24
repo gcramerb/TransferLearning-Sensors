@@ -41,7 +41,7 @@ class TLmodel(LightningModule):
 			data_shape: tuple = (1,50,6),
 			modelHyp: dict = None,
 			FeName: str = 'fe1',
-			max_eph_S: int = 40,
+			epch_rate: int = 8,
 			**kwargs
 	):
 		super().__init__()
@@ -267,12 +267,13 @@ class TLmodel(LightningModule):
 
 	def configure_optimizers(self):
 		opt_clf = torch.optim.Adam(self.clf.parameters(), lr=self.hparams.lr_source)
-		opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
+		
+		#opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
+		opt_AE = torch.optim.RMSprop(self.AE.parameters(), lr=self.hparams.lr_target)
 		lr_sch_clf = StepLR(opt_clf, step_size=20, gamma=0.5)
-		lr_sch_AE = StepLR(opt_AE, step_size=5, gamma=0.5)
+		lr_sch_AE = StepLR(opt_AE, step_size=10, gamma=0.5)
 		return [opt_clf, opt_AE], [lr_sch_clf,lr_sch_AE]
-	
-	# Alternating schedule for optimizer steps (e.g. GANs)
+
 	def optimizer_step(
 			self,
 			epoch,
@@ -285,13 +286,12 @@ class TLmodel(LightningModule):
 			using_lbfgs=False,
 	):
 		# update generator every step
-		if epoch == self.hparams.max_eph_S:
+		if (epoch+1) % self.hparams.epch_rate ==0 or epoch ==0:
+			self.train_clf = True
+			self.train_AE = False
+		else:
 			self.train_clf = False
-			# for p in self.clf.parameters():
-			# 	p.requires_grad = False
-			# for ae in self.AE.parameters():
-			# 	ae.requires_grad = True
-
+			self.train_AE = True
 		if optimizer_idx == 0:
 			if self.train_clf:
 				optimizer.step(closure=optimizer_closure)
@@ -299,7 +299,7 @@ class TLmodel(LightningModule):
 				optimizer_closure()
 		# update discriminator every 2 steps
 		if optimizer_idx == 1:
-			if not self.train_clf:
+			if self.train_AE:
 				optimizer.step(closure=optimizer_closure)
 			else:
 				optimizer_closure()

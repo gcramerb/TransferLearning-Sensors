@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 
@@ -29,13 +28,13 @@ import mlflow
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='trialDef')
+parser.add_argument('--expName', type=str, default='trial_act_Def')
+parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 
-
-parser.add_argument('--saveModel', type=bool, default=True)
+parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
 if args.slurm:
@@ -89,9 +88,10 @@ if __name__ == '__main__':
 	trainParams = getTrainHparms()
 	
 	dm = SingleDatasetModule(data_dir=args.inPath,
-	                         datasetName = args.source,
-	                         batch_size = trainParams['batch_size'],
-	                         inputShape = clfParams["inputShape"])
+	                         datasetName=args.source,
+	                         inputShape=clfParams["inputShape"],
+	                         n_classes = args.n_classes,
+	                         batch_size=trainParams['batch_size'])
 	dm.setup(Loso = False)
 	
 	model = networkLight(alpha=trainParams['alpha'],

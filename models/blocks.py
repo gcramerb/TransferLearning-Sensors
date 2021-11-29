@@ -182,3 +182,21 @@ class Decoder(nn.Module):
 		dec = dec.view(dec.shape[0], self.n_filters[2],5,2)
 		dec = self.convDec(dec)
 		return dec
+
+
+class domainClf(nn.Module):
+	def __init__(self,encoded_dim=64):
+		super(domainClf, self).__init__()
+		self._name = 'DomainCLf'
+		self.encoded_dim = encoded_dim
+
+	## decoder layers ##
+	def build(self):
+		self.linearDec = nn.Sequential(
+			nn.Linear(self.encoded_dim,1),
+			nn.Sigmoid()
+		)
+
+	def forward(self, encoded):
+		dec = self.linearDec(encoded)
+		return dec

@@ -7,7 +7,7 @@ import sys, pickle
 import numpy as np
 from copy import deepcopy
 
-from .blocks import Encoder1,Encoder2,Decoder
+from .blocks import Encoder1,Encoder2,Decoder,domainClf
 
 # define the NN architecture
 class ConvAutoencoder(nn.Module):
@@ -24,6 +24,7 @@ class ConvAutoencoder(nn.Module):
 		self.Decoder = Decoder(hyp['encDim'],
 		                       n_filters = hyp['n_filters'],
 		                       outputShape = inputShape)
+		
 
 	@property
 	def name(self):
@@ -33,6 +34,7 @@ class ConvAutoencoder(nn.Module):
 		## encoder layers ##
 		self.Encoder.build()
 		self.Decoder.build()
+		
 		#from torchsummary import summary
 		#summary(self.Decoder.to('cuda'), (1,80 ))
 

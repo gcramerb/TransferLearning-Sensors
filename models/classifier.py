@@ -24,6 +24,7 @@ class classifier(nn.Module):
 		super(classifier, self).__init__()
 		self.n_classes = n_classes
 		self._name = FeName
+		self.DropoutRate = hyp['DropoutRate']
 		if FeName =='fe1':
 			self.Encoder = Encoder1(hyp=hyp,inputShape=inputShape)
 		elif FeName == "fe2":
@@ -37,6 +38,7 @@ class classifier(nn.Module):
 		
 		self.Encoder.build()
 		self.discrimination = nn.Sequential(
+			nn.Dropout(p = self.DropoutRate ),
 			nn.Linear(self.Encoder.encoded_dim, self.n_classes),
 			nn.Softmax(dim=1)
 		)

@@ -36,37 +36,42 @@ parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--saveModel', type=bool, default=False)
+parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
 
 if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
+	my_logger = WandbLogger(project='TL', log_model='all', name=args.expName)
 
 else:
 	args.nEpoch = 50
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	args.outPath = '../results/tests/'
+	my_logger = None
+	
 
 def getHparams(file_path = None):
 	params = {}
-	params['lr_source'] = 0.0023
-	params['lr_target'] = 0.00005
+	params['lr_source'] = 0.0005
+	params['lr_target'] = 0.0002
 	params['bs_source'] = 128
 	params['bs_target'] = 128
 	params['step_size'] = 25
 	params['n_epch'] = 80
-	params['epch_rate'] = 8
-	
-	params['alphaS'] = 1
+	params['epch_rate'] = 4
+	params['alphaS'] = 0.5
 	params['betaS'] = 0.5
-	params['alphaT'] = 2.5
-	params['discrepancy'] = 'ot'
-	params['input_shape'] = (1,50,6)
+	params['alphaT'] = 0
+	params['discrepancy'] = 'skn'
+	params['feat_eng'] = 'asym'
+	params['weight_decay'] = 0.3
+	params['input_shape'] = (2,50,3)
+	
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4,16,18,24)
-	clfParams['encDim'] = 120
+	clfParams['encDim'] = 64
 	clfParams["DropoutRate"] = 0.0
 	clfParams['FeName'] = 'fe2'
 
@@ -83,6 +88,9 @@ def getHparams(file_path = None):
 
 if __name__ == '__main__':
 	trainParams, modelParams = getHparams(args.paramsPath)
+	print(trainParams)
+	if my_logger:
+		my_logger.log_hyperparams(trainParams)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes = args.n_classes,
@@ -97,7 +105,7 @@ if __name__ == '__main__':
 	dm_target.setup(Loso = False,split = True)
 	
 
-	#wandb_logger = WandbLogger(project='TL', log_model='all',name =args.expName)
+	#
 	
 	model = TLmodel(penalty=trainParams['discrepancy'],
 	                alphaS=trainParams['alphaS'],
@@ -109,16 +117,18 @@ if __name__ == '__main__':
 	                data_shape = trainParams['input_shape'],
 	                modelHyp = modelParams,
 	                FeName = modelParams['FeName'],
+	                weight_decay = trainParams['weight_decay'],
+	                feat_eng = trainParams['feat_eng'],
 	                epch_rate = trainParams['epch_rate'])
 	
 	chkp_callback = ModelCheckpoint(dirpath='../saved/',
 	                                save_last=True )
-	#early_stopping = EarlyStopping('valloss_clf', mode='min', patience=10)
+	#early_stopping = EarlyStopping('trainloss_AE', mode='min', patience=10)
 	model.setDatasets(dm_source, dm_target)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=trainParams['n_epch'],
-	                  #logger=wandb_logger,
+	                  logger=my_logger,
 	                  progress_bar_refresh_rate=1,
 	                  #callbacks = [chkp_callback,early_stopping],
 	                  multiple_trainloader_mode = 'max_size_cycle')

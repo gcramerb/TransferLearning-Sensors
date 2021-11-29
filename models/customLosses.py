@@ -70,9 +70,29 @@ class MMDLoss(nn.Module):
 			xx, yy, xy = self.rbf_kernel(latentSource,latentTarget)
 			return torch.mean(XX + YY - 2. * XY)
 
+class CORAL(nn.Module):
+	def __init__(self):
+		super(CORAL, self).__init__()
+		
+	def forward(self,source, target):
+		d = source.size(1)
+		ns, nt = source.size(0), target.size(0)
+		
+		# source covariance
+		tmp_s = torch.ones((1, ns)).cuda() @ source
+		cs = (source.t() @ source - (tmp_s.t() @ tmp_s) / ns) / (ns - 1)
+		
+		# target covariance
+		tmp_t = torch.ones((1, nt)).cuda() @ target
+		ct = (target.t() @ target - (tmp_t.t() @ tmp_t) / nt) / (nt - 1)
+		
+		# frobenius norm
+		loss = (cs - ct).pow(2).sum().sqrt()
+		loss = loss / (4 * d * d)
+		return loss
 
 class OTLoss(nn.Module):
-	def __init__(self, loss='sinkhorn', p=2, blur=0.1, scaling=1.5):
+	def __init__(self, loss='sinkhorn', p=2, blur=0.1, scaling=0.9):
 		super(OTLoss, self).__init__()
 		self.loss = loss
 		self.p = p
@@ -96,6 +116,95 @@ class OTLoss(nn.Module):
 	def forward(self, latentSource, latentTarget, label=None):
 		return self.lossFunc(latentSource, latentTarget)
 
+class myOTLoss(nn.Module):
+	def __init__(self):
+		self.dist = None
+	
+	@staticmethod
+	def forward(ctx, mu, nu, dist, lam=1e-3, N=100):
+		assert mu.dim() == 2 and nu.dim() == 2 and dist.dim() == 2
+		bs = mu.size(0)
+		d1, d2 = dist.size()
+		assert nu.size(0) == bs and mu.size(1) == d1 and nu.size(1) == d2
+		log_mu = mu.log()
+		log_nu = nu.log()
+		log_u = torch.full_like(mu, -math.log(d1))
+		log_v = torch.full_like(nu, -math.log(d2))
+		for i in range(N):
+			log_v = sinkstep(dist, log_nu, log_u, lam)
+			log_u = sinkstep(dist.t(), log_mu, log_v, lam)
+		
+		# this is slight abuse of the function. it computes (diag(exp(log_u))*Mt*exp(-Mt/lam)*diag(exp(log_v))).sum()
+		# in an efficient (i.e. no bxnxm tensors) way in log space
+		distances = (-sinkstep(-dist.log() + dist / lam, -log_v, log_u, 1.0)).logsumexp(1).exp()
+		ctx.log_v = log_v
+		ctx.log_u = log_u
+		ctx.dist = dist
+		ctx.lam = lam
+		return distances
+	
+	@staticmethod
+	def backward(ctx, grad_out):
+		return grad_out[:, None] * ctx.log_u * ctx.lam, grad_out[:, None] * ctx.log_v * ctx.lam, None, None, None
+	
+class SinkhornDistance(torch.nn.Module):
+
+	def __init__(self, eps, max_iter, reduction='sum'):
+		super(SinkhornDistance, self).__init__()
+		self.eps = eps
+		self.max_iter = max_iter
+		self.reduction = reduction
+
+	def forward(self, mu, nu):
+		s_mu = mu.shape[0]
+		s_nu  = nu.shape[0]
+		if s_mu!= s_nu:
+			s = min(s_nu,s_mu)
+			mu = mu[:s]
+			nu = nu[:s]
+
+		C = (torch.mean(mu,axis = 0)[None,:] - torch.mean(nu,axis = 0)[:,None])**2
+		u = torch.zeros_like(mu)
+		v = torch.zeros_like(nu)
+		# To check if algorithm terminates because of threshold
+		# or max iterations reached
+		actual_nits = 0
+		# Stopping criterion
+		thresh = 1e-1
+
+        # Sinkhorn iterations
+		for i in range(self.max_iter):
+			u1 = u  # useful to check the update
+			u = self.eps * (torch.log(mu+1e-8) - torch.logsumexp(self.M(C, u, v), dim=-1)) + u
+			v = self.eps * (torch.log(nu+1e-8) - torch.logsumexp(self.M(C, u, v).transpose(-2, -1), dim=-1)) + v
+			err = (u - u1).abs().sum(-1).mean()
+			
+			actual_nits += 1
+			if err.item() < thresh:
+				break
+
+		U, V = u, v
+		# Transport plan pi = diag(a)*K*diag(b)
+		pi = torch.exp(self.M(C, U, V))
+		# Sinkhorn distance
+		cost = torch.sum(pi * C, dim=(-2, -1))
+		self.actual_nits = actual_nits
+		if self.reduction == 'mean':
+			cost = cost.mean()
+		elif self.reduction == 'sum':
+			cost = cost.sum()
+		
+		return cost
+
+	def M(self, C, u, v):
+		"Modified cost for logarithmic updates"
+		"$M_{ij} = (-c_{ij} + u_i + v_j) / \epsilon$"
+		return (-C + u.unsqueeze(-1) + v.unsqueeze(-2)) / self.eps
+	
+	@staticmethod
+	def ave(u, u1, tau):
+		"Barycenter subroutine, used by kinetic acceleration through extrapolation."
+		return tau * u + (1 - tau) * u1
 
 class classDistance(nn.Module):
 	def __init__(self):

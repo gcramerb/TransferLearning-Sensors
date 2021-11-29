@@ -13,7 +13,8 @@ sys.path.insert(0, '../')
 
 from models.classifier import classifier,classifierTest
 from models.autoencoder import ConvAutoencoder
-from models.customLosses import MMDLoss,OTLoss, classDistance
+from models.blocks import Encoder2, Encoder1,domainClf
+from models.customLosses import MMDLoss,OTLoss, classDistance,SinkhornDistance,CORAL
 #import geomloss
 
 from pytorch_lightning import LightningDataModule, LightningModule
@@ -32,7 +33,6 @@ class TLmodel(LightningModule):
 			self,
 			lr_source: float = 0.002,
 			lr_target: float = 0.002,
-			batch_size: int = 128,
 			n_classes: int = 6,
 			alphaS: float = 1.0,
 			betaS: float = 0.5,
@@ -40,12 +40,15 @@ class TLmodel(LightningModule):
 			penalty: str = 'mmd',
 			data_shape: tuple = (1,50,6),
 			modelHyp: dict = None,
-			FeName: str = 'fe1',
+			FeName: str = 'fe2',
+			weight_decay:float = 0.0,
+			feat_eng: str = 'sym',
 			epch_rate: int = 8,
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
+		
 
         # networks
 		self.clf = classifier(n_classes = self.hparams.n_classes,
@@ -53,55 +56,89 @@ class TLmodel(LightningModule):
 		                      hyp=self.hparams.modelHyp,
 		                      inputShape=self.hparams.data_shape)
 		
-		self.AE = ConvAutoencoder(FeName = self.hparams.FeName,
-		                          hyp = self.hparams.modelHyp,
-		                          inputShape = self.hparams.data_shape)
+		# self.AE = ConvAutoencoder(FeName = self.hparams.FeName,
+		#                           hyp = self.hparams.modelHyp,
+		#                           inputShape = self.hparams.data_shape)
+		self.AE = Encoder2(hyp = self.hparams.modelHyp,
+		                         inputShape = self.hparams.data_shape)
+		
+		#self.domainClf = domainClf(self.hparams.modelHyp['encDim'])
 		
 		self.clf.build()
 		self.AE.build()
+		
+		#self.domainClf.build()
+		
 		self.test_metrics = []
 		self.train_clf = True
-		# for ae in self.AE.parameters():
-		# 	ae.requires_grad = False
-		
+
 		# from torchsummary import summary
 		# summary(self.AE.to('cuda'), (1,50,6))
 		
-		#SET THE losses:
-		self.recLoss = torch.nn.MSELoss()
+		#SET the losses:
+		#self.recLoss = torch.nn.MSELoss()
+		#self.GanLoss = nn.BCELoss()
 		self.clfLoss = torch.nn.CrossEntropyLoss()
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
 		elif self.hparams.penalty == 'ot':
 			self.discLoss = OTLoss()
+		elif self.hparams.penalty =='skn':
+			self.discLoss = SinkhornDistance(eps=1e-3, max_iter=200)
+		elif self.hparams.penalty =='coral':
+			self.discLoss = CORAL()
 		else:
 			raise ValueError('specify a valid discrepancy loss!')
 		
 		self.clDist = classDistance()
-		self.modelName = ['Classifier', 'Reconstructior']
+		self.modelName = ['Classifier', 'Reconstructior','Domain_Disc']
 		self.datasetName = ['Source','Target']
 		
 
 	def forward(self, X):
 		return self.clf(X)
-	def _get_metrics(self,labSource,predSource,labTarget,predTarget,AEloss = None,clfLoss = None):
+	
+	def compute_loss(self,batch,model = 'clf'):
 		
+		source, target = batch[0], batch[1]
+		dataSource, labSource = source['data'], source['label'].long()
+		dataTarget = target['data']
+		latentS, predSource = self.clf(dataSource)  # call forward method
+		latentT = self.AE.forward(dataTarget)
+		if model =='clf':
+			# y0 = torch.zeros(labSource.shape[0], 1)
+			# y1 = torch.ones(dataTarget.shape[0], 1)
+			# x = torch.cat([latentS, latentT])
+			# y = torch.cat([y0, y1])
+			# pred = self.domainClf(x)
+			# ganLoss = self.GanLoss(pred,y.to(self.device))
+
+			m_loss = self.clfLoss(predSource, labSource)
+			p_loss = self.clDist(latentS, labSource)
+			if self.hparams.feat_eng == 'sym':
+				discrepancy = self.discLoss(latentT, latentS)
+				# loss = m_loss + self.hparams.alphaS * p_loss - self.hparams.betaS * ganLoss
+				loss = m_loss + self.hparams.alphaS * p_loss + self.hparams.betaS * discrepancy
+			
+			elif self.hparams == 'asym':
+				loss = m_loss + self.hparams.alphaS * p_loss
+			
+			else:
+				raise ValueError('wrong feat_eng value')
+			return loss
+		if model =='AE':
+			# latentT, decoded = self.AE.forward(dataTarget)
+			# m_loss = self.recLoss(dataTarget, decoded)
+			
+			p_loss = self.discLoss(latentT, latentS)
+			# predT = self.clf.forward_from_latent(latentT.detach())
+			# clas_dist = self.clDist(latentT,np.argmax(predT.detach().cpu(),axis = 1))
+			loss = p_loss
+			# loss = p_loss -1* self.hparams.alphaT*ganLoss
+			return loss
 		
-		accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predSource.cpu().numpy(), axis=1))
-		accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predTarget.cpu().numpy(), axis=1))
-		if AEloss is not None:
-			metrics = {'AEloss': AEloss.item(),
-			           'clfLoss': clfLoss.item(),
-			           'accSource': accSource,
-			           'accTarget': accTarget
-			           }
-		else:
-			metrics = {'accSource': accSource,
-			           'accTarget': accTarget
-			           }
-		return metrics
-		
-		
+			
+
 	def _shared_eval_step(self, batch,stage = 'val'):
 
 		source,target = batch[0],batch[1]
@@ -109,44 +146,52 @@ class TLmodel(LightningModule):
 		dataTarget, labTarget = target['data'], target['label'].long()
 
 		latentS, predS = self.clf(dataSource)
-		latentT,rec = self.AE.forward(dataTarget)
+		#latentT,rec = self.AE.forward(dataTarget)
+		latentT = self.AE.forward(dataTarget)
 		predT = self.clf.forward_from_latent(latentT)
 		
 		if stage == 'train':
 			discrepancy_loss = self.discLoss(latentT, latentS)
+			
 			m_loss_clf = self.clfLoss(predS, labSource)
 			p_loss_clf = self.clDist(latentS, labSource)
-			m_loss_AE = self.recLoss(dataTarget, rec)
+			#m_loss_AE = self.recLoss(dataTarget, rec)
 			
 			#clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
 			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
 			
-			AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
+			#AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
+			AE_loss = discrepancy_loss
 			
 			metrics = {f'{stage}_m_loss_clf': m_loss_clf.detach(),
-			           f'{stage}_m_loss_AE': m_loss_AE.detach(),
-			           f'{stage}loss_disc': discrepancy_loss.detach(),
+			           #f'{stage}_m_loss_AE': m_loss_AE.detach(),
+			           #f'{stage}loss_disc': discrepancy_loss.detach(),
 			           f'{stage}loss_clf': clf_loss.detach(),
 			           f'{stage}loss_AE': AE_loss.detach()}
 			
 		elif stage =='val':
 			#accSource = accuracy_score(labSource.detach().cpu(), np.argmax(predS.detach().cpu(), axis=1))
 			#accTarget = accuracy_score(labTarget.detach().cpu(), np.argmax(predT.detach().cpu(), axis=1))
+
 			discrepancy_loss = self.discLoss(latentT, latentS)
 			m_loss_clf = self.clfLoss(predS, labSource)
 			p_loss_clf = self.clDist(latentS, labSource)
-			m_loss_AE = self.recLoss(dataTarget, rec)
+			#m_loss_AE = self.recLoss(dataTarget, rec)
 			
 			#clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
 			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
-			AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
+			
+			#AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
+			AE_loss = discrepancy_loss
+			
+			
 			metrics = {f'{stage}_m_loss_clf': m_loss_clf.detach(),
-			           f'{stage}_m_loss_AE': m_loss_AE.detach(),
-			           f'{stage}loss_disc': discrepancy_loss.detach(),
+			           #f'{stage}_m_loss_AE': m_loss_AE.detach(),
+			           #f'{stage}loss_disc': discrepancy_loss.detach(),
 			           f'{stage}loss_clf': clf_loss.detach(),
-			           f'{stage}loss_AE': AE_loss.detach()}
-			# f'{stage}_acc_source': accSource,
-			# f'{stage}_acc_target': accTarget,
+			           f'{stage}loss_AE': AE_loss.detach()
+			           }
+
 		elif stage =='test':
 			accSource = accuracy_score(labSource.cpu().numpy(), np.argmax(predS.cpu().numpy(), axis=1))
 			accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predT.cpu().numpy(), axis=1))
@@ -157,32 +202,16 @@ class TLmodel(LightningModule):
 
 			
 	def training_step(self, batch, batch_idx, optimizer_idx):
-		source, target = batch[0], batch[1]
-		dataSource, labSource = source['data'],source['label'].long()
-		dataTarget = target['data']
-		
-		# we can put the data in GPU to process but with 'no_grad' pytorch way?
-		# dataSource = dataSource.to(self.device, dtype=torch.float)
-		# dataTarget = dataTarget.to(self.device, dtype=torch.float)
-		# labSource = labSource.to(self.device, dtype=torch.long)
-		# labTarget = labTarget.to(self.device, dtype=torch.long)
+
 		
 		if optimizer_idx == 0:
-			latentS, predSource = self.clf(dataSource)  # call forward method
-			m_loss = self.clfLoss(predSource, labSource)
-			p_loss = self.clDist(latentS, labSource)
-			
-			#latentT, decoded = self.AE.forward(dataTarget)
-			#discrepancy = self.discLoss(latentT, latentS)
-			#loss = m_loss + self.hparams.alphaS * p_loss + self.hparams.betaS * discrepancy
-			loss = m_loss + self.hparams.alphaS * p_loss
+			loss = self.compute_loss(batch,'clf')
+
 		elif optimizer_idx == 1:
-			latentT, decoded = self.AE.forward(dataTarget)
-			m_loss = self.recLoss(dataTarget, decoded)
-			latentS, predSource = self.clf(dataSource)
-			p_loss = self.discLoss(latentT, latentS)
-			loss = m_loss +  self.hparams.alphaT * p_loss
-		
+			loss = self.compute_loss(batch, 'AE')
+		# elif optimizer_idx == 2:
+		# 	loss = ganLoss
+
 		tqdm_dict = {f"{self.modelName[optimizer_idx]}_loss": loss}
 		metrics = self._shared_eval_step(batch,stage = 'train')
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": metrics})
@@ -249,7 +278,7 @@ class TLmodel(LightningModule):
 
 				dataTarget,labT = target['data'],target['label'].long()
 
-				l, rec = self.AE(dataTarget)
+				l = self.AE(dataTarget)
 				latentTarget.append(l.cpu().numpy())
 				pdT = self.clf.forward_from_latent(l)
 				predTarget.append(np.argmax(pdT.cpu().numpy(),axis = 1))
@@ -266,43 +295,46 @@ class TLmodel(LightningModule):
 
 
 	def configure_optimizers(self):
-		opt_clf = torch.optim.Adam(self.clf.parameters(), lr=self.hparams.lr_source)
+		opt_clf = torch.optim.Adam(self.clf.parameters(),
+		                           lr=self.hparams.lr_source,
+		                           weight_decay =  self.hparams.weight_decay)
+		opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
+		#opt_domain = torch.optim.RMSprop(self.domainClf.parameters(), lr=self.hparams.lr_target)
 		
-		#opt_AE = torch.optim.Adam(self.AE.parameters(), lr=self.hparams.lr_target)
-		opt_AE = torch.optim.RMSprop(self.AE.parameters(), lr=self.hparams.lr_target)
 		lr_sch_clf = StepLR(opt_clf, step_size=20, gamma=0.5)
 		lr_sch_AE = StepLR(opt_AE, step_size=10, gamma=0.5)
+		#return [opt_clf, opt_AE,opt_domain]
 		return [opt_clf, opt_AE], [lr_sch_clf,lr_sch_AE]
 
-	def optimizer_step(
-			self,
-			epoch,
-			batch_idx,
-			optimizer,
-			optimizer_idx,
-			optimizer_closure,
-			on_tpu=False,
-			using_native_amp=False,
-			using_lbfgs=False,
-	):
-		# update generator every step
-		if (epoch+1) % self.hparams.epch_rate ==0 or epoch ==0:
-			self.train_clf = True
-			self.train_AE = False
-		else:
-			self.train_clf = False
-			self.train_AE = True
-		if optimizer_idx == 0:
-			if self.train_clf:
-				optimizer.step(closure=optimizer_closure)
-			else:
-				optimizer_closure()
-		# update discriminator every 2 steps
-		if optimizer_idx == 1:
-			if self.train_AE:
-				optimizer.step(closure=optimizer_closure)
-			else:
-				optimizer_closure()
+	# def optimizer_step(
+	# 		self,
+	# 		epoch,
+	# 		batch_idx,
+	# 		optimizer,
+	# 		optimizer_idx,
+	# 		optimizer_closure,
+	# 		on_tpu=False,
+	# 		using_native_amp=False,
+	# 		using_lbfgs=False,
+	# ):
+	# 	# update generator every step
+	# 	if (epoch+1) % self.hparams.epch_rate ==0 or epoch ==0:
+	# 		self.train_clf = True
+	# 		self.train_AE = False
+	# 	else:
+	# 		self.train_clf = False
+	# 		self.train_AE = True
+	# 	if optimizer_idx == 0:
+	# 		if self.train_clf:
+	# 			optimizer.step(closure=optimizer_closure)
+	# 		else:
+	# 			optimizer_closure()
+	# 	# update discriminator every 2 steps
+	# 	if optimizer_idx == 1:
+	# 		if self.train_AE:
+	# 			optimizer.step(closure=optimizer_closure)
+	# 		else:
+	# 			optimizer_closure()
 
 	def train_dataloader(self):
 		return [self.dm_source.train_dataloader(),

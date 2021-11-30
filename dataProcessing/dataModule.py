@@ -41,6 +41,7 @@ class SingleDatasetModule(LightningDataModule):
 			n_classes: int = 6,
 			inputShape: tuple = (1,50,6),
 			batch_size: int = 128,
+			type: str = 'source',
 			num_workers: int = 1,
 	):
 		super().__init__()
@@ -50,6 +51,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.num_workers = num_workers
 		self.num_classes = n_classes
 		self.inputShape = inputShape
+		self.type = type
 		#self.transform = transforms.Normalize(0, 1, inplace=False)
 	
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True):
@@ -85,8 +87,11 @@ class SingleDatasetModule(LightningDataModule):
 			
 	                                            generator=torch.Generator().manual_seed(0))
 
-		
-			
+		if self.type == 'target':
+			self.dataVal = self.dataset
+				
+	
+	
 	def dataloader(self):
 		return DataLoader(
 			self.dataset,

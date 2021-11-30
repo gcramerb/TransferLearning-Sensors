@@ -44,6 +44,7 @@ class TLmodel(LightningModule):
 			weight_decay:float = 0.0,
 			feat_eng: str = 'sym',
 			epch_rate: int = 8,
+			lossParams: dict = None,
 			**kwargs
 	):
 		super().__init__()
@@ -82,7 +83,7 @@ class TLmodel(LightningModule):
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
 		elif self.hparams.penalty == 'ot':
-			self.discLoss = OTLoss()
+			self.discLoss = OTLoss(hyp = lossParams)
 		elif self.hparams.penalty =='skn':
 			self.discLoss = SinkhornDistance(eps=1e-3, max_iter=200)
 		elif self.hparams.penalty =='coral':
@@ -120,10 +121,11 @@ class TLmodel(LightningModule):
 				# loss = m_loss + self.hparams.alphaS * p_loss - self.hparams.betaS * ganLoss
 				loss = m_loss + self.hparams.alphaS * p_loss + self.hparams.betaS * discrepancy
 			
-			elif self.hparams == 'asym':
+			elif self.hparams.feat_eng == 'asym':
 				loss = m_loss + self.hparams.alphaS * p_loss
 			
 			else:
+				print()
 				raise ValueError('wrong feat_eng value')
 			return loss
 		if model =='AE':
@@ -197,7 +199,7 @@ class TLmodel(LightningModule):
 			accTarget = accuracy_score(labTarget.cpu().numpy(), np.argmax(predT.cpu().numpy(), axis=1))
 			
 			metrics ={'test_acc_source':accSource,
-			          'all_acc_target':accTarget}
+			          'test_acc_target':accTarget}
 		return metrics
 
 			
@@ -259,7 +261,15 @@ class TLmodel(LightningModule):
 			self.log(k,v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return metrics
 
-	def predict(self,dm_source,dm_target,getProb = False):
+	def get_final_metrics(self):
+		result = { }
+		predictions = self.predict(self.dm_source,self.dm_target)
+		result['acc_source_test'] = accuracy_score(predictions['trueSource'],predictions['predSource'])
+		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
+		return result
+
+		
+	def predict(self,dm_source,dm_target):
 		with torch.no_grad():
 			latentSource = []
 			latentTarget = []
@@ -267,6 +277,7 @@ class TLmodel(LightningModule):
 			predTarget = []
 			trueSource = []
 			trueTarget = []
+			probTarget = []
 			for source in dm_source.test_dataloader():
 				dataSource, labS = source['data'], source['label'].long()
 				l, pdS = self.clf(dataSource)
@@ -281,7 +292,9 @@ class TLmodel(LightningModule):
 				l = self.AE(dataTarget)
 				latentTarget.append(l.cpu().numpy())
 				pdT = self.clf.forward_from_latent(l)
-				predTarget.append(np.argmax(pdT.cpu().numpy(),axis = 1))
+				probs = pdT.cpu().numpy()
+				probTarget.append(probs)
+				predTarget.append(np.argmax(probs,axis = 1))
 				trueTarget.append(labT.cpu().numpy())
 
 		predictions = {}
@@ -291,6 +304,7 @@ class TLmodel(LightningModule):
 		predictions['latentTarget'] = np.concatenate(latentTarget,axis =0)
 		predictions['predTarget'] = np.concatenate(predTarget,axis =0)
 		predictions['trueTarget'] = np.concatenate(trueTarget,axis =0)
+		predictions['probTarget'] = np.concatenate(probTarget,axis = 0)
 		return predictions
 
 

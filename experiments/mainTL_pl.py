@@ -36,7 +36,7 @@ parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--saveModel', type=bool, default=True)
+parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
 if args.slurm:
@@ -53,19 +53,19 @@ else:
 
 def getHparams(file_path = None):
 	params = {}
-	params['lr_source'] = 0.0005
-	params['lr_target'] = 0.0002
+	params['lr_source'] = 0.0001
+	params['lr_target'] = 0.000005
 	params['bs_source'] = 128
 	params['bs_target'] = 128
 	params['step_size'] = 25
-	params['n_epch'] = 80
-	params['epch_rate'] = 4
+	params['n_epch'] = 120
+	params['epch_rate'] = 8
 	params['alphaS'] = 0.5
 	params['betaS'] = 0.5
 	params['alphaT'] = 0
 	params['discrepancy'] = 'skn'
 	params['feat_eng'] = 'asym'
-	params['weight_decay'] = 0.3
+	params['weight_decay'] = 0.2
 	params['input_shape'] = (2,50,3)
 	
 	clfParams = {}

@@ -86,7 +86,7 @@ class Encoder2(nn.Module):
 			self.pooling_2 = (5, 1)
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['encDim']
-			#self.DropoutRate = hyp["DropoutRate"]
+
 
 		self.n_win = 2
 		self.CNN1 = nn.ModuleList([])
@@ -116,8 +116,7 @@ class Encoder2(nn.Module):
 			nn.Flatten(),
 			nn.Linear(self.n_filters[2]*5*int(self.inputShape[-1]/3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
-			nn.ReLU()
-			# nn.Dropout(p=self.DropoutRate, inplace=False)
+			nn.LeakyReLU()
 		)
 	
 	def forward(self, X):

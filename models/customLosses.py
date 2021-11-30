@@ -92,23 +92,23 @@ class CORAL(nn.Module):
 		return loss
 
 class OTLoss(nn.Module):
-	def __init__(self, loss='sinkhorn', p=2, blur=0.1, scaling=0.9):
+	def __init__(self,hyp = None, loss='sinkhorn',blur= 0.01,scaling= 0.7,debias = True):
 		super(OTLoss, self).__init__()
-		self.loss = loss
-		self.p = p
-		self.blur = blur
-		self.scaling = scaling
-		self.lossFunc = geomloss.SamplesLoss(loss=self.loss,
-		                                     p=self.p,
-		                                     blur=self.blur,
+		if hyp:
+			blur = hyp['blur']
+			scaling = hyp['scaling']
+			debias = hyp['debias']
+		self.lossFunc = geomloss.SamplesLoss(loss=loss,
+		                                     p=2,
+		                                     blur=blur,
 		                                     reach=None,
 		                                     diameter=None,
-		                                     scaling=self.scaling,
+		                                     scaling=scaling,
 		                                     truncate=5,
 		                                     cost=None,
 		                                     kernel=None,
 		                                     cluster_scale=None,
-		                                     debias=True,
+		                                     debias=debias,
 		                                     potentials=False,
 		                                     verbose=False,
 		                                     backend='auto')

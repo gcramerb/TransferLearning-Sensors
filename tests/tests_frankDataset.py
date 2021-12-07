@@ -27,11 +27,3 @@ if __name__ == "__main__":
 	else:
 		source = 'C:\\Users\\gcram\\Documents\\Datasets\\originals\\'
 		outPath = 'C:\\Users\\gcram\\Documents\\Datasets\\frankDataset\\'
-	
-
-
-
-	
-	
-	
-	

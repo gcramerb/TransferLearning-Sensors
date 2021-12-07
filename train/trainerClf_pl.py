@@ -35,10 +35,10 @@ class networkLight(LightningModule):
 	):
 		super().__init__()
 		self.save_hyperparameters()
-		self.model = classifier(6, self.hparams.FeName, self.hparams.modelHyp, inputShape=inputShape)
+		self.model = classifier(n_classes, self.hparams.FeName, self.hparams.modelHyp, inputShape=inputShape)
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss()
-		self.p_loss = classDistance()
+		#self.p_loss = classDistance()
 
 
 	def forward(self, X):
@@ -50,10 +50,11 @@ class networkLight(LightningModule):
 	
 	def training_step(self, batch, batch_idx):
 		# opt = self.optimizers()
-		data,  label = batch['data'], batch['label']
+		data,  label = batch['data'], batch['label'].long()
 		latent, pred = self.model(data)
-		label = label.long()  # why need this?
-		loss = self.m_loss(pred, label) + self.hparams.alpha * self.p_loss(latent, label)
+
+		#loss = self.m_loss(pred, label) + self.hparams.alpha * self.p_loss(latent, label)
+		loss =  self.m_loss(pred, label)
 		tqdm_dict = {"train_loss": loss}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
@@ -97,14 +98,15 @@ class networkLight(LightningModule):
 		latent, pred = self.model(data)
 
 		m_loss = self.m_loss(pred, label)
-		p_loss = self.p_loss(latent,label)
-		loss = m_loss  + self.hparams.alpha * p_loss
+		#p_loss = self.p_loss(latent,label)
+		#loss = m_loss  + self.hparams.alpha * p_loss
+		loss = m_loss
 
-		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.cpu().numpy(), axis=1))
+		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.detach().cpu(), axis=1))
 
 		metrics = {"loss": loss,
 		           'm_loss':m_loss,
-		           'p_loss': p_loss,
+		          # 'p_loss': p_loss,
 		           'acc': acc}
 
 		tqdm_dict = metrics
@@ -130,6 +132,22 @@ class networkLight(LightningModule):
 		predictions['pred'] = np.concatenate(pred, axis=0)
 		predictions['true'] = np.concatenate(true, axis=0)
 		return predictions
+	
+	def get_train_metics(self,dataloader):
+		with torch.no_grad():
+			pred = []
+			true = []
+			for batch in dataloader:
+				data, label = batch['data'], batch['label']
+				l, pdS = self.model(data)
+				pred.append(np.argmax(pdS.cpu().numpy(), axis=1))
+				true.append(label.cpu().numpy())
+		metric = {}
+		true = np.concatenate(true)
+		pred= np.concatenate(pred)
+		metric['acc'] =  accuracy_score(true,pred)
+
+		return metric
 
 	def configure_optimizers(self):
 		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr)

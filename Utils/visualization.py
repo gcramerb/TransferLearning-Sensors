@@ -9,8 +9,34 @@ import seaborn as sn
 import sys
 
 
+def plot_sensor(x,label = 'label',save=False):
+	sensors = ['Accelerometer', ' Gyroscope', 'Magnetometer']
+	
+	n_sensors = int((x.shape[0] * x.shape[-1])/3)
+	x = x[0]
+	sensors = sensors[0:n_sensors]
+	axis = [' x', ' y', ' z']
+	
+	f, axarr = plt.subplots(n_sensors, 1, sharex=True, sharey=False)
+
+	for i in range(n_sensors):
+		axarr[i].plot(x[:, 3*i+0], color='green', label='eixo x')
+		axarr[i].plot(x[:, 3*i+1], color='blue', label='eixo y')
+		axarr[i].plot(x[:, 3*i+2], color='red', label='eixo z')
+		axarr[i].set_title(f'{sensors[i]} ')
+		axarr[i].set_ylabel(f'value')
+		axarr[i].legend()
+	f.suptitle(f'Activity: {label}', fontsize=16)
+	plt.show()
+	
+	if save:
+		plt.savefig(f"C:\\Users\\gcram\\Documents\\Github\\TransferLearning-Sensors\\results\\f'{label}_test.png")
+
+	plt.close()
+
 
 def plotReconstruction(rec,true, savePath = None, label = None,show=False,file = 'arqTest.png'):
+	
 	sensors = ['Accelerometer', ' Gyroscope', 'Magnetometer']
 	n_sensors = rec.shape[0]
 	sensors = sensors[0:n_sensors]

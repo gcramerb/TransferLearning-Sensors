@@ -1,28 +1,11 @@
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-
-from torch.optim.lr_scheduler import StepLR
-from torch import optim
-from sklearn.metrics import accuracy_score, recall_score, f1_score
-
-import sys, os, time, pickle, argparse
+import sys, argparse
 
 
 sys.path.insert(0, '../')
 
-from models.autoencoder import ConvAutoencoder
-from models.customLosses import MMDLoss, OTLoss, classDistance
-from models.classifier import classifier
-from dataProcessing.dataModule import SingleDatasetModule
+from pytorch_lightning import Trainer
 
-from pytorch_lightning import LightningDataModule, LightningModule, Trainer
-from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
-from collections import OrderedDict
-
-from Utils.trainerClf_pl import networkLight
-from Utils.trainerTL_pl import TLmodel
+from train.trainerTL_pl import TLmodel
 from dataProcessing.dataModule import SingleDatasetModule
 import optuna
 

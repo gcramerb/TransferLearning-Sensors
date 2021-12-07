@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 myActNames = {
 	'walking': 0,
 	'walking forward': 0,

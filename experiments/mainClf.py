@@ -1,10 +1,4 @@
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from torch.optim.lr_scheduler import StepLR
-from torch import optim
-from torch.utils.data import DataLoader, random_split
 
 seed = 14
 torch.manual_seed(seed)
@@ -15,21 +9,16 @@ torch.backends.cudnn.deterministic = True
 
 torch.autograd.set_detect_anomaly(True)
 
-import sys, os, argparse, pickle
+import sys, argparse
 import numpy as np
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+
 np.random.seed(seed)
 # from geomloss import SamplesLoss
 sys.path.insert(0, '../')
 
-from models.classifier import classifier,classifierTest
-from models.customLosses import MMDLoss
-from dataProcessing.create_dataset import crossDataset, targetDataset, getData
 from dataProcessing.dataModule import SingleDatasetModule
 
-from Utils.myTrainer import myTrainer
-
-import mlflow
+from train.myTrainer import myTrainer
 
 # from pytorch_lightning.loggers import MLFlowLogger
 # from pytorch_lightning import LightningDataModule, LightningModule, Trainer

@@ -123,9 +123,7 @@ class TLmodel(LightningModule):
 			
 			elif self.hparams.feat_eng == 'asym':
 				loss = m_loss + self.hparams.alphaS * p_loss
-			
 			else:
-				print()
 				raise ValueError('wrong feat_eng value')
 			return loss
 		if model =='AE':
@@ -160,8 +158,11 @@ class TLmodel(LightningModule):
 			#m_loss_AE = self.recLoss(dataTarget, rec)
 			
 			#clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
-			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
-			
+			if self.hparams.feat_eng == 'asym':
+				clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
+			else:
+				clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf . self.hparams.betaS * discrepancy_loss
+
 			#AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
 			AE_loss = discrepancy_loss
 			
@@ -179,9 +180,12 @@ class TLmodel(LightningModule):
 			m_loss_clf = self.clfLoss(predS, labSource)
 			p_loss_clf = self.clDist(latentS, labSource)
 			#m_loss_AE = self.recLoss(dataTarget, rec)
-			
-			#clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf + self.hparams.betaS * discrepancy_loss
-			clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
+
+			if self.hparams.feat_eng == 'asym':
+				clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf
+			else:
+				clf_loss = m_loss_clf + self.hparams.alphaS * p_loss_clf . self.hparams.betaS * discrepancy_loss
+
 			
 			#AE_loss = m_loss_AE + self.hparams.alphaT * discrepancy_loss
 			AE_loss = discrepancy_loss
@@ -205,15 +209,12 @@ class TLmodel(LightningModule):
 			
 	def training_step(self, batch, batch_idx, optimizer_idx):
 
-		
 		if optimizer_idx == 0:
 			loss = self.compute_loss(batch,'clf')
-
 		elif optimizer_idx == 1:
 			loss = self.compute_loss(batch, 'AE')
 		# elif optimizer_idx == 2:
 		# 	loss = ganLoss
-
 		tqdm_dict = {f"{self.modelName[optimizer_idx]}_loss": loss}
 		metrics = self._shared_eval_step(batch,stage = 'train')
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": metrics})

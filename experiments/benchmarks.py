@@ -140,20 +140,11 @@ def classification(datasetList,result):
 	outFile = os.path.join(args.outPath,f'simpleTL_{args.datasetTrain}.json')
 	with open(outFile, 'w') as fp:
 		json.dump(result, fp)
+
+
 if __name__ == '__main__':
 
-	#processData()
-	result = {}
-	datasetList = ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']
-	for dat in datasetList:
-		if dat == args.datasetTrain:
-			result[dat +'_acc'] = []
-			result[dat + '_rec'] = []
-			result[dat + '_f1'] = []
-		else:
-			result[dat + f'_{args.datasetTrain}_acc'] = []
-			result[dat + f'_{args.datasetTrain}_rec'] = []
-			result[dat + f'_{args.datasetTrain}_f1'] = []
+
 	print('\n\n starting: ')
 	print(args.datasetTrain,)
 	print('\n\n\n')

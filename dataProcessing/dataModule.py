@@ -49,49 +49,66 @@ class SingleDatasetModule(LightningDataModule):
 		self.datasetName = datasetName
 		self.batch_size = batch_size
 		self.num_workers = num_workers
-		self.num_classes = n_classes
+		self.n_classes = n_classes
 		self.inputShape = inputShape
 		self.type = type
 		#self.transform = transforms.Normalize(0, 1, inplace=False)
+	def get_n_folds(self):
+		return range(len(self.folds))
 	
+	def set_fold(self,fold_idx):
+		test_idx = self.folds[fold_idx][1]
+		train_idx = self.folds[fold_idx][0]
+
+		self.dataTrain = myDataset(self.X[train_idx], self.Y[train_idx])
+		self.dataVal =  myDataset(self.X[test_idx], self.Y[test_idx])
+		self.dataTest =  myDataset(self.X[test_idx], self.Y[test_idx])
+
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True):
-		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.num_classes}actv.npz')
+
+		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
-			X = tmp['X'].astype('float32')
+			self.X = tmp['X'].astype('float32')
 			y = tmp['y']
-			folds = tmp['folds']
-		#self.num_classes = len(pd.unique(self.Y))
+			self.folds = tmp['folds']
+		# if self.datasetName =='Pamap2':
+		#
+		# 	acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
+		# 	idx = [i for i, v in enumerate(y) if v in acts]
+		# 	self.X = self.X[idx].copy()
+		# 	y = y[idx].copy()
+
+		#self.n_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
-		Y = np.argmax(y, axis=1).astype('long')
+		self.Y = np.argmax(y, axis=1).astype('long')
 		if self.inputShape[0] == 2:
-			X = np.concatenate([X[:,:,:,0:3],X[:,:,:,3:6]],axis =1)
-		self.dataset = myDataset(X, Y)
-		if Loso and split:
-			fold_test, fold_val = np.random.randint(len(folds), size=2)
-			test_idx = folds[fold_test][1]
-			val_idx = folds[fold_val][1]
-			train_idx = list(set(folds[fold_test][0]) - set(folds[fold_val][1]))
-			self.dataTrain,self.dataVal,self.dataTest = myDataset(X[train_idx],Y[train_idx]),myDataset(X[val_idx],Y[val_idx]),myDataset(X[test_idx],Y[test_idx])
+			self.X = np.concatenate([self.X[:,:,:,0:3],self.X[:,:,:,3:6]],axis =1)
+		self.dataset = myDataset(self.X, self.Y)
 
 
-		elif not Loso and split:
-			dataset = myDataset(X,Y)
-			nSamples = len(dataset)
+		if not Loso and split:
+			nSamples = len(self.dataset)
 			valLen = int(nSamples * valRate)
 			testLen = int(nSamples * testRate)
 			trainL = nSamples - testLen
-			self.dataTrain, self.dataTest = random_split(dataset, [trainL, testLen],
+			self.dataTrain, self.dataTest = random_split(self.dataset, [trainL, testLen],
 			                                             generator=torch.Generator().manual_seed(42))
 			trainL = trainL - valLen
 			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
 			
 	                                            generator=torch.Generator().manual_seed(0))
-
-		if self.type == 'target':
+			if self.type == 'target':
+				self.dataVal = self.dataset
+				self.dataTest = self.dataset
+		
+		
+		elif not split:
+			self.dataTrain = self.dataset
 			self.dataVal = self.dataset
-				
-	
-	
+			self.dataTest = self.dataset
+			
+
+
 	def dataloader(self):
 		return DataLoader(
 			self.dataset,
@@ -174,7 +191,7 @@ class CrossDatasetModule(LightningDataModule):
 			Xsource = tmp['X'].astype('float32')
 			y = tmp['y']
 			foldsSource = tmp['folds']
-		# self.num_classes = len(pd.unique(self.Y))
+		# self.n_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('long')
 		Ysource = np.argmax(y, axis=1).astype('long')
 		
@@ -183,7 +200,7 @@ class CrossDatasetModule(LightningDataModule):
 			Xtarget = tmp['X'].astype('float32')
 			y = tmp['y']
 			foldsTarget = tmp['folds']
-		# self.num_classes = len(pd.unique(self.Y))
+		# self.n_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('long')
 		Ytarget = np.argmax(y, axis=1).astype('long')
 

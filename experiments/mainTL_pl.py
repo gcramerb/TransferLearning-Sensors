@@ -1,35 +1,20 @@
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import StepLR
-from torch import optim
-
-import sys, os, argparse, pickle
-import numpy as np
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+import sys, argparse
 
 sys.path.insert(0, '../')
 
-from models.classifier import classifier, classifierTest
-from models.autoencoder import ConvAutoencoder
-from models.customLosses import MMDLoss, OTLoss
-
 # import geomloss
 
-from pytorch_lightning import LightningDataModule, LightningModule, Trainer
-from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
-from pytorch_lightning.loggers import MLFlowLogger,WandbLogger
-from collections import OrderedDict
+from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import WandbLogger
 
-from Utils.trainerClf_pl import networkLight
-from Utils.trainerTL_pl import TLmodel
-from dataProcessing.dataModule import CrossDatasetModule,SingleDatasetModule
+from train.trainerTL_pl import TLmodel
+from dataProcessing.dataModule import SingleDatasetModule
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='train_4act_trial4')
+parser.add_argument('--expName', type=str, default='apr3')
 parser.add_argument('--paramsPath', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
@@ -42,7 +27,9 @@ args = parser.parse_args()
 if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
-	my_logger = WandbLogger(project='TL', log_model='all', name=args.expName)
+	my_logger = WandbLogger(project='TL',
+	                        log_model='all',
+	                        name=args.expName + '_' + args.source + '_to_' + args.target)
 
 else:
 	args.nEpoch = 50
@@ -53,26 +40,26 @@ else:
 
 def getHparams(file_path = None):
 	params = {}
-	params['lr_source'] = 0.0001
-	params['lr_target'] = 0.000005
+	params['lr_source'] = 0.0005
+	params['lr_target'] = 0.0002
 	params['bs_source'] = 128
 	params['bs_target'] = 128
 	params['step_size'] = 25
 	params['n_epch'] = 120
-	params['epch_rate'] = 8
+	params['epch_rate'] = 4
 	params['alphaS'] = 0.5
 	params['betaS'] = 0.5
 	params['alphaT'] = 0
-	params['discrepancy'] = 'skn'
+	params['discrepancy'] = 'ot'
 	params['feat_eng'] = 'asym'
-	params['weight_decay'] = 0.2
+	params['weight_decay'] = 0.0
 	params['input_shape'] = (2,50,3)
 	
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4,16,18,24)
 	clfParams['encDim'] = 64
-	clfParams["DropoutRate"] = 0.0
+	clfParams["DropoutRate"] = 0.2
 	clfParams['FeName'] = 'fe2'
 
 	if file_path:
@@ -89,8 +76,7 @@ def getHparams(file_path = None):
 if __name__ == '__main__':
 	trainParams, modelParams = getHparams(args.paramsPath)
 	print(trainParams)
-	if my_logger:
-		my_logger.log_hyperparams(trainParams)
+
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes = args.n_classes,
@@ -103,9 +89,6 @@ if __name__ == '__main__':
 	                                inputShape=trainParams['input_shape'],
 	                                batch_size=trainParams['bs_target'])
 	dm_target.setup(Loso = False,split = True)
-	
-
-	#
 	
 	model = TLmodel(penalty=trainParams['discrepancy'],
 	                alphaS=trainParams['alphaS'],
@@ -120,9 +103,10 @@ if __name__ == '__main__':
 	                weight_decay = trainParams['weight_decay'],
 	                feat_eng = trainParams['feat_eng'],
 	                epch_rate = trainParams['epch_rate'])
-	
-	chkp_callback = ModelCheckpoint(dirpath='../saved/',
-	                                save_last=True )
+	if my_logger:
+		my_logger.log_hyperparams(trainParams)
+		my_logger.watch(model)
+	#chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True )
 	#early_stopping = EarlyStopping('trainloss_AE', mode='min', patience=10)
 	model.setDatasets(dm_source, dm_target)
 	trainer = Trainer(gpus=1,
@@ -139,4 +123,6 @@ if __name__ == '__main__':
 		trainer.save_checkpoint(f"../saved/TLmodel{args.source}_to_{args.target}_{trainParams['discrepancy']}.ckpt")
 	print(f"{args.source}_to_{args.target}\n")
 	#print(trainer.test(model = model,dataloaders=[dm.test_dataloader(),dm.train_dataloader()]))
-	print(trainer.test(model=model))
+	res = trainer.test(model=model)
+	print(res)
+	my_logger.log_metrics(res)

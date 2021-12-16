@@ -39,6 +39,14 @@ class networkLight(LightningModule):
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss()
 		#self.p_loss = classDistance()
+	
+	def save_params(self,save_path):
+		path = os.path.join(save_path,'feature_extractor')
+		torch.save(self.model.Encoder.state_dict(), path)
+		path = os.path.join(save_path,'discriminator')
+		torch.save(self.model.discrimination.state_dict(), path)
+		
+
 
 
 	def forward(self, X):

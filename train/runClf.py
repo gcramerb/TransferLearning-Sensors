@@ -53,26 +53,26 @@ def getModelHparams():
 
 def getTrainHparms():
 	trainParams = {}
-	trainParams['nEpoch'] = 100
+	trainParams['nEpoch'] = 3
 	trainParams['batch_size'] = 128
 	trainParams['alpha'] = 0.5
-	trainParams['lr'] = 0.0023318647476059827
-	trainParams['step_size'] = 15
+	trainParams['lr'] = 0.0005
+	trainParams['step_size'] = 20
 	
 	return trainParams
 
 def runClassifier(dm,my_logger = None, file_params = None):
-	
+
 	if file_params:
 		pass
 	else:
-		
 		clfParams = getModelHparams()
 		trainParams = getTrainHparms()
 
 
 	model = networkLight(alpha=trainParams['alpha'],
 	                     lr=trainParams['lr'],
+	                     n_classes = dm.n_classes,
 	                     inputShape=clfParams["inputShape"],
 	                     FeName='fe2',
 	                     step_size=trainParams['step_size'],
@@ -82,20 +82,19 @@ def runClassifier(dm,my_logger = None, file_params = None):
 		my_logger.log_hyperparams(clfParams)
 		#wandb_logger = WandbLogger(project='classifier', log_model='all', name='best_until_now')
 	
-	early_stopping = EarlyStopping('val_loss', mode='min', patience=5)
-	chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True)
-	chkp_callback.CHECKPOINT_NAME_LAST = "{epoch}-{val_loss:.2f}-{accSourceTest:.2f}-last"
-	
+	early_stopping = EarlyStopping('val_loss', mode='min', patience=3,verbose = True)
+	# chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True)
+	# chkp_callback.CHECKPOINT_NAME_LAST = "{epoch}-{val_loss:.2f}-{accSourceTest:.2f}-last"
+	#
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=trainParams['nEpoch'],
-	                  progress_bar_refresh_rate=0,
+	                  progress_bar_refresh_rate=1,
 	                  callbacks=[early_stopping])
-	wandb_logger.watch(model)
+	#wandb_logger.watch(model)
 	trainer.fit(model, datamodule=dm)
 	res = trainer.validate(model, datamodule=dm)
-	if args.saveModel:
-		trainer.save_checkpoint(f"../saved/clf1_{args.source}.ckpt")
+
 	return trainer, model, res
 

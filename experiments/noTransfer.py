@@ -32,8 +32,6 @@ else:
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	args.outPath = '../results/tests/'
 
-
-
 def create_result_dict():
 	result = {}
 	for dat in datasetList:

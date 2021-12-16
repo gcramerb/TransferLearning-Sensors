@@ -9,7 +9,7 @@ import numpy as np
 from copy import deepcopy
 
 from .customLosses import MMDLoss, OTLoss
-from .blocks import Encoder1,Encoder2
+from .blocks import Encoder1,Encoder2,discriminator
 
 # define the NN architecture
 class classifier(nn.Module):
@@ -31,18 +31,16 @@ class classifier(nn.Module):
 			self.Encoder = Encoder2(hyp=hyp,inputShape=inputShape)
 		else:
 			raise ValueError("Put a value model name!" )
+		self.discrimination = discriminator(self.DropoutRate, hyp['encDim'], self.n_classes)
 	@property
 	def name(self):
 		return self._name
 	def build(self):
-		
+
 		self.Encoder.build()
-		self.discrimination = nn.Sequential(
-			nn.Dropout(p = self.DropoutRate ),
-			nn.Linear(self.Encoder.encoded_dim, self.n_classes),
-			nn.Softmax(dim=1)
-		)
-		# from torchsummary import summary
+		self.discrimination.build()
+	
+	# from torchsummary import summary
 		# summary(self.Encoder.to('cuda'), (2,50,3))
 
 	def forward(self, X):

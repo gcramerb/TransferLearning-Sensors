@@ -182,6 +182,23 @@ class Decoder(nn.Module):
 		dec = self.convDec(dec)
 		return dec
 
+class discriminator(nn.Module):
+	def __init__(self,DropoutRate,encoded_dim,n_classes):
+		super(discriminator, self).__init__()
+		self.DropoutRate = DropoutRate
+		self.encoded_dim = encoded_dim
+		self.n_classes = n_classes
+
+	def build(self):
+		self.layer = nn.Sequential(
+			nn.Dropout(p = self.DropoutRate ),
+			nn.Linear(self.encoded_dim, self.n_classes),
+			nn.Softmax(dim=1)
+		)
+
+	def forward(self,encoded):
+		return self.layer(encoded)
+
 
 class domainClf(nn.Module):
 	def __init__(self,encoded_dim=64):

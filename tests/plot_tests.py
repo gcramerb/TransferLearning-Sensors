@@ -23,22 +23,22 @@ myActNames = {
 	'standing': 5,
 }
 
-datasetName = "Pamap2"
+datasetName = "Dsads"
 n_classes = 4
 data_dir = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-file = os.path.join(data_dir, f'{datasetName}_f25_t2.npz')
+file = os.path.join(data_dir, f'{datasetName}_f25_t2_4actv.npz')
 with np.load(file, allow_pickle=True) as tmp:
 	X = tmp['X'].astype('float32')
 	y = tmp['y']
 	folds = tmp['folds']
 	
-#act= f'{datasetName}-walking'
-acts = ['Pamap2-walking','Pamap2-ascending stairs','Pamap2-descending stairs','Pamap2-lying']
-idx = [i for i,v in enumerate(y) if v in acts]
-X_fil = X[idx].copy()
+act= f'{datasetName}-descending stairs'
+#acts = ['-walking','Pamap2-ascending stairs','Pamap2-descending stairs','Pamap2-lying']
+# idx = [i for i,v in enumerate(y) if v in acts]
+# X_fil = X[idx].copy()
 
 idx = np.where(y==act)[0]
-sample = 2
+sample = 50
 sensor = X[idx[sample]]
 plot_sensor(sensor,act)
 

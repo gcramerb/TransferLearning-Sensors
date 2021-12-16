@@ -127,14 +127,14 @@ class SingleDatasetModule(LightningDataModule):
 	
 	def val_dataloader(self):
 		return DataLoader(self.dataVal,
-		                  batch_size=len(self.dataVal),
+		                  batch_size=self.batch_size,
 		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=True)
 	
 	def test_dataloader(self):
 		return DataLoader(self.dataTest,
-		                  batch_size=len(self.dataTest),
+		                  batch_size=self.batch_size,
 		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=True)

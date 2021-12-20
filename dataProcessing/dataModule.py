@@ -12,14 +12,6 @@ class myDataset(Dataset):
 	def __init__(self, X, Y,norm = False):
 		self.X = X
 		self.Y = Y
-		#print('Shgape: ', X.shape)
-		if norm:
-			self.mean = (np.mean(X[:, 0, :, :]), np.mean(X[:, 1, :, :]))
-			self.std = (np.std(X[:, 0, :, :]), np.std(X[:, 1, :, :]))
-			self.transform = transforms.Normalize(self.mean,self.std)
-				#transforms.Compose([transforms.ToTensor(),
-		else:
-			self.transform = None
 
 	def __len__(self):
 		return len(self.Y)
@@ -63,9 +55,30 @@ class SingleDatasetModule(LightningDataModule):
 		self.dataTrain = myDataset(self.X[train_idx], self.Y[train_idx])
 		self.dataVal =  myDataset(self.X[test_idx], self.Y[test_idx])
 		self.dataTest =  myDataset(self.X[test_idx], self.Y[test_idx])
+		
+	def normalize(self):
+		newX = []
+		newY = []
+		tol = 3
+		m = np.array([np.mean(self.X[:, 0, :, i]) for i in range(self.X.shape[-1])])
+		std = np.array([np.std(self.X[:,0,:,i]) for i in range(self.X.shape[-1])])
+		out_up = m + tol*std
+		out_down = m - tol*std
 
-	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True):
+		for sample,label in zip(self.X[:,0,:,:],self.Y):
+			#check if this sample is an outlier:
+			min = np.min(sample[:,:],axis = 0)
+			max = np.max(sample[:,: ],axis = 0)
+			if ((out_up < max) + 0).sum() + ((out_down > min) + 0).sum() == 0:
+				# normalization [-0.5, 0.5]
+				new_sample = (sample - min)/(max-min) - 0.5
+				newX.append(new_sample[None,:,:])
+				newY.append(label)
+		return np.array(newX),np.array(newY)
 
+	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True,normalize = False):
+		if normalize and Loso:
+			raise ValueError("This functionality not implemented! ")
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			self.X = tmp['X'].astype('float32')
@@ -81,6 +94,9 @@ class SingleDatasetModule(LightningDataModule):
 		#self.n_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
 		self.Y = np.argmax(y, axis=1).astype('long')
+		if normalize:
+			self.X,self.Y = self.normalize()
+			
 		if self.inputShape[0] == 2:
 			self.X = np.concatenate([self.X[:,:,:,0:3],self.X[:,:,:,3:6]],axis =1)
 		self.dataset = myDataset(self.X, self.Y)

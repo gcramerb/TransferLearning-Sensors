@@ -154,7 +154,10 @@ class FTmodel(LightningModule):
 		metrics = {}
 		for k in keys_:
 			val = [i[k] for i in out]
-			metrics[k] = torch.mean(torch.stack(val))
+			if 'acc' in k:
+				metrics[k] = np.mean(val)
+			else:
+				metrics[k] = torch.mean(torch.stack(val))
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 	

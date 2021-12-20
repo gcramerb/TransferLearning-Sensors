@@ -19,7 +19,7 @@ parser.add_argument('--expName', type=str, default='apr3')
 parser.add_argument('--paramsPath', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Pamap2")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=False)
@@ -31,7 +31,7 @@ if args.slurm:
 	my_logger = WandbLogger(project='TL',
 	                        log_model='all',
 	                        name=args.expName + '_FT_' + args.source + '_to_' + args.target)
-	save_path = '../results/saved/'
+	save_path = '../saved/'
 else:
 	args.nEpoch = 50
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
@@ -47,12 +47,12 @@ def getHparams(file_path=None):
 	params['bs_target'] = 128
 	
 	params['step_size'] = -1
-	params['n_epch'] = 1
+	params['n_epch'] = 50
 
 	params['alphaS'] = 0.2
 
 	params['alphaT'] = None
-	params['discrepancy'] = 'ot'
+	params['discrepancy'] = 'mmd'
 
 	params['weight_decay'] = 0.1
 	params['input_shape'] = (2, 50, 3)
@@ -84,7 +84,7 @@ if __name__ == '__main__':
 	                                n_classes=args.n_classes,
 	                                inputShape=trainParams['input_shape'],
 	                                batch_size=trainParams['bs_source'])
-	dm_source.setup(Loso=False, split=False)
+	dm_source.setup(Loso=False, split=False,normalize = True)
 
 	trainer, clf, res = runClassifier(dm_source)
 	clf.save_params(save_path)
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 	                                type='target',
 	                                inputShape=trainParams['input_shape'],
 	                                batch_size=trainParams['bs_target'])
-	dm_target.setup(Loso=False, split=False)
+	dm_target.setup(Loso=False, split=False,normalize = True)
 	
 	model = FTmodel(penalty=trainParams['discrepancy'],
 	                lr=trainParams['lr_target'],

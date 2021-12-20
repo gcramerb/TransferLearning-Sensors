@@ -53,7 +53,7 @@ def getModelHparams():
 
 def getTrainHparms():
 	trainParams = {}
-	trainParams['nEpoch'] = 3
+	trainParams['nEpoch'] = 20
 	trainParams['batch_size'] = 128
 	trainParams['alpha'] = 0.5
 	trainParams['lr'] = 0.0005
@@ -68,6 +68,9 @@ def runClassifier(dm,my_logger = None, file_params = None):
 	else:
 		clfParams = getModelHparams()
 		trainParams = getTrainHparms()
+		
+	if dm.datasetName =='Pamap2':
+		trainParams['nEpoch'] = 75
 
 
 	model = networkLight(alpha=trainParams['alpha'],

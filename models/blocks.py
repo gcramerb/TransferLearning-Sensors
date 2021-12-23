@@ -110,7 +110,7 @@ class Encoder2(nn.Module):
 			          kernel_size=self.kernel_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
-			nn.BatchNorm2d(self.n_filters[2]),
+			#nn.BatchNorm2d(self.n_filters[2]),
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),

@@ -10,6 +10,13 @@ import sys
 
 
 def plot_sensor(x,label = 'label',save=False):
+	"""
+	Get a data of shape (n_sensors,timesteps,3) or (1,timesteps,3*n_sensors)
+	:param x:
+	:param label:
+	:param save:
+	:return:
+	"""
 	sensors = ['Accelerometer', ' Gyroscope', 'Magnetometer']
 	
 	n_sensors = int((x.shape[0] * x.shape[-1])/3)

@@ -13,7 +13,7 @@ sys.path.insert(0, '../')
 
 from models.classifier import classifier
 from models.autoencoder import ConvAutoencoder
-from models.blocks import Encoder2, Encoder1,discriminator
+from models.blocks import Encoder2, Encoder1,discriminator,domainClf
 from models.customLosses import MMDLoss, OTLoss, classDistance, SinkhornDistance, CORAL
 # import geomloss
 
@@ -33,13 +33,17 @@ class FTmodel(LightningModule):
 	def __init__(
 			self,
 			lr: float = 0.002,
+			lr_gan:float = 0.0001,
 			n_classes: int = 6,
+			alpha: float = 1.0,
+			beta: float = 0.75,
 			penalty: str = 'mmd',
 			data_shape: tuple = (1, 50, 6),
 			modelHyp: dict = None,
 			FeName: str = 'fe2',
 			weight_decay: float = 0.0,
-			DropoutRate = 0.2,
+			DropoutRate:float = 0.2,
+			feat_eng:str = 'asym',
 			lossParams: dict = None,
 			save_path: str = None,
 			**kwargs
@@ -62,6 +66,14 @@ class FTmodel(LightningModule):
 		self.FE.build()
 		self.staticFE.build()
 		self.staticDisc.build()
+		
+		
+		## GAN:
+		self.domainClf = domainClf(self.hparams.modelHyp['encDim'])
+		self.domainClf.build()
+		self.GanLoss = nn.BCELoss()
+		
+		self.clfLoss = nn.CrossEntropyLoss()
 
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
@@ -75,32 +87,56 @@ class FTmodel(LightningModule):
 			raise ValueError('specify a valid discrepancy loss!')
 
 
-	def load_params(self,save_path):
-		PATH = os.path.join(save_path, 'feature_extractor')
+	def load_params(self,save_path,file):
+		PATH = os.path.join(save_path, file + '_feature_extractor')
 		self.FE.load_state_dict(torch.load(PATH))
 		self.staticFE.load_state_dict(torch.load(PATH))
 		for param in self.staticFE.parameters():
 			param.requires_grad = False
-		PATH = os.path.join(save_path, 'discriminator')
+		PATH = os.path.join(save_path, file+'_discriminator')
 		self.staticDisc.load_state_dict(torch.load(PATH))
 		
+		train = True if self.hparams.feat_eng =='asym' else False
 		for param in self.staticDisc.parameters():
-			param.requires_grad = False
+			param.requires_grad = train
 
 	def forward(self, X):
 		return self.FE(X)
+	def get_GAN_loss(self,latentS,latentT):
+		yS = torch.ones(latentS.shape[0], 1)
+		yT = torch.zeros(latentT.shape[0], 1)
+		x = torch.cat([latentS, latentT])
+		y = torch.cat([yS, yT])
+		pred = self.domainClf(x)
+		return self.GanLoss(pred, y.to(self.device))
 	
-	def compute_loss(self, batch):
+	def compute_loss(self, batch,optmizer_idx):
 		log = {}
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
 		dataTarget = target['data']
-		
-		latentS = self.staticFE(dataSource)	# call forward method
+
 		latentT = self.FE(dataTarget)
-		discrepancy = self.discLoss(latentT, latentS)
-		loss = discrepancy
+		if self.hparams.feat_eng =='asym':
+			latentS = self.staticFE(dataSource)  # call forward method
+			discrepancy = self.discLoss(latentT, latentS)
+			m_loss = discrepancy
+		else:
+			latentS = self.FE(dataSource)
+			predS = self.staticDisc(latentS)
+			clf = self.clfLoss(predS,labSource)
+			log['clf_loss'] = clf
+			discrepancy = self.discLoss(latentT, latentS)
+			m_loss = discrepancy + self.hparams.beta * clf
+			
+		GAN_loss =  self.get_GAN_loss(latentS,latentT)
+		if optmizer_idx == 0:
+			loss = m_loss - 1*self.hparams.alpha*GAN_loss
+		if optmizer_idx ==1:
+			loss = GAN_loss
 		log['discpy_loss'] = discrepancy
+		log['GAN_loss'] = GAN_loss
+		
 		return loss,log
 
 	def _shared_eval_step(self, batch, stage='val'):
@@ -108,36 +144,36 @@ class FTmodel(LightningModule):
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
 		dataTarget, labTarget = target['data'], target['label'].long()
-		
-		latentS = self.staticFE(dataSource)
+		if self.hparams.feat_eng =='asym':
+			latentS = self.staticFE(dataSource)
+		else:
+			latentS = self.FE(dataSource)
 		predS = self.staticDisc(latentS)
+		
 		latentT = self.FE(dataTarget)
 		predT = self.staticDisc(latentT)
-		
-
 		metrics = {}
 		yhatS = np.argmax(predS.detach().cpu().numpy(), axis=1)
 		yhatT = np.argmax(predT.detach().cpu().numpy(), axis=1)
 		accSource = accuracy_score(labSource.cpu().numpy(), yhatS)
 		accTarget = accuracy_score(labTarget.cpu().numpy(), yhatT)
-		metrics = {f'{stage}_acc_source': accSource,
-		           f'{stage}_acc_target': accTarget}
+		metrics ={f'{stage}_acc_target': accTarget}
+		metrics = {f'{stage}_acc_source': accSource}
 		if stage == 'val':
-			_, logs = self.compute_loss(batch)
+			_, logs = self.compute_loss(batch,0)
 			for k, v in logs.items():
 				metrics[stage + '_' + k] = v.detach()
 		return metrics
 	
-	def training_step(self, batch, batch_idx):
-
-		loss, log = self.compute_loss(batch)
+	def training_step(self, batch, batch_idx,optimizer_idx):
+		loss, log = self.compute_loss(batch,optimizer_idx)
 		tqdm_dict = log
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
 	
 	def training_epoch_end(self, output):
 		metrics = {}
-		opt = [i['log'] for i in output]
+		opt = [i['log'] for i in output[0]]
 
 		for k in opt[0].keys():
 			metrics[k] = torch.mean(torch.stack([i[k] for i in opt]))
@@ -170,17 +206,19 @@ class FTmodel(LightningModule):
 	def get_final_metrics(self):
 		result = {}
 		predictions = self.predict()
-		result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
+		#result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
 		return result
 	
 	def configure_optimizers(self):
-		opt_FE = torch.optim.Adam(self.FE.parameters(),
+	
+		opt_FE = torch.optim.RMSprop(self.FE.parameters(),
 		                           lr=self.hparams.lr,
 		                           weight_decay=self.hparams.weight_decay)
+		opt_GAN= torch.optim.Adam(self.domainClf.parameters(), lr=self.hparams.lr_gan)
 
-		lr_sch_FE = StepLR(opt_FE, step_size=20, gamma=0.5)
-		return [opt_FE],[lr_sch_FE]
+		#lr_sch_FE = StepLR(opt_FE, step_size=20, gamma=0.5)
+		return [opt_FE,opt_GAN],[]
 	
 
 	def predict(self):

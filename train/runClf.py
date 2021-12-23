@@ -2,6 +2,7 @@ import sys
 sys.path.insert(0, '../')
 
 #import geomloss
+import torch
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping,ModelCheckpoint
@@ -45,59 +46,70 @@ from dataProcessing.dataModule import SingleDatasetModule
 def getModelHparams():
 	clfParam = {}
 	clfParam['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParam['n_filters'] = (4, 16, 18, 24)
+	#clfParam['n_filters'] = (4, 16, 18, 24)
+	clfParam['n_filters'] = (6, 16, 24, 32)
 	clfParam['encDim'] = 64
 	clfParam["inputShape"] = (2, 50, 3)
-	clfParam['DropoutRate'] = 0.2
+	clfParam['DropoutRate'] = 0.5
+	clfParam['FE'] = 'fe1'
+	
 	return clfParam
 
 def getTrainHparms():
 	trainParams = {}
-	trainParams['nEpoch'] = 20
+	trainParams['nEpoch'] = 100
 	trainParams['batch_size'] = 128
-	trainParams['alpha'] = 0.5
-	trainParams['lr'] = 0.0005
-	trainParams['step_size'] = 20
+	trainParams['alpha'] = .5
+	trainParams['lr'] = 0.0008
+	trainParams['step_size'] = 15
+	trainParams['weight_decay'] = .5
 	
 	return trainParams
 
-def runClassifier(dm,my_logger = None, file_params = None):
+def runClassifier(dm,my_logger = None, file_params = None,hparams = None):
 
 	if file_params:
 		pass
+	if hparams:
+		trainParams,clfParams = hparams
 	else:
 		clfParams = getModelHparams()
 		trainParams = getTrainHparms()
-		
-	if dm.datasetName =='Pamap2':
-		trainParams['nEpoch'] = 75
-
+	
+	class_weight = None
+	# if dm.datasetName =='Pamap2':
+	# 	trainParams['nEpoch'] = 100
+	if dm.datasetName =='Uschad':
+		class_weight = torch.tensor([0.5,10,10,0.5])
 
 	model = networkLight(alpha=trainParams['alpha'],
 	                     lr=trainParams['lr'],
 	                     n_classes = dm.n_classes,
 	                     inputShape=clfParams["inputShape"],
-	                     FeName='fe2',
+	                     FeName=clfParams['FE'],
 	                     step_size=trainParams['step_size'],
+	                     weight_decay = trainParams['weight_decay'],
+                         class_weight =class_weight,
 	                     modelHyp=clfParams)
 	if my_logger:
 		my_logger.log_hyperparams(trainParams)
 		my_logger.log_hyperparams(clfParams)
-		#wandb_logger = WandbLogger(project='classifier', log_model='all', name='best_until_now')
+		my_logger.watch(model)
+		
 	
-	early_stopping = EarlyStopping('val_loss', mode='min', patience=3,verbose = True)
+	early_stopping = EarlyStopping('val_loss', mode='min', patience=10,verbose = True)
 	# chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True)
 	# chkp_callback.CHECKPOINT_NAME_LAST = "{epoch}-{val_loss:.2f}-{accSourceTest:.2f}-last"
-	#
+
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=trainParams['nEpoch'],
 	                  progress_bar_refresh_rate=1,
 	                  callbacks=[early_stopping])
-	#wandb_logger.watch(model)
-	trainer.fit(model, datamodule=dm)
-	res = trainer.validate(model, datamodule=dm)
 
-	return trainer, model, res
+	trainer.fit(model, datamodule=dm)
+	metrics = model.get_all_metrics(dm)
+
+	return trainer, model, metrics
 

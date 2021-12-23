@@ -30,6 +30,7 @@ class SingleDatasetModule(LightningDataModule):
 			self,
 			data_dir: str = None,
 			datasetName: str = "Dsads",
+			file_name:str = None,
 			n_classes: int = 6,
 			inputShape: tuple = (1,50,6),
 			batch_size: int = 128,
@@ -39,99 +40,126 @@ class SingleDatasetModule(LightningDataModule):
 		super().__init__()
 		self.data_dir = data_dir
 		self.datasetName = datasetName
+		self.file_name = file_name
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.n_classes = n_classes
 		self.inputShape = inputShape
 		self.type = type
-		#self.transform = transforms.Normalize(0, 1, inplace=False)
 	def get_n_folds(self):
 		return range(len(self.folds))
 	
-	def set_fold(self,fold_idx):
-		test_idx = self.folds[fold_idx][1]
-		train_idx = self.folds[fold_idx][0]
-
-		self.dataTrain = myDataset(self.X[train_idx], self.Y[train_idx])
-		self.dataVal =  myDataset(self.X[test_idx], self.Y[test_idx])
-		self.dataTest =  myDataset(self.X[test_idx], self.Y[test_idx])
+	# def set_fold(self,fold_idx):
+	# 	test_idx = self.folds[fold_idx][1]
+	# 	train_idx = self.folds[fold_idx][0]
+	#
+	# 	self.dataTrain = myDataset(self.X[train_idx], self.Y[train_idx])
+	# 	self.dataVal =  myDataset(self.X[test_idx], self.Y[test_idx])
+	# 	self.dataTest =  myDataset(self.X[test_idx], self.Y[test_idx])
 		
 	def normalize(self):
 		newX = []
 		newY = []
-		tol = 3
-		m = np.array([np.mean(self.X[:, 0, :, i]) for i in range(self.X.shape[-1])])
-		std = np.array([np.std(self.X[:,0,:,i]) for i in range(self.X.shape[-1])])
-		out_up = m + tol*std
-		out_down = m - tol*std
+
+		out_up = 16
+		out_down = -16
 
 		for sample,label in zip(self.X[:,0,:,:],self.Y):
 			#check if this sample is an outlier:
-			min = np.min(sample[:,:],axis = 0)
-			max = np.max(sample[:,: ],axis = 0)
-			if ((out_up < max) + 0).sum() + ((out_down > min) + 0).sum() == 0:
-				# normalization [-0.5, 0.5]
-				new_sample = (sample - min)/(max-min) - 0.5
-				newX.append(new_sample[None,:,:])
+			min_ = np.min(sample[:,:],axis = 0)
+			max_ = np.max(sample[:,: ],axis = 0)
+			#first filter the outliers
+			if ((out_up < max_) + 0).sum() + ((out_down > min_) + 0).sum() == 0:
+				newX.append(sample)
 				newY.append(label)
-		return np.array(newX),np.array(newY)
+		newX, newY = np.array(newX), np.array(newY)
+		min_ = np.array([np.min(newX[:, :, i]) for i in range(newX.shape[-1])])
+		max_ = np.array([np.max(newX[:,:, i]) for i in range(newX.shape[-1])])
+		newX = (newX - min_)/(max_-min_) - 0.5
+		return newX[:,None,:,:],newY
 
-	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True,normalize = False):
-		if normalize and Loso:
-			raise ValueError("This functionality not implemented! ")
-		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
+	def set_overfitting(self):
+		file = os.path.join(self.data_dir,self.file_name)
 		with np.load(file, allow_pickle=True) as tmp:
 			self.X = tmp['X'].astype('float32')
 			y = tmp['y']
-			self.folds = tmp['folds']
-		# if self.datasetName =='Pamap2':
-		#
-		# 	acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
-		# 	idx = [i for i, v in enumerate(y) if v in acts]
-		# 	self.X = self.X[idx].copy()
-		# 	y = y[idx].copy()
+		# self.folds = tmp['folds']
+		if self.datasetName == 'Pamap2':
+			acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
+			idx = [i for i, v in enumerate(y) if v in acts]
+			self.X = self.X[idx].copy()
+			y = y[idx].copy()
+		y = categorical_to_int(y).astype('int')
+		self.Y = np.argmax(y, axis=1).astype('long')
+		self.X, self.Y = self.normalize()
+			
+		n_samples = 128
+		idx = np.where(self.Y ==0)[0].tolist()[:n_samples]
+		idx += np.where(self.Y ==1)[0].tolist()[:n_samples]
+		idx += np.where(self.Y ==2)[0].tolist()[:n_samples]
+		idx += np.where(self.Y ==3)[0].tolist()[:n_samples]
+		self.X, self.Y = self.X[idx], self.Y[idx]
+		
+		if self.inputShape[0] == 2:
+			self.X = np.concatenate([self.X[:, :, :, 0:3], self.X[:, :, :, 3:6]], axis=1)
+		self.dataTrain = myDataset(self.X, self.Y)
+		self.dataVal = myDataset(self.X, self.Y)
+		self.dataTest = myDataset(self.X, self.Y)
+		
+		
+	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True,normalize = False):
+		if normalize and Loso:
+			raise ValueError("This functionality not implemented! ")
+		if self.file_name:
+			file = os.path.join(self.data_dir,self.file_name)
+		else:
+			file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
+		with np.load(file, allow_pickle=True) as tmp:
+			self.X = tmp['X'].astype('float32')
+			y = tmp['y']
+			#self.folds = tmp['folds']
+
+		if self.datasetName =='Pamap2':
+			acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
+			idx = [i for i, v in enumerate(y) if v in acts]
+			self.X = self.X[idx].copy()
+			y = y[idx].copy()
 
 		#self.n_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
 		self.Y = np.argmax(y, axis=1).astype('long')
 		if normalize:
 			self.X,self.Y = self.normalize()
-			
+
 		if self.inputShape[0] == 2:
 			self.X = np.concatenate([self.X[:,:,:,0:3],self.X[:,:,:,3:6]],axis =1)
-		self.dataset = myDataset(self.X, self.Y)
+		
 
 
 		if not Loso and split:
-			nSamples = len(self.dataset)
+			nSamples = self.X.shape[0]
 			valLen = int(nSamples * valRate)
 			testLen = int(nSamples * testRate)
-			trainL = nSamples - testLen
-			self.dataTrain, self.dataTest = random_split(self.dataset, [trainL, testLen],
+			trainL = nSamples - testLen - valLen
+			self.dataset = myDataset(self.X, self.Y)
+			self.dataTrain, self.dataVal, self.dataTest = random_split(self.dataset, [trainL, valLen,testLen],
 			                                             generator=torch.Generator().manual_seed(42))
-			trainL = trainL - valLen
-			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
-			
-	                                            generator=torch.Generator().manual_seed(0))
-			if self.type == 'target':
-				self.dataVal = self.dataset
-				self.dataTest = self.dataset
-		
-		
+
 		elif not split:
-			self.dataTrain = self.dataset
-			self.dataVal = self.dataset
-			self.dataTest = self.dataset
+			
+			self.dataTrain = myDataset(self.X, self.Y)
+			self.dataVal = myDataset(self.X, self.Y)
+			self.dataTest =myDataset(self.X, self.Y)
 			
 
 
-	def dataloader(self):
-		return DataLoader(
-			self.dataset,
-			shuffle=True,
-			batch_size=len(self.dataset),
-			num_workers=self.num_workers,
-			drop_last=True)
+	# def dataloader(self):
+	# 	return DataLoader(
+	# 		self.dataset,
+	# 		shuffle=True,
+	# 		batch_size=len(self.dataset),
+	# 		num_workers=self.num_workers,
+	# 		drop_last=True)
 		
 	def train_dataloader(self):
 		return DataLoader(
@@ -142,11 +170,12 @@ class SingleDatasetModule(LightningDataModule):
 			drop_last=True)
 	
 	def val_dataloader(self):
-		return DataLoader(self.dataVal,
-		                  batch_size=self.batch_size,
-		                  shuffle=True,
-		                  num_workers=self.num_workers,
-		                  drop_last=True)
+		return DataLoader(
+			self.dataVal,
+	        batch_size=self.batch_size,
+	        shuffle=True,
+	        num_workers=self.num_workers,
+	        drop_last=True)
 	
 	def test_dataloader(self):
 		return DataLoader(self.dataTest,
@@ -154,6 +183,7 @@ class SingleDatasetModule(LightningDataModule):
 		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=True)
+
 
 
 class myCrossDataset(Dataset):

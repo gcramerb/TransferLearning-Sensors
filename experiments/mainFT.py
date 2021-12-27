@@ -19,7 +19,7 @@ parser.add_argument('--expName', type=str, default='apr3')
 parser.add_argument('--paramsPath', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Uschad")
+parser.add_argument('--source', type=str, default="Pamap2")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=False)
@@ -40,7 +40,7 @@ else:
 
 def getHparams(file_path=None):
 	params = {}
-	params['lr_source'] = 0.00005
+	params['lr_source'] = 0.0005
 	params['lr_target'] = 0.001
 	params['lr_gan'] = 0.0005
 	params['bs_source'] = 256
@@ -81,10 +81,10 @@ if __name__ == '__main__':
 	                                batch_size=trainParams['bs_source'])
 	dm_source.setup(Loso=False, split=False,normalize = True)
 	file = f'model_{args.source}'
-	if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
-		trainer, clf, res = runClassifier(dm_source)
-		print('Source: ',res)
-		clf.save_params(save_path,file)
+#	if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
+	trainer, clf, res = runClassifier(dm_source)
+	print('Source: ',res)
+	clf.save_params(save_path,file)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.target,
 	                                n_classes=args.n_classes,

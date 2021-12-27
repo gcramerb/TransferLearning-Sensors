@@ -46,23 +46,23 @@ from dataProcessing.dataModule import SingleDatasetModule
 def getModelHparams():
 	clfParam = {}
 	clfParam['kernel_dim'] = [(5, 3), (25, 3)]
-	#clfParam['n_filters'] = (4, 16, 18, 24)
-	clfParam['n_filters'] = (6, 16, 24, 32)
+	clfParam['n_filters'] = (4, 16, 18, 24)
+	#clfParam['n_filters'] = (6, 16, 24, 32)
 	clfParam['encDim'] = 64
 	clfParam["inputShape"] = (2, 50, 3)
-	clfParam['DropoutRate'] = 0.5
-	clfParam['FE'] = 'fe1'
+	clfParam['DropoutRate'] = 0.0
+	clfParam['FE'] = 'fe2'
 	
 	return clfParam
 
 def getTrainHparms():
 	trainParams = {}
 	trainParams['nEpoch'] = 100
-	trainParams['batch_size'] = 128
-	trainParams['alpha'] = .5
-	trainParams['lr'] = 0.0008
-	trainParams['step_size'] = 15
-	trainParams['weight_decay'] = .5
+	trainParams['batch_size'] = 64
+	trainParams['alpha'] = .3
+	trainParams['lr'] = 0.003
+	trainParams['step_size'] = 50
+	trainParams['weight_decay'] = 0
 	
 	return trainParams
 
@@ -77,8 +77,9 @@ def runClassifier(dm,my_logger = None, file_params = None,hparams = None):
 		trainParams = getTrainHparms()
 	
 	class_weight = None
-	# if dm.datasetName =='Pamap2':
-	# 	trainParams['nEpoch'] = 100
+	if dm.datasetName =='Pamap2':
+		trainParams['nEpoch'] = 100
+		class_weight = torch.tensor([1.0, 1.5,1.8, 3.0])
 	if dm.datasetName =='Uschad':
 		class_weight = torch.tensor([0.5,10,10,0.5])
 
@@ -106,7 +107,7 @@ def runClassifier(dm,my_logger = None, file_params = None,hparams = None):
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=trainParams['nEpoch'],
 	                  progress_bar_refresh_rate=1,
-	                  callbacks=[early_stopping])
+	                  callbacks=[])
 
 	trainer.fit(model, datamodule=dm)
 	metrics = model.get_all_metrics(dm)

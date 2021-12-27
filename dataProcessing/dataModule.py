@@ -75,7 +75,7 @@ class SingleDatasetModule(LightningDataModule):
 		newX, newY = np.array(newX), np.array(newY)
 		min_ = np.array([np.min(newX[:, :, i]) for i in range(newX.shape[-1])])
 		max_ = np.array([np.max(newX[:,:, i]) for i in range(newX.shape[-1])])
-		newX = (newX - min_)/(max_-min_) - 0.5
+		newX = ((newX - min_)/(max_-min_)) - 0.5
 		return newX[:,None,:,:],newY
 
 	def set_overfitting(self):
@@ -110,20 +110,21 @@ class SingleDatasetModule(LightningDataModule):
 	def setup(self, stage=None, valRate=0.1, testRate=.2,Loso = False,split = True,normalize = False):
 		if normalize and Loso:
 			raise ValueError("This functionality not implemented! ")
-		if self.file_name:
-			file = os.path.join(self.data_dir,self.file_name)
-		else:
-			file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
+		# if self.file_name:
+		# 	file = os.path.join(self.data_dir,self.file_name)
+		# else:
+		
+		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			self.X = tmp['X'].astype('float32')
 			y = tmp['y']
 			#self.folds = tmp['folds']
 
-		if self.datasetName =='Pamap2':
-			acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
-			idx = [i for i, v in enumerate(y) if v in acts]
-			self.X = self.X[idx].copy()
-			y = y[idx].copy()
+		# if self.datasetName =='Pamap2':
+		# 	acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
+		# 	idx = [i for i, v in enumerate(y) if v in acts]
+		# 	self.X = self.X[idx].copy()
+		# 	y = y[idx].copy()
 
 		#self.n_classes = len(pd.unique(self.Y))
 		y = categorical_to_int(y).astype('int')
@@ -143,7 +144,7 @@ class SingleDatasetModule(LightningDataModule):
 			trainL = nSamples - testLen - valLen
 			self.dataset = myDataset(self.X, self.Y)
 			self.dataTrain, self.dataVal, self.dataTest = random_split(self.dataset, [trainL, valLen,testLen],
-			                                             generator=torch.Generator().manual_seed(42))
+			                                             generator=torch.Generator().manual_seed(12270))
 
 		elif not split:
 			

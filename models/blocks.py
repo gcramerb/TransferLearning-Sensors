@@ -114,7 +114,10 @@ class Encoder2(nn.Module):
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),
-			nn.Linear(self.n_filters[2]*5*int(self.inputShape[-1]/3), self.encoded_dim),
+			nn.Linear(self.n_filters[2]*5*int(self.inputShape[-1]/3),self.n_filters[2]*5*int(self.inputShape[-1]/3)),
+			nn.BatchNorm1d(self.n_filters[2]*5*int(self.inputShape[-1]/3)),
+			nn.LeakyReLU(),
+			nn.Linear(self.n_filters[2] * 5 * int(self.inputShape[-1] / 3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.LeakyReLU()
 		)
@@ -198,6 +201,8 @@ class discriminator(nn.Module):
 
 	def forward(self,encoded):
 		return self.layer(encoded)
+	
+
 
 
 class domainClf(nn.Module):

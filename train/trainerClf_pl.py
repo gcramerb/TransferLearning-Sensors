@@ -40,7 +40,7 @@ class networkLight(LightningModule):
 		self.model = classifier(n_classes, self.hparams.FeName, self.hparams.modelHyp, inputShape=inputShape)
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss(weight = self.hparams.class_weight)
-		#self.p_loss = classDistance()
+		# self.p_loss = classDistance()
 	
 	def save_params(self,save_path,file):
 		path = os.path.join(save_path,file + '_feature_extractor')
@@ -105,8 +105,8 @@ class networkLight(LightningModule):
 		latent, pred = self.model(data)
 
 		m_loss = self.m_loss(pred, label)
-		#p_loss = self.p_loss(latent,label)
-		#loss = m_loss  + self.hparams.alpha * p_loss
+		# p_loss = self.p_loss(latent,label)
+		# loss = m_loss  + self.hparams.alpha * p_loss
 		loss = m_loss
 
 		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.detach().cpu(), axis=1))

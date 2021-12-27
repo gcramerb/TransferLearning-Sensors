@@ -56,15 +56,17 @@ class FTmodel(LightningModule):
 			self.FE = Encoder2(hyp=self.hparams.modelHyp,
 			                   inputShape=self.hparams.data_shape)
 			
-
+		if self.hparams.feat_eng =='asym':
 			self.staticFE =  Encoder2(hyp=self.hparams.modelHyp,
 		                   inputShape=self.hparams.data_shape)
+			self.staticFE.build()
+
 
 		self.staticDisc  =  discriminator(self.hparams.DropoutRate,
 		                                 self.hparams.modelHyp['encDim'],
 		                                 self.hparams.n_classes)
 		self.FE.build()
-		self.staticFE.build()
+		
 		self.staticDisc.build()
 		
 		
@@ -90,13 +92,13 @@ class FTmodel(LightningModule):
 	def load_params(self,save_path,file):
 		PATH = os.path.join(save_path, file + '_feature_extractor')
 		self.FE.load_state_dict(torch.load(PATH))
-		self.staticFE.load_state_dict(torch.load(PATH))
-		for param in self.staticFE.parameters():
-			param.requires_grad = False
+		if self.hparams=='asym':
+			self.staticFE.load_state_dict(torch.load(PATH))
+			for param in self.staticFE.parameters():
+				param.requires_grad = False
 		PATH = os.path.join(save_path, file+'_discriminator')
 		self.staticDisc.load_state_dict(torch.load(PATH))
-		
-		train = True if self.hparams.feat_eng =='asym' else False
+		train = True if self.hparams.feat_eng =='sym' else False
 		for param in self.staticDisc.parameters():
 			param.requires_grad = train
 
@@ -115,8 +117,8 @@ class FTmodel(LightningModule):
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
 		dataTarget = target['data']
-
 		latentT = self.FE(dataTarget)
+		
 		if self.hparams.feat_eng =='asym':
 			latentS = self.staticFE(dataSource)  # call forward method
 			discrepancy = self.discLoss(latentT, latentS)
@@ -124,19 +126,20 @@ class FTmodel(LightningModule):
 		else:
 			latentS = self.FE(dataSource)
 			predS = self.staticDisc(latentS)
-			clf = self.clfLoss(predS,labSource)
-			log['clf_loss'] = clf
+			clf_loss = self.clfLoss(predS,labSource)
+			log['clf_loss'] = clf_loss
 			discrepancy = self.discLoss(latentT, latentS)
-			m_loss = discrepancy + self.hparams.beta * clf
+			m_loss = discrepancy + self.hparams.beta * clf_loss
 			
 		GAN_loss =  self.get_GAN_loss(latentS,latentT)
 		if optmizer_idx == 0:
 			loss = m_loss - 1*self.hparams.alpha*GAN_loss
 		if optmizer_idx ==1:
 			loss = GAN_loss
+		if optmizer_idx == 2:
+			loss = clf_loss
 		log['discpy_loss'] = discrepancy
 		log['GAN_loss'] = GAN_loss
-		
 		return loss,log
 
 	def _shared_eval_step(self, batch, stage='val'):
@@ -149,7 +152,6 @@ class FTmodel(LightningModule):
 		else:
 			latentS = self.FE(dataSource)
 		predS = self.staticDisc(latentS)
-		
 		latentT = self.FE(dataTarget)
 		predT = self.staticDisc(latentT)
 		metrics = {}
@@ -216,6 +218,9 @@ class FTmodel(LightningModule):
 		                           lr=self.hparams.lr,
 		                           weight_decay=self.hparams.weight_decay)
 		opt_GAN= torch.optim.Adam(self.domainClf.parameters(), lr=self.hparams.lr_gan)
+		if self.hparams.feat_eng == 'sym':
+			opt_discrimin = torch.optim.Adam(self.staticDisc.parameters(), lr=self.hparams.lr_gan)
+			return [opt_FE, opt_GAN,opt_discrimin], []
 
 		#lr_sch_FE = StepLR(opt_FE, step_size=20, gamma=0.5)
 		return [opt_FE,opt_GAN],[]
@@ -233,8 +238,10 @@ class FTmodel(LightningModule):
 			probTarget = []
 			for source in self.dm_source.test_dataloader():
 				dataSource, labS = source['data'], source['label'].long()
-				l = self.staticFE(dataSource)
+				
+				l = self.staticFE(dataSource) if self.hparms.feat_eng =='asym' else self.FE(dataSource)
 				pdS = self.staticDisc(l)
+				
 				latentSource.append(l.cpu().numpy())
 				predSource.append(np.argmax(pdS.cpu().numpy(), axis=1))
 				trueSource.append(labS.cpu().numpy())

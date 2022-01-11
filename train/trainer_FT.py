@@ -34,15 +34,15 @@ class FTmodel(LightningModule):
 			self,
 			lr: float = 0.002,
 			lr_gan:float = 0.0001,
+			gan:bool = True,
 			n_classes: int = 6,
 			alpha: float = 1.0,
 			beta: float = 0.75,
-			penalty: str = 'mmd',
-			data_shape: tuple = (1, 50, 6),
-			modelHyp: dict = None,
-			FeName: str = 'fe2',
+			penalty: str = 'ot',
+
+			model_hyp: dict = None,
 			weight_decay: float = 0.0,
-			DropoutRate:float = 0.2,
+			dropout_rate:float = 0.2,
 			feat_eng:str = 'asym',
 			lossParams: dict = None,
 			save_path: str = None,
@@ -50,28 +50,25 @@ class FTmodel(LightningModule):
 	):
 		super().__init__()
 		self.save_hyperparameters()
+		self.hparams.input_shape = model_hyp['input_shape']
 		
-		if FeName =='fe2':
+		if model_hyp['FE'] == 'fe2':
 			# load pre trined model?
-			self.FE = Encoder2(hyp=self.hparams.modelHyp,
-			                   inputShape=self.hparams.data_shape)
+			self.FE = Encoder2(hyp=self.hparams.model_hyp,
+			                   input_shape=self.hparams.input_shape)
 			
 		if self.hparams.feat_eng =='asym':
-			self.staticFE =  Encoder2(hyp=self.hparams.modelHyp,
-		                   inputShape=self.hparams.data_shape)
+			self.staticFE =  Encoder2(hyp=self.hparams.model_hyp,
+		                   input_shape=self.hparams.input_shape)
 			self.staticFE.build()
-
-
-		self.staticDisc  =  discriminator(self.hparams.DropoutRate,
-		                                 self.hparams.modelHyp['encDim'],
+		self.staticDisc  =  discriminator(self.hparams.dropout_rate,
+		                                 self.hparams.model_hyp['enc_dim'],
 		                                 self.hparams.n_classes)
 		self.FE.build()
-		
 		self.staticDisc.build()
-		
-		
+
 		## GAN:
-		self.domainClf = domainClf(self.hparams.modelHyp['encDim'])
+		self.domainClf = domainClf(self.hparams.model_hyp['enc_dim'])
 		self.domainClf.build()
 		self.GanLoss = nn.BCELoss()
 		
@@ -208,8 +205,10 @@ class FTmodel(LightningModule):
 	def get_final_metrics(self):
 		result = {}
 		predictions = self.predict()
-		#result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
+		result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
+		for k, v in result.items():
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return result
 	
 	def configure_optimizers(self):
@@ -239,16 +238,15 @@ class FTmodel(LightningModule):
 			for source in self.dm_source.test_dataloader():
 				dataSource, labS = source['data'], source['label'].long()
 				
-				l = self.staticFE(dataSource) if self.hparms.feat_eng =='asym' else self.FE(dataSource)
+				l = self.staticFE(dataSource) if self.hparams.feat_eng =='asym' else self.FE(dataSource)
 				pdS = self.staticDisc(l)
 				
 				latentSource.append(l.cpu().numpy())
 				predSource.append(np.argmax(pdS.cpu().numpy(), axis=1))
 				trueSource.append(labS.cpu().numpy())
 			
-			for target in self.dm_target.dataloader():
+			for target in self.dm_target.train_dataloader():
 				dataTarget, labT = target['data'], target['label'].long()
-				
 				l_tar = self.FE(dataTarget)
 				latentTarget.append(l_tar.cpu().numpy())
 				pdT = self.staticDisc(l_tar)
@@ -256,7 +254,7 @@ class FTmodel(LightningModule):
 				probTarget.append(probs)
 				predTarget.append(np.argmax(probs, axis=1))
 				trueTarget.append(labT.cpu().numpy())
-		
+
 		predictions = {}
 		predictions['latentSource'] = np.concatenate(latentSource, axis=0)
 		predictions['predSource'] = np.concatenate(predSource, axis=0)
@@ -273,7 +271,7 @@ class FTmodel(LightningModule):
 	
 	def test_dataloader(self):
 		loaders = [self.dm_source.test_dataloader(),
-		           self.dm_target.dataloader()]
+		           self.dm_target.test_dataloader()]
 		combined_loaders = CombinedLoader(loaders, "max_size_cycle")
 		return combined_loaders
 	

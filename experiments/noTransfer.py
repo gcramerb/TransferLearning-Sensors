@@ -46,11 +46,8 @@ if __name__ == '__main__':
 	                        name=args.source + f'{args.n_classes}'+ '_no_TL')
 	
 	result = create_result_dict()
-	dm = SingleDatasetModule(data_dir=args.inPath,
-	                         datasetName=args.source,
-	                         inputShape=(2,50,3),
-	                         n_classes=args.n_classes,
-	                         batch_size=args.batch_size)
+	dm = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, n_classes=args.n_classes,
+	                         input_shape=(2, 50, 3), batch_size=args.batch_size)
 	dm.setup(Loso=True)
 	folds_ = dm.get_n_folds()
 	folds_ = [0]
@@ -64,12 +61,8 @@ if __name__ == '__main__':
 		for dataset in datasetList:
 			if dataset != args.source:
 				
-				dm_target = SingleDatasetModule(data_dir=args.inPath,
-			                         datasetName=dataset,
-			                          type = 'target',
-			                         inputShape=(2,50,3),
-			                         n_classes=args.n_classes,
-			                         batch_size=args.batch_size)
+				dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=dataset, n_classes=args.n_classes,
+				                                input_shape=(2, 50, 3), batch_size=args.batch_size, type='target')
 				
 				dm_target.setup(split=False)
 				res = trainer.validate(model, datamodule=dm_target)

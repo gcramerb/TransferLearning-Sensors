@@ -77,11 +77,8 @@ def objective(trial):
 	trainParams,modelParams,_ = suggest_hyperparameters(trial)
 
 	
-	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.source,
-	                                n_classes=args.n_classes,
-	                                inputShape=trainParams['input_shape'],
-	                                batch_size=trainParams['bs_source'])
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, n_classes=args.n_classes,
+	                                input_shape=trainParams['input_shape'], batch_size=trainParams['bs_source'])
 	dm_source.setup(Loso=False, split=False,normalize = True)
 	file = f'model_{args.source}'
 	if os.path.join(args.save_path,file + '_feature_extractor') not in glob.glob(args.save_path + '*'):
@@ -89,25 +86,16 @@ def objective(trial):
 		print('Source: ',res)
 		clf.save_params(args.save_path,file)
 	
-	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.target,
-	                                n_classes=args.n_classes,
-	                                inputShape=trainParams['input_shape'],
-	                                type = 'target',
-	                                batch_size=trainParams['bs_target'])
+	dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target, n_classes=args.n_classes,
+	                                input_shape=trainParams['input_shape'], batch_size=trainParams['bs_target'],
+	                                type='target')
 	dm_target.setup(Loso=False, split=False,normalize = True)
 
-	model = FTmodel(penalty=trainParams['discrepancy'],
-	                lr=trainParams['lr_target'],
-	                lr_gan = trainParams['lr_gan'],
-	                n_classes=args.n_classes,
-	                alpha = trainParams['alphaT'],
-	                beta = trainParams['betaT'],
-	                feat_eng = trainParams['feat_eng'],
-	                data_shape=trainParams['input_shape'],
-	                modelHyp=modelParams,
-	                FeName=modelParams['FeName'],
-	                weight_decay=trainParams['weight_decay'])
+	model = FTmodel(lr=trainParams['lr_target'], lr_gan=trainParams['lr_gan'], n_classes=args.n_classes,
+	                alpha=trainParams['alphaT'], beta=trainParams['betaT'], penalty=trainParams['discrepancy'],
+	                input_shape=trainParams['input_shape'], model_hyp=modelParams,
+	                weight_decay=trainParams['weight_decay'], feat_eng=trainParams['feat_eng'],
+	                FE=modelParams['FeName'])
 	
 	model.load_params(args.save_path,file)
 	model.setDatasets(dm_source, dm_target)

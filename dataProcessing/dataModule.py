@@ -32,7 +32,7 @@ class SingleDatasetModule(LightningDataModule):
 			datasetName: str = "Dsads",
 			file_name:str = None,
 			n_classes: int = 6,
-			inputShape: tuple = (1,50,6),
+			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
 			type: str = 'source',
 			num_workers: int = 1,
@@ -44,7 +44,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.n_classes = n_classes
-		self.inputShape = inputShape
+		self.input_shape = input_shape
 		self.type = type
 	def get_n_folds(self):
 		return range(len(self.folds))
@@ -100,7 +100,7 @@ class SingleDatasetModule(LightningDataModule):
 		idx += np.where(self.Y ==3)[0].tolist()[:n_samples]
 		self.X, self.Y = self.X[idx], self.Y[idx]
 		
-		if self.inputShape[0] == 2:
+		if self.input_shape[0] == 2:
 			self.X = np.concatenate([self.X[:, :, :, 0:3], self.X[:, :, :, 3:6]], axis=1)
 		self.dataTrain = myDataset(self.X, self.Y)
 		self.dataVal = myDataset(self.X, self.Y)
@@ -132,7 +132,7 @@ class SingleDatasetModule(LightningDataModule):
 		if normalize:
 			self.X,self.Y = self.normalize()
 
-		if self.inputShape[0] == 2:
+		if self.input_shape[0] == 2:
 			self.X = np.concatenate([self.X[:,:,:,0:3],self.X[:,:,:,3:6]],axis =1)
 		
 
@@ -144,7 +144,7 @@ class SingleDatasetModule(LightningDataModule):
 			trainL = nSamples - testLen - valLen
 			self.dataset = myDataset(self.X, self.Y)
 			self.dataTrain, self.dataVal, self.dataTest = random_split(self.dataset, [trainL, valLen,testLen],
-			                                             generator=torch.Generator().manual_seed(12270))
+			                                             generator=torch.Generator().manual_seed(1220))
 
 		elif not split:
 			

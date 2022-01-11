@@ -77,18 +77,12 @@ def getHparams(file_path = None):
 if __name__ == '__main__':
 	trainParams, modelParams = getHparams(args.paramsPath)
 
-	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.source,
-	                                n_classes = args.n_classes,
-	                                inputShape=trainParams['input_shape'],
-	                                batch_size=trainParams['bs_source'])
+	dm_source = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, n_classes=args.n_classes,
+	                                input_shape=trainParams['input_shape'], batch_size=trainParams['bs_source'])
 	dm_source.setup(Loso = False,split = False)
-	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.target,
-	                                n_classes=args.n_classes,
-	                                type = 'target',
-	                                inputShape=trainParams['input_shape'],
-	                                batch_size=trainParams['bs_target'])
+	dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=args.target, n_classes=args.n_classes,
+	                                input_shape=trainParams['input_shape'], batch_size=trainParams['bs_target'],
+	                                type='target')
 	dm_target.setup(Loso = False,split = False)
 	
 	model = TLmodel(penalty=trainParams['discrepancy'],

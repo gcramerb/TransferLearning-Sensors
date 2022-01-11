@@ -43,74 +43,38 @@ from dataProcessing.dataModule import SingleDatasetModule
 # 	trainParams['step_size'] = 15
 # 	return clfParam,trainParams
 
-def getModelHparams():
-	clfParam = {}
-	clfParam['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParam['n_filters'] = (4, 16, 18, 24)
-	#clfParam['n_filters'] = (6, 16, 24, 32)
-	clfParam['encDim'] = 64
-	clfParam["inputShape"] = (2, 50, 3)
-	clfParam['DropoutRate'] = 0.0
-	clfParam['FE'] = 'fe2'
-	
-	return clfParam
 
-def getTrainHparms():
-	trainParams = {}
-	trainParams['nEpoch'] = 100
-	trainParams['batch_size'] = 64
-	trainParams['alpha'] = .3
-	trainParams['lr'] = 0.003
-	trainParams['step_size'] = 50
-	trainParams['weight_decay'] = 0
-	
-	return trainParams
-
-def runClassifier(dm,my_logger = None, file_params = None,hparams = None):
-
-	if file_params:
-		pass
-	if hparams:
-		trainParams,clfParams = hparams
-	else:
-		clfParams = getModelHparams()
-		trainParams = getTrainHparms()
-	
+def runClassifier(dm,clfParams,my_logger = None):
 	class_weight = None
 	if dm.datasetName =='Pamap2':
-		trainParams['nEpoch'] = 100
 		class_weight = torch.tensor([1.0, 1.5,1.8, 3.0])
 	if dm.datasetName =='Uschad':
 		class_weight = torch.tensor([0.5,10,10,0.5])
 
-	model = networkLight(alpha=trainParams['alpha'],
-	                     lr=trainParams['lr'],
-	                     n_classes = dm.n_classes,
-	                     inputShape=clfParams["inputShape"],
-	                     FeName=clfParams['FE'],
-	                     step_size=trainParams['step_size'],
-	                     weight_decay = trainParams['weight_decay'],
-                         class_weight =class_weight,
-	                     modelHyp=clfParams)
+	model = networkLight(lr=clfParams['lr'],
+	                     n_classes=dm.n_classes,
+	                     alpha=clfParams['alpha'],
+	                     step_size=clfParams['step_size'],
+	                     model_hyp=clfParams,
+	                     weight_decay=clfParams['weight_decay'],
+	                     class_weight=class_weight,
+	                     input_shape=clfParams["input_shape"],
+	                     FE=clfParams['FE'])
 	if my_logger:
-		my_logger.log_hyperparams(trainParams)
-		my_logger.log_hyperparams(clfParams)
+		adicionalInfo = {}
+		adicionalInfo['class_weight'] = class_weight
 		my_logger.watch(model)
-		
-	
-	early_stopping = EarlyStopping('val_loss', mode='min', patience=10,verbose = True)
-	# chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True)
-	# chkp_callback.CHECKPOINT_NAME_LAST = "{epoch}-{val_loss:.2f}-{accSourceTest:.2f}-last"
+
+	early_stopping = EarlyStopping('val_loss', mode='min', patience=4,verbose = True)
 
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,
-	                  max_epochs=trainParams['nEpoch'],
+	                  max_epochs=clfParams['epoch'],
 	                  progress_bar_refresh_rate=1,
-	                  callbacks=[])
+	                  callbacks=[early_stopping])
 
 	trainer.fit(model, datamodule=dm)
 	metrics = model.get_all_metrics(dm)
-
 	return trainer, model, metrics
 

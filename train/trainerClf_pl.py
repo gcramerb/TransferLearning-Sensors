@@ -27,17 +27,20 @@ class networkLight(LightningModule):
 			lr: float = 0.002,
 			n_classes: int = 6,
 			alpha: float = 1.0,
-			inputShape:tuple = (1,50,6),
-			FeName: str = 'fe2',
+			input_shape:tuple = (1,50,6),
+			FE: str = 'fe2',
 			step_size = 10,
-			modelHyp: dict = None,
+			model_hyp: dict = None,
 			weight_decay: float = 0.0,
 			class_weight:torch.tensor = None,
 			**kwargs
 	):
 		super().__init__()
 		self.save_hyperparameters()
-		self.model = classifier(n_classes, self.hparams.FeName, self.hparams.modelHyp, inputShape=inputShape)
+		self.model = classifier(n_classes,
+		                        FE = self.hparams.FE,
+		                        hyp = self.hparams.model_hyp,
+		                        input_shape=self.hparams.model_hyp['input_shape'])
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss(weight = self.hparams.class_weight)
 		# self.p_loss = classDistance()
@@ -145,27 +148,19 @@ class networkLight(LightningModule):
 		dataLoaders = [dm.train_dataloader(),dm.val_dataloader(),dm.test_dataloader()]
 		with torch.no_grad():
 			for i,stage in enumerate(['train','val','test']):
-				pred = []
-				true = []
 				cm = np.zeros([self.hparams.n_classes, self.hparams.n_classes])
-				for batch in dataLoaders[i]:
-					
-					data, label = batch['data'], batch['label']
-					l, pdS = self.model(data)
-					true_batch =label.cpu().numpy()
-					pred_batch = np.argmax(pdS.cpu().numpy(), axis=1)
-					pred.append(pred_batch)
-					true.append(true_batch)
-					cm += confusion_matrix(true_batch,pred_batch)
-				true = np.concatenate(true)
-				pred= np.concatenate(pred)
-				metric[f'{stage}_acc'] =  accuracy_score(true,pred)
-				metric[f'{stage}_cm'] = cm
+				predictions = self.predict(dataLoaders[i])
+				metric[f'{stage}_acc'] =  accuracy_score(predictions['true'],predictions['pred'])
+				metric[f'{stage}_cm'] = confusion_matrix(predictions['true'],predictions['pred'])
 		return metric
 
 	def configure_optimizers(self):
 		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr,weight_decay=self.hparams.weight_decay)
-		lr_scheduler = StepLR(opt, step_size=self.hparams.step_size, gamma=0.5)
+		if self.hparams.step_size:
+			lr_scheduler = StepLR(opt, step_size=self.hparams.step_size, gamma=0.5)
 		#return {"optimizerClf": opt, "lr_scheduler": self.schedulerClf}
-		return [opt], [lr_scheduler]
+			return [opt], [lr_scheduler]
+		else:
+			return [opt]
+	
 

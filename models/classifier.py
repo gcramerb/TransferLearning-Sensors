@@ -18,20 +18,20 @@ class classifier(nn.Module):
 	"""
 	def __init__(self,
 	             n_classes,
-	             FeName = None,
+	             FE = None,
 	             hyp=None,
-	             inputShape = (1,50,6)):
+	             input_shape = (1,50,6)):
 		super(classifier, self).__init__()
 		self.n_classes = n_classes
-		self._name = FeName
-		self.DropoutRate = hyp['DropoutRate']
-		if FeName =='fe1':
-			self.Encoder = Encoder1(hyp=hyp,inputShape=inputShape)
-		elif FeName == "fe2":
-			self.Encoder = Encoder2(hyp=hyp,inputShape=inputShape)
+		self._name = FE
+		self.DropoutRate = hyp['dropout_rate']
+		if FE == 'fe1':
+			self.Encoder = Encoder1(hyp=hyp, input_shape=input_shape)
+		elif FE == "fe2":
+			self.Encoder = Encoder2(hyp=hyp, input_shape=input_shape)
 		else:
 			raise ValueError("Put a value model name!" )
-		self.discrimination = discriminator(self.DropoutRate, hyp['encDim'], self.n_classes)
+		self.discrimination = discriminator(self.DropoutRate, hyp['enc_dim'], self.n_classes)
 	@property
 	def name(self):
 		return self._name

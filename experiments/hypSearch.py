@@ -59,11 +59,8 @@ def objective(trial):
 	best_loss_val = float("Inf")
 	
 	setupTrain, hypModel = suggest_hyperparameters(trial)
-	dm = SingleDatasetModule(data_dir=args.inPath,
-	                         datasetName=args.source,
-	                         n_classes = args.n_classes,
-	                         inputShape=hypModel['inputShape'],
-	                         batch_size=setupTrain['bs'])
+	dm = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, n_classes=args.n_classes,
+	                         input_shape=hypModel['inputShape'], batch_size=setupTrain['bs'])
 	dm.setup(Loso=False,split = True,normalize = True)
 	
 	hparams = (setupTrain, hypModel)

@@ -8,16 +8,16 @@ class Encoder1(nn.Module):
 
 	"""
 	def __init__(self,  hyp=None,
-	             inputShape = (1,50,6)):
+	             input_shape = (1,50,6)):
 		super(Encoder1, self).__init__()
 		self._name = 'Encoder'
-		self.inputShape = inputShape
+		self.input_shape = input_shape
 		if hyp:
 			self.kernel_dim = hyp['kernel_dim']
 			self.pooling_1 = (2, 3)
 			self.pooling_2 = (5, 1)
 			self.n_filters = hyp['n_filters']
-			self.encoded_dim = hyp['encDim']
+			self.encoded_dim = hyp['enc_dim']
 			# self.DropoutRate = hyp["DropoutRate"]
 
 
@@ -27,11 +27,11 @@ class Encoder1(nn.Module):
 	def build(self):
 		for i in range(self.n_win):
 			self.CNN1.append(nn.Sequential(
-				nn.Conv2d(in_channels=self.inputShape[0],
+				nn.Conv2d(in_channels=self.input_shape[0],
 				          kernel_size=self.kernel_dim[i],
 				          out_channels=self.n_filters[i],
 				          padding='same', bias=True,
-				          groups = self.inputShape[0]),
+				          groups = self.input_shape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
 				nn.MaxPool2d(self.pooling_1),
@@ -58,7 +58,7 @@ class Encoder1(nn.Module):
 			nn.BatchNorm2d(self.n_filters[3]),
 			nn.LeakyReLU(),
 			nn.Flatten(),
-			nn.Linear(self.n_filters[3]*5*int(self.inputShape[-1]/3), self.encoded_dim),
+			nn.Linear(self.n_filters[3]*5*int(self.input_shape[-1]/3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.ReLU()
 		)
@@ -76,16 +76,16 @@ class Encoder1(nn.Module):
 
 class Encoder2(nn.Module):
 
-	def __init__(self, hyp=None,inputShape = (1,50,6)):
+	def __init__(self, hyp=None,input_shape = (1,50,6)):
 		super(Encoder2, self).__init__()
 		self._name = 'Encoder'
-		self.inputShape = inputShape
+		self.input_shape = input_shape
 		if hyp:
 			self.kernel_dim = hyp['kernel_dim']
 			self.pooling_1 = (2, 3)
 			self.pooling_2 = (5, 1)
 			self.n_filters = hyp['n_filters']
-			self.encoded_dim = hyp['encDim']
+			self.encoded_dim = hyp['enc_dim']
 
 
 		self.n_win = 2
@@ -96,8 +96,8 @@ class Encoder2(nn.Module):
 		for i in range(self.n_win):
 			self.CNN1.append(
 				nn.Sequential(
-				nn.Conv2d(in_channels=self.inputShape[0], kernel_size=self.kernel_dim[i],
-				          out_channels=self.n_filters[i], padding='same', bias=True, groups=self.inputShape[0]),
+				nn.Conv2d(in_channels=self.input_shape[0], kernel_size=self.kernel_dim[i],
+				          out_channels=self.n_filters[i], padding='same', bias=True, groups=self.input_shape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
 				nn.MaxPool2d(self.pooling_1),
@@ -114,10 +114,10 @@ class Encoder2(nn.Module):
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),
-			nn.Linear(self.n_filters[2]*5*int(self.inputShape[-1]/3),self.n_filters[2]*5*int(self.inputShape[-1]/3)),
-			nn.BatchNorm1d(self.n_filters[2]*5*int(self.inputShape[-1]/3)),
+			nn.Linear(self.n_filters[2]*5*int(self.input_shape[-1]/3),self.n_filters[2]*5*int(self.input_shape[-1]/3)),
+			nn.BatchNorm1d(self.n_filters[2]*5*int(self.input_shape[-1]/3)),
 			nn.LeakyReLU(),
-			nn.Linear(self.n_filters[2] * 5 * int(self.inputShape[-1] / 3), self.encoded_dim),
+			nn.Linear(self.n_filters[2] * 5 * int(self.input_shape[-1] / 3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.LeakyReLU()
 		)

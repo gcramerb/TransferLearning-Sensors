@@ -53,10 +53,8 @@ class TLmodel(LightningModule):
 		
 
         # networks
-		self.clf = classifier(n_classes = self.hparams.n_classes,
-		                      FeName=self.hparams.FeName,
-		                      hyp=self.hparams.modelHyp,
-		                      inputShape=self.hparams.data_shape)
+		self.clf = classifier(n_classes=self.hparams.n_classes, FE=self.hparams.FeName, hyp=self.hparams.modelHyp,
+		                      input_shape=self.hparams.data_shape)
 		
 		# self.AE = ConvAutoencoder(FeName = self.hparams.FeName,
 		#                           hyp = self.hparams.modelHyp,

@@ -57,12 +57,19 @@ class SingleDatasetModule(LightningDataModule):
 	# 	self.dataVal =  myDataset(self.X[test_idx], self.Y[test_idx])
 	# 	self.dataTest =  myDataset(self.X[test_idx], self.Y[test_idx])
 		
+	
+	
 	def normalize(self):
 		newX = []
 		newY = []
 
-		out_up = 16
-		out_down = -16
+		out_up = 200
+		out_down = -200
+		# tol = 4
+		# m = np.array([np.mean(self.X[:, :, i]) for i in range(self.X.shape[-1])])
+		# std = np.array([np.std(self.X[:, :, i]) for i in range(self.X.shape[-1])])
+		# out_up = m + tol * std
+		# out_down = m - tol * std
 
 		for sample,label in zip(self.X[:,0,:,:],self.Y):
 			#check if this sample is an outlier:

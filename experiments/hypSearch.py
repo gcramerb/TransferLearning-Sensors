@@ -5,7 +5,7 @@ sys.path.insert(0,'../')
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping
 
-from train.trainerClf_pl import networkLight
+from train.trainerClf import networkLight
 from train.runClf import runClassifier
 from dataProcessing.dataModule import SingleDatasetModule
 import optuna

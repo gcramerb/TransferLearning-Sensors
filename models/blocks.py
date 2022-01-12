@@ -18,7 +18,7 @@ class Encoder1(nn.Module):
 			self.pooling_2 = (5, 1)
 			self.n_filters = hyp['n_filters']
 			self.encoded_dim = hyp['enc_dim']
-			# self.DropoutRate = hyp["DropoutRate"]
+			# self.dropout_rate = hyp["dropout_rate"]
 
 
 		self.n_win = 2
@@ -110,13 +110,13 @@ class Encoder2(nn.Module):
 			          kernel_size=self.kernel_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
-			#nn.BatchNorm2d(self.n_filters[2]),
+			nn.BatchNorm2d(self.n_filters[2]),
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),
-			nn.Linear(self.n_filters[2]*5*int(self.input_shape[-1]/3),self.n_filters[2]*5*int(self.input_shape[-1]/3)),
-			nn.BatchNorm1d(self.n_filters[2]*5*int(self.input_shape[-1]/3)),
-			nn.LeakyReLU(),
+			# nn.Linear(self.n_filters[2]*5*int(self.input_shape[-1]/3),self.n_filters[2]*5*int(self.input_shape[-1]/3)),
+			# nn.BatchNorm1d(self.n_filters[2]*5*int(self.input_shape[-1]/3)),
+			# nn.LeakyReLU(),
 			nn.Linear(self.n_filters[2] * 5 * int(self.input_shape[-1] / 3), self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.LeakyReLU()
@@ -186,15 +186,15 @@ class Decoder(nn.Module):
 		return dec
 
 class discriminator(nn.Module):
-	def __init__(self,DropoutRate,encoded_dim,n_classes):
+	def __init__(self,dropout_rate,encoded_dim,n_classes):
 		super(discriminator, self).__init__()
-		self.DropoutRate = DropoutRate
+		self.dropout_rate = dropout_rate
 		self.encoded_dim = encoded_dim
 		self.n_classes = n_classes
 
 	def build(self):
 		self.layer = nn.Sequential(
-			nn.Dropout(p = self.DropoutRate ),
+			nn.Dropout(p = self.dropout_rate ),
 			nn.Linear(self.encoded_dim, self.n_classes),
 			nn.Softmax(dim=1)
 		)

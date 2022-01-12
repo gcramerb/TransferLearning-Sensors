@@ -8,7 +8,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping,ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
-from train.trainerClf_pl import networkLight
+from train.trainerClf import networkLight
 from dataProcessing.dataModule import SingleDatasetModule
 
 # def getModelHparams():

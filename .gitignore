@@ -1,6 +1,10 @@
 .idea/
 slurm/
 saved/
+figures/
+experiments/wandb/
+experiments/params/
+experiments/checkpoints/
 results/
 # Byte-compiled / optimized / DLL files
 __pycache__/

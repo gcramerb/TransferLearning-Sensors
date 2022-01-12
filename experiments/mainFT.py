@@ -16,7 +16,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='apr3')
-parser.add_argument('--paramsPath', type=str, default=None)
+parser.add_argument('--trainClf',action='store_true')
+parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Uschad")
@@ -32,64 +33,67 @@ if args.slurm:
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	verbose = 0
 	save_path = '../saved/'
+	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
 	my_logger = WandbLogger(project='TL',
 	                        log_model='all',
 	                        name=args.expName + '_FT_' + args.source + '_to_' + args.target)
 
 else:
-	args.nEpoch = 50
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	my_logger = None
-	#args.paramsPath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
+	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 	
 	# my_logger = WandbLogger(project='TL',
 	#                         log_model='all',
-	#                         name=args.expName + '_FT_' + args.source + '_to_' + args.target)
+	#                         name=args.expName + 'test_FT_' + args.source + '_to_' + args.target)
+	#
 
-
-def getHparams(file_path=None):
-	if file_path:
-		import json
-		with open(os.path.join(file_path,'clfParams.json')) as f:
-			clfParams = json.load(f)
-		with open(os.path.join(file_path,'TLparams.json')) as f:
-			TLparams = json.load(f)
-		return TLparams, clfParams
-	
+def getHparams():
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['epoch'] = 8
-	clfParams["dropout_rate"] = 0.3
+	clfParams['epoch'] = 10
+	clfParams["dropout_rate"] = 0.2
 	clfParams['FE'] = 'fe2'
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
 	clfParams['bs'] = 128
-	clfParams['lr'] = 0.0003
-	clfParams['weight_decay'] = 0.2
+	clfParams['lr'] = 0.00005
+	clfParams['weight_decay'] = 0.0
 	
-	TLparams = {}
-	TLparams['lr'] = 0.001
-	TLparams['lr_gan'] = 0.0005
-	TLparams['bs'] = 128
-	TLparams['step_size'] = None
-	TLparams['epoch'] = 70
-	TLparams['feat_eng'] = 'asym'
-	TLparams['alpha'] = 0.4
-	TLparams['discrepancy'] = 'ot'
-	TLparams['weight_decay'] = 0.1
+	if args.TLParamsFile:
+		import json
+		# with open(os.path.join(params_path,args.clfParamsFile)) as f:
+		# 	clfParams = json.load(f)
+		with open(os.path.join(params_path,args.TLParamsFile)) as f:
+			TLparams = json.load(f)
+		TLparams['gan'] = TLparams['gan'] =='True'
+		return TLparams, clfParams
 	
 
-	
+	TLparams = {}
+	TLparams['lr'] = 0.005
+	TLparams['gan'] = False
+	TLparams['lr_gan'] = 0.0001
+	TLparams['bs'] = 128
+	TLparams['step_size'] = None
+	TLparams['epoch'] = 20
+	TLparams['feat_eng'] = 'asym'
+	TLparams['alpha'] = 0.05
+	TLparams['beta'] = 0.75
+	TLparams['discrepancy'] = 'ot'
+	TLparams['weight_decay'] = 0.0
+
 	return TLparams, clfParams
 
 if __name__ == '__main__':
-	TLparams, clfParams = getHparams(args.paramsPath)
+
+
+	TLparams, clfParams = getHparams()
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
@@ -98,10 +102,12 @@ if __name__ == '__main__':
 	dm_source.setup(Loso=False, split=False,normalize = True)
 	file = f'model_{args.source}'
 	#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
-	if True:
+	#if args.trainClf:
+	if False:
 		trainer, clf, res = runClassifier(dm_source,clfParams)
 		print('Source: ',res)
 		clf.save_params(save_path,file)
+
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.target,
 	                                input_shape=clfParams['input_shape'],
@@ -110,12 +116,14 @@ if __name__ == '__main__':
 	                                type='target')
 	dm_target.setup(Loso=False, split=False,normalize = True)
 	
-	model = FTmodel(lr=TLparams['lr'], lr_gan=TLparams['lr_gan'], n_classes=args.n_classes,
-	                alpha=TLparams['alpha'],
-	                penalty=TLparams['discrepancy'],
-	                model_hyp=clfParams,
-	                weight_decay=TLparams['weight_decay'], feat_eng=TLparams['feat_eng'])
-	model.load_params(save_path,file)
+	model = FTmodel(trainParams=TLparams,
+					n_classes = args.n_classes,
+	                lossParams = None,
+	                save_path = None,
+	                model_hyp=clfParams)
+	chk_path = "../saved/c791a09f23cfa488fe7e80c35a6edb68"
+	model2 = model.load_from_checkpoint(chk_path)
+	
 	if my_logger:
 		params = {}
 		params['clfParams'] = clfParams
@@ -123,6 +131,9 @@ if __name__ == '__main__':
 		my_logger.log_hyperparams(params)
 		my_logger.watch(model)
 
+
+	
+	model.load_params(save_path,file)
 	model.setDatasets(dm_source, dm_target)
 	early_stopping = EarlyStopping('discpy_loss', mode='min', patience=10, verbose=True)
 	trainer = Trainer(gpus=1,
@@ -136,3 +147,6 @@ if __name__ == '__main__':
 	trainer.fit(model)
 	res = model.get_final_metrics()
 	print(res)
+	if my_logger:
+		my_logger.log_metrics(res)
+	

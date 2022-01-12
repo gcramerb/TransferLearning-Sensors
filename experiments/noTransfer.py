@@ -7,7 +7,7 @@ sys.path.insert(0, '../')
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 
-from train.trainerClf_pl import networkLight
+from train.trainerClf import networkLight
 from dataProcessing.dataModule import SingleDatasetModule
 from train.runClf import runClassifier
 

@@ -15,15 +15,15 @@ from train.trainer_FT import FTmodel
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='apr3')
-parser.add_argument('--trainClf',action='store_true')
+parser.add_argument('--expName', type=str, default='')
+parser.add_argument('--trainClf', type=bool, default=True)
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Uschad")
-parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--source', type=str, default="Dsads")
+parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--saveModel', type=bool, default=False)
+parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
 
 
@@ -34,9 +34,9 @@ if args.slurm:
 	verbose = 0
 	save_path = '../saved/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
-	my_logger = WandbLogger(project='TL',
-	                        log_model='all',
-	                        name=args.expName + '_FT_' + args.source + '_to_' + args.target)
+	# my_logger = WandbLogger(project='TL',
+	#                         log_model='all',
+	#                         name=args.expName + '_FT_' + args.source + '_to_' + args.target)
 
 else:
 	verbose = 1
@@ -45,17 +45,17 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 	
-	# my_logger = WandbLogger(project='TL',
-	#                         log_model='all',
-	#                         name=args.expName + 'test_FT_' + args.source + '_to_' + args.target)
-	#
+	my_logger = WandbLogger(project='TL',
+	                        log_model='all',
+	                        name=args.expName + 'TL_' + args.source + '_to_' + args.target)
+
 
 def getHparams():
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['epoch'] = 10
+	clfParams['epoch'] = 15
 	clfParams["dropout_rate"] = 0.2
 	clfParams['FE'] = 'fe2'
 	clfParams['input_shape'] = (2, 50, 3)
@@ -63,7 +63,7 @@ def getHparams():
 	clfParams['step_size'] = None
 	clfParams['bs'] = 128
 	clfParams['lr'] = 0.00005
-	clfParams['weight_decay'] = 0.0
+	clfParams['weight_decay'] = 0.1
 	
 	if args.TLParamsFile:
 		import json
@@ -76,15 +76,15 @@ def getHparams():
 	
 
 	TLparams = {}
-	TLparams['lr'] = 0.005
-	TLparams['gan'] = False
-	TLparams['lr_gan'] = 0.0001
+	TLparams['lr'] =  0.005
+	TLparams['gan'] = True
+	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 20
+	TLparams['epoch'] = 50
 	TLparams['feat_eng'] = 'asym'
-	TLparams['alpha'] = 0.05
-	TLparams['beta'] = 0.75
+	TLparams['alpha'] = 0.75
+	TLparams['beta'] = 0.0
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = 0.0
 
@@ -100,12 +100,11 @@ if __name__ == '__main__':
 	                                input_shape=clfParams['input_shape'],
 	                                batch_size=clfParams['bs'])
 	dm_source.setup(Loso=False, split=False,normalize = True)
-	file = f'model_{args.source}'
+	file = f'mainModel_{args.source}'
 	#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
-	#if args.trainClf:
-	if False:
+	if args.trainClf:
 		trainer, clf, res = runClassifier(dm_source,clfParams)
-		print('Source: ',res)
+		print('Source: ',res['train_acc'])
 		clf.save_params(save_path,file)
 
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -121,9 +120,7 @@ if __name__ == '__main__':
 	                lossParams = None,
 	                save_path = None,
 	                model_hyp=clfParams)
-	chk_path = "../saved/c791a09f23cfa488fe7e80c35a6edb68"
-	model2 = model.load_from_checkpoint(chk_path)
-	
+
 	if my_logger:
 		params = {}
 		params['clfParams'] = clfParams
@@ -149,4 +146,5 @@ if __name__ == '__main__':
 	print(res)
 	if my_logger:
 		my_logger.log_metrics(res)
-	
+	if args.saveModel:
+		trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}.ckpt")

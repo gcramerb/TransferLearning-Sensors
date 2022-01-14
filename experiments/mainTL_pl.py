@@ -105,6 +105,7 @@ if __name__ == '__main__':
 		my_logger.watch(model)
 	#chkp_callback = ModelCheckpoint(dirpath='../saved/', save_last=True )
 	# early_stopping = EarlyStopping('trainloss_GAN', mode='min', patience=5)
+	
 	model.setDatasets(dm_source, dm_target)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,

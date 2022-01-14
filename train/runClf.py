@@ -49,7 +49,7 @@ def runClassifier(dm,clfParams,my_logger = None):
 	if dm.datasetName =='Pamap2':
 		class_weight = torch.tensor([1.0, 1.5,1.8, 3.0])
 	if dm.datasetName =='Uschad':
-		class_weight = torch.tensor([0.5,10,10,0.5])
+		class_weight = torch.tensor([0.5,5,5,0.5])
 
 	model = networkLight(lr=clfParams['lr'],
 	                     n_classes=dm.n_classes,
@@ -71,10 +71,11 @@ def runClassifier(dm,clfParams,my_logger = None):
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=clfParams['epoch'],
-	                  progress_bar_refresh_rate=1,
+	                  progress_bar_refresh_rate=0,
 	                  callbacks=[early_stopping])
 
 	trainer.fit(model, datamodule=dm)
 	metrics = model.get_all_metrics(dm)
 	return trainer, model, metrics
+
 

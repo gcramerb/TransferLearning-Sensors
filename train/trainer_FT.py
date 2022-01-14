@@ -51,7 +51,7 @@ class FTmodel(LightningModule):
 		self.hparams.gan = trainParams['gan']
 		if self.hparams.gan:
 			self.hparams.alpha *= -1
-		self.hparams.lr_gan = trainParams['alpha']
+		self.hparams.lr_gan = trainParams['lr_gan']
 		self.hparams.input_shape = model_hyp['input_shape']
 		
 		if model_hyp['FE'] == 'fe2':
@@ -94,13 +94,15 @@ class FTmodel(LightningModule):
 	def load_params(self,save_path,file):
 		PATH = os.path.join(save_path, file + '_feature_extractor')
 		self.FE.load_state_dict(torch.load(PATH))
+		train = True
 		if self.hparams.feat_eng=='asym':
+			train = False
 			self.staticFE.load_state_dict(torch.load(PATH))
 			for param in self.staticFE.parameters():
-				param.requires_grad = False
+				param.requires_grad = train
+				
 		PATH = os.path.join(save_path, file+'_discriminator')
 		self.staticDisc.load_state_dict(torch.load(PATH))
-		train = True if self.hparams.feat_eng =='sym' else False
 		for param in self.staticDisc.parameters():
 			param.requires_grad = train
 
@@ -126,19 +128,21 @@ class FTmodel(LightningModule):
 		thrd_loss = 0.0
 		if self.hparams.feat_eng =='asym':
 			latentS = self.staticFE(dataSource)  # call forward method
-			discrepancy = self.discLoss(latentT, latentS)
-			m_loss = discrepancy
+
 		else:
 			latentS = self.FE(dataSource)
 			predS = self.staticDisc(latentS)
 			scnd_loss = self.clfLoss(predS,labSource)
 			log['clf_loss'] = scnd_loss
-			discrepancy = self.discLoss(latentT, latentS)
-			m_loss = discrepancy
+		discrepancy = self.discLoss(latentT, latentS)
+		m_loss = discrepancy
 
 		if self.hparams.gan:
-			m_loss = m_loss + self.hparams.beta * scnd_loss
+			# se for sym, scnd_loss > 0, entao a m_loss eh atualisada
+			# se for asym, m_loss eh a mesma (soma-se 0)
 			trd_loss = scnd_loss
+			m_loss = m_loss + self.hparams.beta * scnd_loss
+			
 			scnd_loss = self.get_GAN_loss(latentS, latentT)
 			log['GAN_loss'] = scnd_loss
 
@@ -149,7 +153,7 @@ class FTmodel(LightningModule):
 			loss = scnd_loss
 		if optmizer_idx == 2:
 			loss = trd_loss
-			
+
 		log['discpy_loss'] = discrepancy
 		
 		return loss,log
@@ -172,6 +176,7 @@ class FTmodel(LightningModule):
 		accTarget = accuracy_score(labTarget.cpu().numpy(), yhatT)
 		metrics ={f'{stage}_acc_target': accTarget}
 		metrics[f'{stage}_acc_source'] =  accSource
+		
 		if stage == 'val':
 			_, logs = self.compute_loss(batch,0)
 			for k, v in logs.items():

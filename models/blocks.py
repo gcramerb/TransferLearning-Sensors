@@ -214,7 +214,9 @@ class domainClf(nn.Module):
 	## decoder layers ##
 	def build(self):
 		self.linearDec = nn.Sequential(
-			nn.Linear(self.encoded_dim,1),
+			nn.Linear(self.encoded_dim,int(self.encoded_dim/2)),
+			nn.LeakyReLU(),
+			nn.Linear(int(self.encoded_dim/2), 1),
 			nn.Sigmoid()
 		)
 

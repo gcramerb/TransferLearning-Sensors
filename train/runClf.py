@@ -49,7 +49,7 @@ def runClassifier(dm,clfParams,my_logger = None):
 	if dm.datasetName =='Pamap2':
 		class_weight = torch.tensor([1.0, 1.5,1.8, 3.0])
 	if dm.datasetName =='Uschad':
-		class_weight = torch.tensor([0.5,5,5,0.5])
+		class_weight = torch.tensor([0.5,8,8,0.5])
 
 	model = networkLight(lr=clfParams['lr'],
 	                     n_classes=dm.n_classes,

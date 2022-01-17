@@ -18,6 +18,7 @@ parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='')
 parser.add_argument('--trainClf', type=bool, default=True)
 parser.add_argument('--TLParamsFile', type=str, default=None)
+parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Dsads")
@@ -34,9 +35,9 @@ if args.slurm:
 	verbose = 0
 	save_path = '../saved/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
-	# my_logger = WandbLogger(project='TL',
-	#                         log_model='all',
-	#                         name=args.expName + '_FT_' + args.source + '_to_' + args.target)
+	my_logger = WandbLogger(project='TL',
+	                        log_model='all',
+	                        name=args.expName + '_FT_' + args.source + '_to_' + args.target)
 
 else:
 	verbose = 1
@@ -45,26 +46,35 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 	
-	my_logger = WandbLogger(project='TL',
-	                        log_model='all',
-	                        name=args.expName + 'TL_' + args.source + '_to_' + args.target)
+	# my_logger = WandbLogger(project='TL',
+	#                         log_model='all',
+	#                         name=args.expName + 'TL_' + args.source + '_to_' + args.target)
 
 
 def getHparams():
+	
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['epoch'] = 15
-	clfParams["dropout_rate"] = 0.2
 	clfParams['FE'] = 'fe2'
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
+	
+	clfParams['epoch'] = 14
+	clfParams["dropout_rate"] = 0.2
 	clfParams['bs'] = 128
 	clfParams['lr'] = 0.00005
 	clfParams['weight_decay'] = 0.1
 	
+	if args.ClfParamsFile:
+		import json
+		with open(os.path.join(params_path,args.TLParamsFile)) as f:
+			aux = json.load(f)
+		for k,v in aux.items():
+			clfParams[k] = v
+
 	if args.TLParamsFile:
 		import json
 		# with open(os.path.join(params_path,args.clfParamsFile)) as f:
@@ -76,17 +86,17 @@ def getHparams():
 	
 
 	TLparams = {}
-	TLparams['lr'] =  0.005
-	TLparams['gan'] = True
+	TLparams['lr'] =  0.001
+	TLparams['gan'] = False
 	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
 	TLparams['epoch'] = 50
-	TLparams['feat_eng'] = 'asym'
-	TLparams['alpha'] = 0.75
-	TLparams['beta'] = 0.0
+	TLparams['feat_eng'] = 'sym'
+	TLparams['alpha'] = 0.5
+	TLparams['beta'] = 0.5
 	TLparams['discrepancy'] = 'ot'
-	TLparams['weight_decay'] = 0.0
+	TLparams['weight_decay'] = 0.1
 
 	return TLparams, clfParams
 
@@ -132,7 +142,7 @@ if __name__ == '__main__':
 	
 	model.load_params(save_path,file)
 	model.setDatasets(dm_source, dm_target)
-	early_stopping = EarlyStopping('discpy_loss', mode='min', patience=10, verbose=True)
+	early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=TLparams['epoch'],

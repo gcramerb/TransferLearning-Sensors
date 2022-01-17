@@ -66,23 +66,27 @@ class SingleDatasetModule(LightningDataModule):
 		out_up = 200
 		out_down = -200
 		# tol = 4
-		# m = np.array([np.mean(self.X[:, :, i]) for i in range(self.X.shape[-1])])
-		# std = np.array([np.std(self.X[:, :, i]) for i in range(self.X.shape[-1])])
+		m = np.array([np.mean(self.X[:,0, :, i]) for i in range(self.X.shape[-1])])
+		std = np.array([np.std(self.X[:,0, :, i]) for i in range(self.X.shape[-1])])
+		
 		# out_up = m + tol * std
 		# out_down = m - tol * std
+		
+		# min_ = np.min(sample[:, :], axis=0)
+		# max_ = np.max(sample[:, :], axis=0)
 
 		for sample,label in zip(self.X[:,0,:,:],self.Y):
 			#check if this sample is an outlier:
-			min_ = np.min(sample[:,:],axis = 0)
-			max_ = np.max(sample[:,: ],axis = 0)
+			sample = (sample - m)/std
 			#first filter the outliers
-			if ((out_up < max_) + 0).sum() + ((out_down > min_) + 0).sum() == 0:
-				newX.append(sample)
-				newY.append(label)
+			#if ((out_up < max_) + 0).sum() + ((out_down > min_) + 0).sum() == 0:
+			newX.append(sample)
+			newY.append(label)
+
 		newX, newY = np.array(newX), np.array(newY)
-		min_ = np.array([np.min(newX[:, :, i]) for i in range(newX.shape[-1])])
-		max_ = np.array([np.max(newX[:,:, i]) for i in range(newX.shape[-1])])
-		newX = ((newX - min_)/(max_-min_)) - 0.5
+		# min_ = np.array([np.min(newX[:, :, i]) for i in range(newX.shape[-1])])
+		# max_ = np.array([np.max(newX[:,:, i]) for i in range(newX.shape[-1])])
+		# newX = ((newX - min_)/(max_-min_)) - 0.5
 		return newX[:,None,:,:],newY
 
 	def set_overfitting(self):

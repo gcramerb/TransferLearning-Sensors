@@ -7,7 +7,7 @@ from torch import optim
 
 import sys, os, argparse
 import numpy as np
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 
 sys.path.insert(0, '../')
 
@@ -229,6 +229,8 @@ class FTmodel(LightningModule):
 		predictions = self.predict()
 		result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
+		result['cm_source'] = confusion_matrix(predictions['trueSource'], predictions['predSource'])
+		result['cm_target'] = confusion_matrix(predictions['trueTarget'], predictions['predTarget'])
 		return result
 	
 	def configure_optimizers(self):

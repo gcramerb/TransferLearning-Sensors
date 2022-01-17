@@ -33,44 +33,45 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 
-def getHparams():
+
+def suggest_hyperparameters(trial):
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['epoch'] = 10
-	clfParams["dropout_rate"] = 0.2
+	clfParams['epoch'] = trial.suggest_int("epoch",4,16,step = 4)
+	clfParams["dropout_rate"] =  trial.suggest_float("dropout_rate", 0.0, 0.4, step=0.1)
 	clfParams['FE'] = 'fe2'
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
 	clfParams['bs'] = 128
-	clfParams['lr'] = 0.00006
-	clfParams['weight_decay'] = 0.0
-	return clfParams
+	clfParams['lr'] = 0.00005
+	clfParams['weight_decay'] = trial.suggest_float("Clfweight_decay", 0.1, 0.7, step=0.1)
 
-def suggest_hyperparameters(trial):
 	TLparams = {}
 	TLparams['lr'] = 0.005
 	TLparams['gan'] = trial.suggest_categorical("gan", [True,False])
 	TLparams['lr_gan'] = 0.001
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 50
+	TLparams['epoch'] = 75
 	TLparams['feat_eng'] =  trial.suggest_categorical("feat_eng", ['asym','sym'])
-	TLparams['alpha'] = trial.suggest_float("alpha", 0.1, 3.1, step=0.25)
-	TLparams['beta'] = trial.suggest_float("beta", 0.1, 3.1, step=0.25)
+	if TLparams['gan'] and TLparams['feat_eng'] =='sym':
+		TLparams['beta'] = trial.suggest_float("beta", 0.1, 3.1, step=0.2)
+	else:
+		TLparams['beta'] = 0.0
+	TLparams['alpha'] = trial.suggest_float("alpha", 0.1, 3.1, step=0.2)
 	TLparams['discrepancy'] = trial.suggest_categorical("discrepancy", ['mmd','ot'])
-	TLparams['weight_decay'] = 0.0
-	return TLparams
+	TLparams['weight_decay'] = trial.suggest_float("TLweight_decay", 0.1, 0.7, step=0.1)
+	return clfParams,TLparams
 	
 
 
 def objective(trial):
 	# Initialize the best_val_loss value
 	best_metric = float(-1)
-	clfParams = getHparams()
-	TLparams = suggest_hyperparameters(trial)
+	clfParams,TLparams = suggest_hyperparameters(trial)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
@@ -78,7 +79,7 @@ def objective(trial):
 	                                batch_size=clfParams['bs'])
 	dm_source.setup(Loso=False, split=False,normalize = True)
 	
-	file = f'modelFT_{args.source}'
+	file = f'src_clf_{args.source}'
 	if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
 		trainer, clf, res = runClassifier(dm_source,clfParams)
 		print('Source: ',res['test_acc'])
@@ -98,7 +99,7 @@ def objective(trial):
 	                model_hyp=clfParams)
 	model.load_params(save_path, file)
 	model.setDatasets(dm_source, dm_target)
-	early_stopping = EarlyStopping('discpy_loss', mode='min', patience=10, verbose=True)
+	early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=TLparams['epoch'],
@@ -109,7 +110,7 @@ def objective(trial):
 	
 	trainer.fit(model)
 	res = model.get_final_metrics()
-	print(res['acc_target_all'])
+	print('acc_target_all: ', res['acc_target_all'])
 	if res['acc_target_all'] >= best_metric:
 		best_metric = res['acc_target_all']
 	return best_metric
@@ -120,6 +121,7 @@ def run(n_trials):
 	study.optimize(objective, n_trials=n_trials)
 	print("\n++++++++++++++++++++++++++++++++++\n")
 	print('Source dataset: ', args.source)
+	print('Target dataset: ', args.target)
 	print("  Trial number: ", study.best_trial.number)
 	print("  Acc (trial value): ", study.best_trial.value)
 	print("  Params: ")
@@ -127,4 +129,5 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 
 if __name__ == '__main__':
-	params = run(200)
+	print(f'Starting: {args.source} to {args.target}')
+	run(300)

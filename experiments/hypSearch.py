@@ -1,5 +1,6 @@
 import sys, argparse, os, glob
 
+
 sys.path.insert(0, '../')
 
 from pytorch_lightning import Trainer
@@ -38,28 +39,28 @@ def suggest_hyperparameters(trial):
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['epoch'] = trial.suggest_categorical("epoch",  [5,10,15])
-	clfParams["dropout_rate"] = trial.suggest_float("dropout_rate", 0.0, 0.3, step=0.1)
+	clfParams['epoch'] = trial.suggest_int("epoch",3,18,step = 3)
+	clfParams["dropout_rate"] =  trial.suggest_float("dropout_rate", 0.0, 0.5, step=0.1)
 	clfParams['FE'] = 'fe2'
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
-	clfParams['bs'] = 128
+	clfParams['bs'] = 256
 	clfParams['lr'] = 0.00005
-	clfParams['weight_decay'] =  trial.suggest_float("weight_decay", 0.0, 0.3, step=0.1)
+	clfParams['weight_decay'] = trial.suggest_float("Clfweight_decay", 0.0, 0.9, step=0.1)
 
 	TLparams = {}
 	TLparams['lr'] = 0.005
-	TLparams['gan'] = False
-	TLparams['lr_gan'] = 0.0
-	TLparams['bs'] = 128
+	TLparams['gan'] =False
+	TLparams['lr_gan'] = 0.001
+	TLparams['bs'] = 256
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 50
-	TLparams['feat_eng'] = 'asym'
-	TLparams['alpha'] = 0.0
+	TLparams['epoch'] = 75
+	TLparams['feat_eng'] = 'sym'
 	TLparams['beta'] = 0.0
-	TLparams['discrepancy'] = trial.suggest_categorical("discrepancy", ['mmd', 'ot'])
-	TLparams['weight_decay'] = 0.0
+	TLparams['alpha'] = trial.suggest_float("alpha", 1.1, 5.1, step=0.2)
+	TLparams['discrepancy'] = 'ot'
+	TLparams['weight_decay'] = trial.suggest_float("TLweight_decay", 0.0, 0.9, step=0.1)
 	return clfParams,TLparams
 	
 
@@ -73,13 +74,14 @@ def objective(trial):
 	                                n_classes=args.n_classes,
 	                                input_shape=clfParams['input_shape'],
 	                                batch_size=clfParams['bs'])
-	dm_source.setup(Loso=False, split=False, normalize=True)
+	dm_source.setup(Loso=False, split=False,normalize = True)
 	
-	file = f'model_{args.source}'
-
-	trainer, clf, res = runClassifier(dm_source, clfParams)
-	print('Source: ', res)
-	clf.save_params(save_path, file)
+	file = f'src_clf_{args.source}'
+	#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
+	if True:
+		trainer, clf, res = runClassifier(dm_source,clfParams)
+		print('Source: ',res['test_acc'])
+		clf.save_params(save_path,file)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.target,
 	                                input_shape=clfParams['input_shape'],
@@ -95,20 +97,23 @@ def objective(trial):
 	                model_hyp=clfParams)
 	model.load_params(save_path, file)
 	model.setDatasets(dm_source, dm_target)
-	early_stopping = EarlyStopping('discpy_loss', mode='min', patience=10, verbose=True)
+	early_stopping = EarlyStopping('discpy_loss', mode='min', patience=7, verbose=True)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=TLparams['epoch'],
 	                  logger=None,
-	                  progress_bar_refresh_rate=verbose,
+	                  progress_bar_refresh_rate=0,
 	                  callbacks=[early_stopping],
 	                  multiple_trainloader_mode='max_size_cycle')
 	
 	trainer.fit(model)
 	res = model.get_final_metrics()
-	print(res['acc_target_all'])
+	print('acc_target_all: ', res['acc_target_all'])
 	if res['acc_target_all'] >= best_metric:
 		best_metric = res['acc_target_all']
+		print(f'Result: {args.source} to {args.target}')
+		print('clfParams: ', clfParams,'\n')
+		print('TLparams: ',TLparams,'\n\n\n')
 	return best_metric
 
 
@@ -117,6 +122,7 @@ def run(n_trials):
 	study.optimize(objective, n_trials=n_trials)
 	print("\n++++++++++++++++++++++++++++++++++\n")
 	print('Source dataset: ', args.source)
+	print('Target dataset: ', args.target)
 	print("  Trial number: ", study.best_trial.number)
 	print("  Acc (trial value): ", study.best_trial.value)
 	print("  Params: ")
@@ -124,4 +130,4 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 
 if __name__ == '__main__':
-	params = run(200)
+	run(300)

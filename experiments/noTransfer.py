@@ -18,9 +18,19 @@ parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
+
+import numpy as np
+import scipy.stats as st
+
+def mean_confidence_interval(data, confidence=0.95):
+    a = 1.0 * np.array(data)
+    n = len(a)
+    m, se = np.mean(a), st.sem(a)
+    h = se * st.t.ppf((1 + confidence) / 2., n-1)
+    return m, h
 datasetList = ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']
 if args.slurm:
 	verbose = 0
@@ -38,39 +48,67 @@ def create_result_dict():
 		result[dat] = []
 	return result
 
+
+folds = {}
+folds['Dsads'] = 8
+folds['Uschad'] = 14
+folds['Pamap2'] = 8
+folds['Ucihar'] = 30
+
+
+def getHparams():
+	clfParams = {}
+	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
+	clfParams['n_filters'] = (4, 16, 18, 24)
+	clfParams['enc_dim'] = 64
+	clfParams['FE'] = 'fe2'
+	clfParams['input_shape'] = (2, 50, 3)
+	clfParams['alpha'] = None
+	clfParams['step_size'] = None
+	
+	clfParams['epoch'] = 15
+	clfParams["dropout_rate"] = 0.2
+	clfParams['bs'] = 256
+	clfParams['lr'] = 0.0001
+	clfParams['weight_decay'] = 0.1
+	return clfParams
+
+
 if __name__ == '__main__':
-	
-	
 	my_logger = WandbLogger(project='classifier',
 	                        log_model='all',
-	                        name=args.source + f'{args.n_classes}'+ '_no_TL')
-	
+	                        name=args.source + f'{args.n_classes}' + '_no_TL')
 	result = create_result_dict()
-	dm = SingleDatasetModule(data_dir=args.inPath, datasetName=args.source, n_classes=args.n_classes,
-	                         input_shape=(2, 50, 3), batch_size=args.batch_size)
-	dm.setup(Loso=True)
-	folds_ = dm.get_n_folds()
-	folds_ = [0]
-	for fold_i in folds_:
-		dm.set_fold(fold_i)
-		trainer, modelTrainded,metrics = runClassifier(dm)
-		print(f"Training in {args.source} \n")
-		result[args.source].append(metrics[0]['val_acc'])
-		print('train acc: ')
-		print(model.get_train_metics(dm.train_dataloader()))
+	train_res = {}
+	train_res[args.source] = []
+	for fold_i in range(folds[args.source]):
+		dm = SingleDatasetModule(data_dir=args.inPath,
+		                                datasetName=args.source,
+		                                n_classes=4,
+		                                input_shape=(2, 50, 3),
+		                                batch_size=128)
+		dm.setup(fold_i=fold_i, split=False, normalize=True)
+		trainer, clf, res = runClassifier(dm, getHparams(),my_logger = my_logger)
+
+
+		result[args.source].append(res['test_acc'])
+		train_res[args.source].append(res['train_acc'])
 		for dataset in datasetList:
 			if dataset != args.source:
-				
-				dm_target = SingleDatasetModule(data_dir=args.inPath, datasetName=dataset, n_classes=args.n_classes,
-				                                input_shape=(2, 50, 3), batch_size=args.batch_size, type='target')
-				
-				dm_target.setup(split=False)
-				res = trainer.validate(model, datamodule=dm_target)
-				result[dataset].append(res[0]['val_acc'])
+				dm_target = SingleDatasetModule(data_dir=args.inPath,
+				                         datasetName = dataset,
+				                         n_classes=4,
+				                         input_shape=(2, 50, 3),
+				                         batch_size=128)
+				dm_target.setup(split=False, normalize=True)
+				res = clf.get_all_metrics(dm_target)
+				result[dataset].append(res['val_acc'])
 				del dm_target
-		del trainer
-		del model
+		del trainer,dm,clf
+	print('Resultado: ', result,'\n\n\n\n')
 	for k,v in result.items():
 		result[k] = mean_confidence_interval(v)
 	print(result)
+	train_res[args.source + '_train'] = mean_confidence_interval(train_res[args.source])
 	my_logger.log_metrics(result)
+	my_logger.log_metrics(train_res)

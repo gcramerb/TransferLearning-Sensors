@@ -37,6 +37,7 @@ class FTmodel(LightningModule):
 			n_classes: int = 6,
 			lossParams: dict = None,
 			save_path: str = None,
+			class_weight: torch.tensor = None,
 			**kwargs
 	):
 		super().__init__()
@@ -64,7 +65,7 @@ class FTmodel(LightningModule):
 		                   input_shape=self.hparams.input_shape)
 			self.staticFE.build()
 		else:
-			self.clfLoss = nn.CrossEntropyLoss()
+			self.clfLoss = nn.CrossEntropyLoss(weight = self.hparams.class_weight)
 			
 		self.staticDisc  =  discriminator(dropout_rate = self.hparams.dropout_rate,
 		                                 encoded_dim = self.hparams.model_hyp['enc_dim'],

@@ -65,7 +65,7 @@ def runClassifier(dm,clfParams,my_logger = None):
 		adicionalInfo['class_weight'] = class_weight
 		my_logger.watch(model)
 
-	early_stopping = EarlyStopping('val_loss', mode='min', patience=4,verbose = True)
+	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=10,verbose = True)
 
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,

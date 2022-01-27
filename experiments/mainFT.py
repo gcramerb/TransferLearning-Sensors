@@ -12,6 +12,8 @@ from dataProcessing.dataModule import SingleDatasetModule
 from train.runClf import runClassifier
 from train.trainer_FT import FTmodel
 
+from Utils.Hparams import get_Clfparams, get_TLparams
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
@@ -50,23 +52,10 @@ else:
 	#                         log_model='all',
 	#                         name=args.expName + 'TL_' + args.source + '_to_' + args.target)
 
-
-def getHparams():
+if __name__ == '__main__':
 	
-	clfParams = {}
-	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParams['n_filters'] = (4, 16, 18, 24)
-	clfParams['enc_dim'] = 64
-	clfParams['FE'] = 'fe2'
-	clfParams['input_shape'] = (2, 50, 3)
-	clfParams['alpha'] = None
-	clfParams['step_size'] = None
-	
-	clfParams['epoch'] = 5
-	clfParams["dropout_rate"] = 0.2
-	clfParams['bs'] = 128
-	clfParams['lr'] = 0.00005
-	clfParams['weight_decay'] = 0.1
+	TLparams = get_TLparams()
+	clfParams = get_Clfparams()
 	
 	if args.ClfParamsFile:
 		import json
@@ -81,27 +70,7 @@ def getHparams():
 			TLparams = json.load(f)
 		TLparams['gan'] = TLparams['gan'] =='True'
 		return TLparams, clfParams
-	
 
-	TLparams = {}
-	TLparams['lr'] =  0.001
-	TLparams['gan'] = False
-	TLparams['lr_gan'] = 0.0005
-	TLparams['bs'] = 128
-	TLparams['step_size'] = None
-	TLparams['epoch'] = 50
-	TLparams['feat_eng'] = 'sym'
-	TLparams['alpha'] = 0.5
-	TLparams['beta'] = 0.5
-	TLparams['discrepancy'] = 'ot'
-	TLparams['weight_decay'] = 0.1
-
-	return TLparams, clfParams
-
-if __name__ == '__main__':
-
-
-	TLparams, clfParams = getHparams()
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
@@ -110,8 +79,7 @@ if __name__ == '__main__':
 	dm_source.setup(split=False,normalize = True)
 	file = f'mainModel_{args.source}'
 	#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
-	#if args.trainClf:
-	if True:
+	if args.trainClf:
 		trainer, clf, res = runClassifier(dm_source,clfParams)
 		print('Source: ',res['train_acc'])
 		clf.save_params(save_path,file)

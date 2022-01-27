@@ -3,10 +3,10 @@ import sys, argparse
 sys.path.insert(0, '../')
 
 # import geomloss
+from Utils.Hparams import get_Clfparams,get_TLparams,get_foldsInfo
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-
 from train.trainerClf import networkLight
 from dataProcessing.dataModule import SingleDatasetModule
 from train.runClf import runClassifier
@@ -18,7 +18,7 @@ parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Uschad")
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
@@ -49,32 +49,8 @@ def create_result_dict():
 	return result
 
 
-folds = {}
-folds['Dsads'] = 8
-folds['Uschad'] = 14
-folds['Pamap2'] = 8
-folds['Ucihar'] = 30
-
-
-def getHparams():
-	clfParams = {}
-	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParams['n_filters'] = (4, 16, 18, 24)
-	clfParams['enc_dim'] = 64
-	clfParams['FE'] = 'fe2'
-	clfParams['input_shape'] = (2, 50, 3)
-	clfParams['alpha'] = None
-	clfParams['step_size'] = None
-	
-	clfParams['epoch'] = 15
-	clfParams["dropout_rate"] = 0.2
-	clfParams['bs'] = 256
-	clfParams['lr'] = 0.0001
-	clfParams['weight_decay'] = 0.1
-	return clfParams
-
-
 if __name__ == '__main__':
+	folds = get_foldsInfo()
 	my_logger = WandbLogger(project='classifier',
 	                        log_model='all',
 	                        name=args.source + f'{args.n_classes}' + '_no_TL')
@@ -93,6 +69,9 @@ if __name__ == '__main__':
 
 		result[args.source].append(res['test_acc'])
 		train_res[args.source].append(res['train_acc'])
+		print('test acc: ',res['test_acc'],'\n')
+		print('train acc: ', res['train_acc'], '\n')
+		print('test CM: ', res['test_cm'],'\n\n')
 		for dataset in datasetList:
 			if dataset != args.source:
 				dm_target = SingleDatasetModule(data_dir=args.inPath,

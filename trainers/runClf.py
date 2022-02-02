@@ -8,7 +8,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping,ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
-from train.trainerClf import networkLight
+from trainers.trainerClf import ClfModel
 from dataProcessing.dataModule import SingleDatasetModule
 
 def runClassifier(dm,clfParams,my_logger = None):
@@ -18,18 +18,18 @@ def runClassifier(dm,clfParams,my_logger = None):
 	if dm.datasetName =='Uschad':
 		class_weight = torch.tensor([0.5,3,3,0.5])
 
-	model = networkLight(lr=clfParams['lr'],
+	model = ClfModel(lr=clfParams['lr'],
 	                     n_classes=dm.n_classes,
 	                     alpha=clfParams['alpha'],
 	                     step_size=clfParams['step_size'],
 	                     model_hyp=clfParams,
 	                     weight_decay=clfParams['weight_decay'],
 	                     class_weight=class_weight,
-	                     input_shape=clfParams["input_shape"],
-	                     FE=clfParams['FE'])
+	                     input_shape=clfParams["input_shape"])
 	if my_logger:
 		adicionalInfo = {}
 		adicionalInfo['class_weight'] = class_weight
+		my_logger.log_hyperparams(adicionalInfo)
 		my_logger.watch(model)
 
 	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=10,verbose = True)

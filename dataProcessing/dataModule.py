@@ -67,27 +67,10 @@ class SingleDatasetModule(LightningDataModule):
 			X = tmp['X'].astype('float32')
 			y = tmp['y']
 			self.folds = tmp['folds']
-			
 
-		# if self.datasetName =='Pamap2':
-		# 	acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
-		# 	idx = [i for i, v in enumerate(y) if v in acts]
-		# 	self.X = self.X[idx].copy()
-		# 	y = y[idx].copy()
-		#self.n_classes = len(pd.unique(self.Y))
-		
 		y = categorical_to_int(y).astype('int')
 		Y = np.argmax(y, axis=1).astype('long')
 
-		# if not Loso and split:
-		# 	nSamples = self.X.shape[0]
-		# 	valLen = int(nSamples * valRate)
-		# 	testLen = int(nSamples * testRate)
-		# 	trainL = nSamples - testLen - valLen
-		# 	self.dataset = myDataset(self.X, self.Y)
-		# 	self.dataTrain, self.dataVal, self.dataTest = random_split(self.dataset, [trainL, valLen,testLen],
-		# 	                                             generator=torch.Generator().manual_seed(1220))
-		
 		if fold_i is not None:
 			self.X_val = X[self.folds[fold_i][1]]
 			self.X_train = X[self.folds[fold_i][0]]
@@ -242,11 +225,11 @@ class SingleDatasetModule(LightningDataModule):
 # 			valIdxTarget = foldsTarget[foldValTarget][1]
 # 			trainIdxTarget = list(set(foldsTarget[foldTestTarget][0]) - set(foldsTarget[foldValTarget][1]))
 #
-# 			train = (Xsource[trainIdxSource],Ysource[trainIdxSource]),(Xtarget[trainIdxTarget],Ytarget[trainIdxTarget])
+# 			trainers = (Xsource[trainIdxSource],Ysource[trainIdxSource]),(Xtarget[trainIdxTarget],Ytarget[trainIdxTarget])
 # 			val = (Xsource[valIdxSource],Ysource[valIdxSource]),(Xtarget[valIdxTarget],Ytarget[valIdxTarget])
 # 			test = (Xsource[testIdxSource],Ysource[testIdxSource]),(Xtarget[testIdxTarget],Ytarget[testIdxTarget])
 #
-# 			self.dataTrain, self.dataVal, self.dataTest = myCrossDataset(train), myCrossDataset(val), myCrossDataset(test)
+# 			self.dataTrain, self.dataVal, self.dataTest = myCrossDataset(trainers), myCrossDataset(val), myCrossDataset(test)
 #
 # 		else:
 # 			source = Xsource,Ysource

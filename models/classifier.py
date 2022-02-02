@@ -9,7 +9,7 @@ import numpy as np
 from copy import deepcopy
 
 from .customLosses import MMDLoss, OTLoss
-from .blocks import Encoder1,Encoder2,discriminator
+from .blocks import Encoder,discriminator
 
 # define the NN architecture
 class classifier(nn.Module):
@@ -18,20 +18,14 @@ class classifier(nn.Module):
 	"""
 	def __init__(self,
 	             n_classes,
-	             FE = None,
 	             hyp=None,
 	             input_shape = (1,50,6)):
 		super(classifier, self).__init__()
 		self.n_classes = n_classes
-		self._name = FE
 		self.DropoutRate = hyp['dropout_rate']
-		if FE == 'fe1':
-			self.Encoder = Encoder1(hyp=hyp, input_shape=input_shape)
-		elif FE == "fe2":
-			self.Encoder = Encoder2(hyp=hyp, input_shape=input_shape)
-		else:
-			raise ValueError("Put a value model name!" )
+		self.Encoder = Encoder(hyp=hyp, input_shape=input_shape)
 		self.discrimination = discriminator(self.DropoutRate, hyp['enc_dim'], self.n_classes)
+	
 	@property
 	def name(self):
 		return self._name

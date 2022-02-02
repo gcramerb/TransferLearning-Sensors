@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, '../')
 
 from dataProcessing.dataModule import SingleDatasetModule
-from train.trainerTL_pl import TLmodel
+from trainers.trainerFT import FTmodel
 
 from literature.SOT import SOT
 

@@ -7,8 +7,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
-from train.runClf import runClassifier
-from train.trainer_FT import FTmodel
+from trainers.runClf import runClassifier
+from trainers.trainerDisc import TLmodel
 import optuna
 
 parser = argparse.ArgumentParser()
@@ -90,7 +90,7 @@ def objective(trial):
 	                                type='target')
 	dm_target.setup(Loso=False, split=False, normalize=True)
 	
-	model = FTmodel(trainParams=TLparams,
+	model = TLmodel(trainParams=TLparams,
 	                n_classes=args.n_classes,
 	                lossParams=None,
 	                save_path=None,

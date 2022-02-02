@@ -11,7 +11,6 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 sys.path.insert(0, '../')
 
 from models.classifier import classifier
-from models.autoencoder import ConvAutoencoder
 from models.customLosses import MMDLoss,OTLoss, classDistance
 #import geomloss
 
@@ -21,14 +20,13 @@ from pytorch_lightning.callbacks import Callback
 from collections import OrderedDict
 
 
-class networkLight(LightningModule):
+class ClfModel(LightningModule):
 	def __init__(
 			self,
 			lr: float = 0.002,
 			n_classes: int = 6,
 			alpha: float = 1.0,
 			input_shape:tuple = (1,50,6),
-			FE: str = 'fe2',
 			step_size = 10,
 			model_hyp: dict = None,
 			weight_decay: float = 0.0,
@@ -38,7 +36,6 @@ class networkLight(LightningModule):
 		super().__init__()
 		self.save_hyperparameters()
 		self.model = classifier(n_classes,
-		                        FE = self.hparams.FE,
 		                        hyp = self.hparams.model_hyp,
 		                        input_shape=self.hparams.model_hyp['input_shape'])
 		self.model.build()
@@ -147,7 +144,7 @@ class networkLight(LightningModule):
 		metric = {}
 		dataLoaders = [dm.train_dataloader(),dm.val_dataloader(),dm.test_dataloader()]
 		with torch.no_grad():
-			for i,stage in enumerate(['train','val','test']):
+			for i,stage in enumerate(['trainers','val','test']):
 				cm = np.zeros([self.hparams.n_classes, self.hparams.n_classes])
 				predictions = self.predict(dataLoaders[i])
 				metric[f'{stage}_acc'] =  accuracy_score(predictions['true'],predictions['pred'])

@@ -12,8 +12,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 sys.path.insert(0, '../')
 
 from models.classifier import classifier
-from models.autoencoder import ConvAutoencoder
-from models.blocks import Encoder2, Encoder1,discriminator,domainClf
+from models.blocks import Encoder, discriminator,domainClf
 from models.customLosses import MMDLoss, OTLoss, classDistance, SinkhornDistance, CORAL
 # import geomloss
 
@@ -23,12 +22,12 @@ from pytorch_lightning.trainer.supporters import CombinedLoader
 from collections import OrderedDict
 
 """
-There is tw encoders that train basecally the same thing,
+There is tw encoders that trainers basecally the same thing,
 in the future I can use only one Decoder (more dificult to converge)
 """
 
 
-class FTmodel(LightningModule):
+class TLmodel(LightningModule):
 	
 	def __init__(
 			self,
@@ -55,13 +54,12 @@ class FTmodel(LightningModule):
 		self.hparams.lr_gan = trainParams['lr_gan']
 		self.hparams.input_shape = model_hyp['input_shape']
 		
-		if model_hyp['FE'] == 'fe2':
-			# load pre trined model?
-			self.FE = Encoder2(hyp=self.hparams.model_hyp,
+
+		self.FE = Encoder(hyp=self.hparams.model_hyp,
 			                   input_shape=self.hparams.input_shape)
 
 		if self.hparams.feat_eng =='asym':
-			self.staticFE =  Encoder2(hyp=self.hparams.model_hyp,
+			self.staticFE =  Encoder(hyp=self.hparams.model_hyp,
 		                   input_shape=self.hparams.input_shape)
 			self.staticFE.build()
 		else:
@@ -154,7 +152,6 @@ class FTmodel(LightningModule):
 			loss = scnd_loss
 		if optmizer_idx == 2:
 			loss = trd_loss
-
 		log['discpy_loss'] = discrepancy
 		
 		return loss,log

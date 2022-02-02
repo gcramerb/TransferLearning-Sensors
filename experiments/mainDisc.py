@@ -2,17 +2,16 @@ import sys, argparse,os,glob
 
 sys.path.insert(0, '../')
 
-# import geomloss
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
 
-from train.runClf import runClassifier
-from train.trainer_FT import FTmodel
+from trainers.runClf import runClassifier
+from trainers.trainerDisc import TLmodel
 
-from Utils.Hparams import get_Clfparams, get_TLparams
+from Utils.myUtils import get_Clfparams, get_TLparams
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
@@ -54,22 +53,14 @@ else:
 
 if __name__ == '__main__':
 	
-	TLparams = get_TLparams()
-	clfParams = get_Clfparams()
-	
+	path_clf_params, path_TL_params = None, None
 	if args.ClfParamsFile:
-		import json
-		with open(os.path.join(params_path,args.ClfParamsFile)) as f:
-			aux = json.load(f)
-		for k,v in aux.items():
-			clfParams[k] = v
-
-	if args.TLParamsFile:
-		import json
-		with open(os.path.join(params_path,args.TLParamsFile)) as f:
-			TLparams = json.load(f)
-		TLparams['gan'] = TLparams['gan'] =='True'
-		return TLparams, clfParams
+		path_clf_params = os.path.join(params_path,args.ClfParamsFile)
+	if  args.TLParamsFile:
+		path_TL_params = os.path.join(params_path, args.TLParamsFile)
+	
+	clfParams = get_Clfparams(path_clf_params)
+	TLparams = get_TLparams(path_TL_params)
 
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
@@ -95,7 +86,7 @@ if __name__ == '__main__':
 		class_weight = torch.tensor([0.5,8,8,0.5])
 	else:
 		class_weight = None
-	model = FTmodel(trainParams=TLparams,
+	model = TLmodel(trainParams=TLparams,
 					n_classes = args.n_classes,
 	                lossParams = None,
 	                save_path = None,

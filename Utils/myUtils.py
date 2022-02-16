@@ -35,15 +35,15 @@ def get_Clfparams(path_file = None):
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['input_shape'] = (2, 50, 3)
+	clfParams['input_shape'] = (2, 125, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
 	
-	clfParams['epoch'] = 1
-	clfParams["dropout_rate"] = 0.2
+	clfParams['epoch'] = 30
+	clfParams["dropout_rate"] = 0.1
 	clfParams['bs'] = 128
-	clfParams['lr'] = 0.001
-	clfParams['weight_decay'] = 0.1
+	clfParams['lr'] = 0.0002
+	clfParams['weight_decay'] = 0.05
 	if path_file:
 		with open(path_file) as f:
 			aux = json.load(f)

@@ -37,7 +37,7 @@ class ClfModel(LightningModule):
 		self.save_hyperparameters()
 		self.model = classifier(n_classes,
 		                        hyp = self.hparams.model_hyp,
-		                        input_shape=self.hparams.model_hyp['input_shape'])
+		                        input_shape=self.hparams.input_shape)
 		self.model.build()
 		self.m_loss = torch.nn.CrossEntropyLoss(weight = self.hparams.class_weight)
 		# self.p_loss = classDistance()
@@ -144,7 +144,7 @@ class ClfModel(LightningModule):
 		metric = {}
 		dataLoaders = [dm.train_dataloader(),dm.val_dataloader(),dm.test_dataloader()]
 		with torch.no_grad():
-			for i,stage in enumerate(['trainers','val','test']):
+			for i,stage in enumerate(['train','val','test']):
 				cm = np.zeros([self.hparams.n_classes, self.hparams.n_classes])
 				predictions = self.predict(dataLoaders[i])
 				metric[f'{stage}_acc'] =  accuracy_score(predictions['true'],predictions['pred'])

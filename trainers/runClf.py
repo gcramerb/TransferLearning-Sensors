@@ -25,21 +25,21 @@ def runClassifier(dm,clfParams,my_logger = None):
 	                     model_hyp=clfParams,
 	                     weight_decay=clfParams['weight_decay'],
 	                     class_weight=class_weight,
-	                     input_shape=clfParams["input_shape"])
+	                     input_shape=dm.input_shape)
 	if my_logger:
 		adicionalInfo = {}
 		adicionalInfo['class_weight'] = class_weight
 		my_logger.log_hyperparams(adicionalInfo)
 		my_logger.watch(model)
 
-	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=10,verbose = True)
+	#early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=10,verbose = True)
 
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=clfParams['epoch'],
-	                  progress_bar_refresh_rate=0,
-	                  callbacks=[early_stopping])
+	                  progress_bar_refresh_rate=1,
+	                  callbacks=[])
 
 	trainer.fit(model, datamodule=dm)
 	metrics = model.get_all_metrics(dm)

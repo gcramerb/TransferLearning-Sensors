@@ -61,7 +61,7 @@ if __name__ == '__main__':
 	clfParams = get_Clfparams(path_clf_params)
 	TLparams = get_TLparams(path_TL_params)
 	
-	iter = 4
+	iter = 0
 	for i in range(iter):
 		if i > 0:
 			sl_path_file = os.path.join(args.inPath,f'{args.target}_pseudo_labels.npz')
@@ -115,3 +115,35 @@ if __name__ == '__main__':
 		model.generate_pseudoLab(path = args.inPath)
 		model.save_params(save_path,file)
 		del model,dm_source,dm_target
+	
+	dm_source = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=args.source,
+	                                n_classes=args.n_classes,
+	                                input_shape=clfParams['input_shape'],
+	                                batch_size=clfParams['bs'])
+	dm_source.setup(split=False, normalize=True)
+	dm_target = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=args.target,
+	                                input_shape=clfParams['input_shape'],
+	                                n_classes=args.n_classes,
+	                                batch_size=TLparams['bs'],
+	                                type='target')
+	dm_target.setup(split=False, normalize=True)
+
+	model = SLmodel(trainParams=TLparams,
+	                n_classes=args.n_classes,
+	                lossParams=None,
+	                save_path=None,
+	                class_weight=None,
+	                model_hyp=clfParams)
+	model.setDatasets(dm_source, dm_target)
+	model.create_model()
+	i = 0
+	if i % 2 == 0:
+		file = f'{args.source}_{args.target}_modelA'
+	else:
+		file = f'{args.source}_{args.target}_modelB'
+	model.load_params(save_path, file)
+	outcomes = model.get_final_metrics()
+	print(outcomes)
+

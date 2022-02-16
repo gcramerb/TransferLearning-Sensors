@@ -165,9 +165,20 @@ class SLmodel(LightningModule):
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return None
 	
+	def getPredict(self):
+		"""
+
+		:return:
+		"""
+		with torch.no_grad():
+			source = self._predict(self.dm_source.test_dataloader(), 'Source')
+			target = self._predict(self.dm_target.test_dataloader(), 'Target')
+		
+		out = {**source, **target}
+		return out
 	def get_final_metrics(self):
 		result = {}
-		predictions = self.predict()
+		predictions = self.getPredict()
 		result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
 		result['cm_source'] = confusion_matrix(predictions['trueSource'], predictions['predSource'])
@@ -184,21 +195,13 @@ class SLmodel(LightningModule):
 		return {"optimizer":opt}
 	
 	
-	def predict(self):
-		"""
-		
-		:return:
-		"""
-		with torch.no_grad():
-			source = self._predict(self.dm_source.test_dataloader(),'Source')
-			target = self._predict(self.dm_target.test_dataloader(), 'Target')
-			
-		return source.update(target)
+
 
 	def _predict(self, dataloader,domain):
 		latent = []
 		probs = []
 		y_hat = []
+		true = []
 		for data in dataloader:
 			X, y = data['data'], data['label'].long()
 			l = self.clf.getLatent(X)

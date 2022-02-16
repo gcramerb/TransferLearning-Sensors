@@ -17,13 +17,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='exp_name')
-parser.add_argument('--trainClf', type=bool, default=False)
+parser.add_argument('--trainClf', type=bool, default=True)
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Dsads")
-parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
@@ -110,12 +110,14 @@ if __name__ == '__main__':
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=TLparams['epoch'],
 	                  logger=my_logger,
-	                  min_epochs = 20,
+	                  min_epochs = 1,
 	                  progress_bar_refresh_rate=verbose,
 	                  callbacks = [],
 	                  multiple_trainloader_mode='max_size_cycle')
 	
 	trainer.fit(model)
+	#model.save_params(save_path = )
+	
 	res = model.get_final_metrics()
 	print(res)
 	if my_logger:

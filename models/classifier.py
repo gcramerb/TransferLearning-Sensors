@@ -40,7 +40,9 @@ class classifier(nn.Module):
 	def forward(self, X):
 		encoded = self.Encoder.forward(X)
 		pred = self.discrimination(encoded)
-		return encoded, pred
+		return pred
 	def forward_from_latent(self,latent):
 		return self.discrimination(latent)
-		
+	def getLatent(self,X):
+		return self.Encoder.forward(X)
+

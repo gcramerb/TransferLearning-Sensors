@@ -60,8 +60,9 @@ class SingleDatasetModule(LightningDataModule):
 		newX, newY = np.array(newX), np.array(newY)
 		return newX[:,None,:,:],newY
 
-	def setup(self,split = True,normalize = False, fold_i = None, valRate=0.1, testRate=.2):
-
+	def setup(self,split = True,normalize = False, fold_i = None,SL_path_file = None):
+		valRate = 0.1
+		testRate = 0.2
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
 		if self.datasetName =='Pamap2':
 			file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t5_o08.npz')
@@ -73,21 +74,33 @@ class SingleDatasetModule(LightningDataModule):
 
 		y = categorical_to_int(y).astype('int')
 		Y = np.argmax(y, axis=1).astype('long')
-
+		
 		if fold_i is not None:
 			self.X_val = X[self.folds[fold_i][1]]
 			self.X_train = X[self.folds[fold_i][0]]
 			self.Y_train = Y[self.folds[fold_i][0]]
 			self.Y_val = Y[self.folds[fold_i][1]]
-		else:
-			self.X_train = X
-			self.X_val = X
-			self.Y_train = Y
-			self.Y_val = Y
+		elif SL_path_file is not None:
+			with np.load(SL_path_file, allow_pickle=True) as tmp:
+				Xsl = tmp['Xsl'].astype('float32')
+				ysl = tmp['ysl']
 			
+			self.X_val = X
+			self.Y_val = Y
+			self.Y_train = np.concatenate([Y,ysl],axis = 0)
+			self.X_train = np.concatenate([X,Xsl],axis = 0)
+			del self.folds
+		else:
+			self.X_val = X
+			self.Y_val = Y
+			self.X_train = X
+			self.Y_train = Y
+
 		if normalize:
+			#TODO: normalizar os dados source e target juntos ?
 			self.X_train,self.Y_train = self.normalize(self.X_train,self.Y_train)
 			self.X_val, self.Y_val = self.normalize(self.X_val, self.Y_val)
+		
 		if self.input_shape[0] == 2:
 			self.X_train = np.concatenate([self.X_train[:,:,:,0:3],self.X_train[:,:,:,3:6]],axis =1)
 			self.X_val = np.concatenate([self.X_val[:, :, :, 0:3], self.X_val[:, :, :, 3:6]], axis=1)

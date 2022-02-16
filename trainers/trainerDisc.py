@@ -104,6 +104,12 @@ class TLmodel(LightningModule):
 		self.staticDisc.load_state_dict(torch.load(PATH))
 		for param in self.staticDisc.parameters():
 			param.requires_grad = train
+			
+	def save_params(self,save_path,file):
+		path = os.path.join(save_path,file + '_feature_extractorD')
+		torch.save(self.FE.state_dict(), path)
+		path = os.path.join(save_path,file + '_discriminatorD')
+		torch.save(self.staticDisc.state_dict(), path)
 
 	def forward(self, X):
 		return self.FE(X)

@@ -160,126 +160,126 @@ class SingleDatasetModule(LightningDataModule):
 		self.dataVal = myDataset(self.X, self.Y)
 		self.dataTest = myDataset(self.X, self.Y)
 
+class CrossDatasetModule(LightningDataModule):
+	def __init__(
+			self,
+			data_dir: str = None,
+			sourceName: str = "Dsads",
+			targetName: str = "Ucihar",
+			norm: bool = True,
+			n_classes: int = 6,
+			input_shape: tuple = (1,50,6),
+			batch_size: int = 128,
+			num_workers: int = 1,
+	):
+		super().__init__()
+		self.data_dir = data_dir
+		self.sourceName = sourceName
+		self.targetName = targetName
+		self.batch_size = batch_size
+		self.num_workers = num_workers
+		self.n_classes = n_classes
+		self.input_shape = input_shape
+		self.norm = norm
+		
+		self.dataTrain = {}
+		self.dataVal = {}
+		self.dataTest = {}
+	
+	def normalize(self, X, Y):
+		newX = []
+		newY = []
+		m = np.array([np.mean(X[:, 0, :, i]) for i in range(X.shape[-1])])
+		std = np.array([np.std(X[:, 0, :, i]) for i in range(X.shape[-1])])
+		for sample, label in zip(X[:, 0, :, :], Y):
+			sample = (sample - m) / std
+			newX.append(sample)
+			newY.append(label)
+		newX, newY = np.array(newX), np.array(newY)
+		return newX[:, None, :, :], newY
+	
+	def _setup(self,SL_path_file = None):
+		self.setup_dataset(dataset =  self.sourceName,domain = 'source', SL_path_file=SL_path_file)
+		self.setup_dataset(dataset = self.targetName,domain ='target')
 
+	def setup_dataset(self,dataset, domain, SL_path_file=None):
+		file = os.path.join(self.data_dir, f'{dataset}_f25_t2_{self.n_classes}actv.npz')
+		with np.load(file, allow_pickle=True) as tmp:
+			X = tmp['X'].astype('float32')
+			y = tmp['y']
+		y = categorical_to_int(y).astype('int')
+		Y = np.argmax(y, axis=1).astype('long')
 
-# class myCrossDataset(Dataset):
-# 	def __init__(self, data, norm=False):
-# 		source, target = data
-# 		self.Xsource, self.Ysource = source
-# 		self.Xtarget, self.Ytarget = target
-#
-# 		if norm:
-# 			self.mean = (np.mean(X[:, 0, :, :]), np.mean(X[:, 1, :, :]))
-# 			self.std = (np.std(X[:, 0, :, :]), np.std(X[:, 1, :, :]))
-# 			self.transform = transforms.Normalize(self.mean, self.std)
-# 		# transforms.Compose([transforms.ToTensor(),
-# 		else:
-# 			self.transform = None
-#
-# 	def __len__(self):
-# 		return min(len(self.Ysource),len(self.Ytarget))
-#
-# 	def __getitem__(self, idx):
-# 		if torch.is_tensor(idx):
-# 			idx = idx.tolist()
-# 		return {'source': (self.Xsource[idx],self.Ysource[idx]), 'target': (self.Xtarget[idx],self.Ytarget[idx])}
-#
+		if SL_path_file is not None:
+			with np.load(SL_path_file, allow_pickle=True) as tmp:
+				Xsl = tmp['Xsl'].astype('float32')
+				ysl = tmp['ysl']
 
+			X_val = X
+			Y_val = Y
+			Y_train = np.concatenate([Y, ysl], axis=0)
+			X_train = np.concatenate([X, Xsl], axis=0)
+		else:
+			X_val = X
+			Y_val = Y
+			X_train = X
+			Y_train = Y
+		
+		if self.norm:
+			# TODO: normalizar os dados source e target juntos ?
+			X_train, Y_train = self.normalize(X_train, Y_train)
+			X_val, Y_val = self.normalize(X_val, Y_val)
+		
+		if self.input_shape[0] == 2:
+			X_train = np.concatenate([X_train[:, :, :, 0:3], X_train[:, :, :, 3:6]], axis=1)
+			X_val = np.concatenate([X_val[:, :, :, 0:3], X_val[:, :, :, 3:6]], axis=1)
+		
+		self.dataTrain[domain] = myDataset(X_train, Y_train)
+		self.dataVal[domain] = myDataset(X_val, Y_val)
+		self.dataTest[domain] = myDataset(X_val, Y_val)
+		
 
-# class CrossDatasetModule(LightningDataModule):
-# 	def __init__(
-# 			self,
-# 			data_dir: str = None,
-# 			sourceName: str = "Dsads",
-# 			targetName: str = "Ucihar",
-# 			n_classes: int = 6,
-# 			input_shape: tuple = (1,50,6),
-# 			batch_size: int = 128,
-# 			num_workers: int = 1,
-# 	):
-# 		super().__init__()
-# 		self.data_dir = data_dir
-# 		self.sourceName = sourceName
-# 		self.targetName = targetName
-# 		self.batch_size = batch_size
-# 		self.num_workers = num_workers
-# 		self.num_classes = n_classes
-# 		self.input_shape = input_shape
-# 		self.transform = transforms.Normalize(0, 1, inplace=False)
-#
-# 	def setup(self, stage=None, valRate=0.1, testRate=.2, Loso=False):
-# 		file = os.path.join(self.data_dir, f'{self.sourceName}_f25_t2_{self.num_classes}actv.npz')
-# 		with np.load(file, allow_pickle=True) as tmp:
-# 			Xsource = tmp['X'].astype('float32')
-# 			y = tmp['y']
-# 			foldsSource = tmp['folds']
-# 		# self.n_classes = len(pd.unique(self.Y))
-# 		y = categorical_to_int(y).astype('long')
-# 		Ysource = np.argmax(y, axis=1).astype('long')
-#
-# 		file = os.path.join(self.data_dir, f'{self.targetName}_f25_t2_{self.num_classes}actv.npz')
-# 		with np.load(file, allow_pickle=True) as tmp:
-# 			Xtarget = tmp['X'].astype('float32')
-# 			y = tmp['y']
-# 			foldsTarget = tmp['folds']
-# 		# self.n_classes = len(pd.unique(self.Y))
-# 		y = categorical_to_int(y).astype('long')
-# 		Ytarget = np.argmax(y, axis=1).astype('long')
-#
-# 		if self.input_shape[-1] == 3:
-# 			Xtarget = np.concatenate([Xtarget[:, :, :, 0:3], Xtarget[:, :, :, 3:6]], axis=1)
-# 			Xsource = np.concatenate([Xsource[:, :, :, 0:3], Xsource[:, :, :, 3:6]], axis=1)
-#
-# 		if Loso:
-# 			foldTestSource, foldValSource = np.random.randint(len(foldsSource), size=2)
-# 			testIdxSource = foldsSource[foldTestSource][1]
-# 			valIdxSource = foldsSource[foldValSource][1]
-# 			trainIdxSource = list(set(foldsSource[foldTestSource][0]) - set(foldsSource[foldValSource][1]))
-#
-# 			foldTestTarget, foldValTarget = np.random.randint(len(foldsTarget), size=2)
-# 			testIdxTarget = foldsTarget[foldTestTarget][1]
-# 			valIdxTarget = foldsTarget[foldValTarget][1]
-# 			trainIdxTarget = list(set(foldsTarget[foldTestTarget][0]) - set(foldsTarget[foldValTarget][1]))
-#
-# 			trainers = (Xsource[trainIdxSource],Ysource[trainIdxSource]),(Xtarget[trainIdxTarget],Ytarget[trainIdxTarget])
-# 			val = (Xsource[valIdxSource],Ysource[valIdxSource]),(Xtarget[valIdxTarget],Ytarget[valIdxTarget])
-# 			test = (Xsource[testIdxSource],Ysource[testIdxSource]),(Xtarget[testIdxTarget],Ytarget[testIdxTarget])
-#
-# 			self.dataTrain, self.dataVal, self.dataTest = myCrossDataset(trainers), myCrossDataset(val), myCrossDataset(test)
-#
-# 		else:
-# 			source = Xsource,Ysource
-# 			target = Xtarget,Ytarget
-# 			data = source,target
-# 			dataset = myCrossDataset(data)
-# 			nSamples = len(dataset)
-# 			valLen = int(nSamples * valRate)
-# 			testLen = int(nSamples * testRate)
-# 			trainL = nSamples - testLen
-# 			self.dataTrain, self.dataTest = random_split(dataset, [trainL, testLen],
-# 			                                             generator=torch.Generator().manual_seed(42))
-# 			trainL = trainL - valLen
-# 			self.dataTrain, self.dataVal = random_split(self.dataTrain, [trainL, valLen],
-# 			                                            generator=torch.Generator().manual_seed(0))
-#
-# 	def train_dataloader(self):
-# 		return DataLoader(
-# 			self.dataTrain,
-# 			shuffle=True,
-# 			batch_size=self.batch_size,
-# 			num_workers=self.num_workers,
-# 			drop_last=True)
-#
-# 	def val_dataloader(self):
-# 		return DataLoader(self.dataVal,
-# 		                  batch_size=len(self.dataVal),
-# 		                  shuffle=True,
-# 		                  num_workers=self.num_workers,
-# 		                  drop_last=True)
-#
-# 	def test_dataloader(self):
-# 		return DataLoader(self.dataTest,
-# 		                  batch_size=512,
-# 		                  shuffle=True,
-# 		                  num_workers=self.num_workers,
-# 		                  drop_last=True)
+	def train_dataloader(self):
+		source_loader =  DataLoader(
+			self.dataTrain['source'],
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		target_loader =  DataLoader(
+			self.dataTrain['target'],
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		return [source_loader,target_loader]
+
+	def val_dataloader(self):
+		source_loader =  DataLoader(
+			self.dataVal['source'],
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		target_loader =  DataLoader(
+			self.dataVal['target'],
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		return [source_loader,target_loader]
+
+	def test_dataloader(self):
+		source_loader =  DataLoader(
+			self.dataTest['source'],
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		target_loader =  DataLoader(
+			self.dataTest['target'],
+			shuffle=True,
+			batch_size=self.batch_size,
+			num_workers=self.num_workers,
+			drop_last=True)
+		return [source_loader,target_loader]

@@ -6,7 +6,7 @@ import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from dataProcessing.dataModule import SingleDatasetModule
+from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
 
 from trainers.runClf import runClassifier
 from trainers.trainerSL import SLmodel
@@ -22,8 +22,8 @@ parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Dsads")
-parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
@@ -61,19 +61,20 @@ if __name__ == '__main__':
 	clfParams = get_Clfparams(path_clf_params)
 	TLparams = get_TLparams(path_TL_params)
 	
-	iter = 0
+	iter = 2
 	for i in range(iter):
 		if i > 0:
 			sl_path_file = os.path.join(args.inPath,f'{args.target}_pseudo_labels.npz')
 		else:
 			sl_path_file = None
-	
+
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.source,
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=clfParams['bs'])
 		dm_source.setup(split=False, normalize=True,SL_path_file =sl_path_file)
+
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
@@ -114,12 +115,13 @@ if __name__ == '__main__':
 		trainer.fit(model)
 		model.generate_pseudoLab(path = args.inPath)
 		model.save_params(save_path,file)
-		del model,dm_source,dm_target
+		del model,dm_source,dm_target,trainer
 	
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
 	                                input_shape=clfParams['input_shape'],
+	                                type = 'source',
 	                                batch_size=clfParams['bs'])
 	dm_source.setup(split=False, normalize=True)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -145,5 +147,6 @@ if __name__ == '__main__':
 		file = f'{args.source}_{args.target}_modelB'
 	model.load_params(save_path, file)
 	outcomes = model.get_final_metrics()
+	print("final Results: \n")
 	print(outcomes)
 

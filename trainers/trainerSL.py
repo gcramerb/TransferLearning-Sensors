@@ -41,6 +41,9 @@ class SLmodel(LightningModule):
 		super().__init__()
 		self.ps = []
 		self.trh = 0.75
+		self.batch_size = 128
+		self.n_classes = 4
+		self.datasetTarget = "Dsads"
 		
 		self.save_hyperparameters()
 		self.hparams.alpha = trainParams['alpha']
@@ -49,6 +52,7 @@ class SLmodel(LightningModule):
 		self.hparams.dropout_rate = model_hyp['dropout_rate']
 		self.hparams.lr = trainParams['lr']
 		self.hparams.input_shape = model_hyp['input_shape']
+		
 		
 	def create_model(self):
 		self.clf = classifier(hyp=self.hparams.model_hyp,
@@ -96,7 +100,7 @@ class SLmodel(LightningModule):
 		log = {}
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
-		dataTarget = target['data']
+		#dataTarget = target['data']
 
 		pred = self.clf(dataSource)
 		loss = self.clfLoss(pred,labSource)
@@ -130,6 +134,7 @@ class SLmodel(LightningModule):
 		return metrics
 	
 	def training_step(self, batch, batch_idx):
+
 		loss, log = self.compute_loss(batch)
 		tqdm_dict = log
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
@@ -193,8 +198,6 @@ class SLmodel(LightningModule):
 		
 		# lr_sch_FE = StepLR(opt_FE, step_size=20, gamma=0.5)
 		return {"optimizer":opt}
-	
-	
 
 
 	def _predict(self, dataloader,domain):
@@ -218,15 +221,17 @@ class SLmodel(LightningModule):
 		return predictions
 	
 	def train_dataloader(self):
-		return [self.dm_source.train_dataloader(),
+		loaders = [self.dm_source.train_dataloader(),
 		        self.dm_target.train_dataloader()]
-	
+		combined_loaders = CombinedLoader(loaders, "max_size_cycle")
+		return combined_loaders
+
 	def test_dataloader(self):
 		loaders = [self.dm_source.test_dataloader(),
 		           self.dm_target.test_dataloader()]
 		combined_loaders = CombinedLoader(loaders, "max_size_cycle")
 		return combined_loaders
-	
+
 	def val_dataloader(self):
 		loaders = [self.dm_source.val_dataloader(),
 		           self.dm_target.val_dataloader()]

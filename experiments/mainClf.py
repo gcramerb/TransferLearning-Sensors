@@ -44,12 +44,12 @@ if __name__ == '__main__':
 	else:
 		clfParams = get_Clfparams()
 	#for fold_i in range(folds[source]):
-	fold_i = 0
+	fold_i = 1
 	dm = SingleDatasetModule(data_dir=inPath,
 	                         datasetName=args.source,
 	                         n_classes=4,
 	                         input_shape=clfParams['input_shape'],
-	                         batch_size=128)
+	                         batch_size=clfParams['bs'])
 	dm.setup(fold_i = fold_i,split=False, normalize=True)
 	trainer, clf, res = runClassifier(dm, clfParams, my_logger=my_logger)
 	result.append(res['test_acc'])

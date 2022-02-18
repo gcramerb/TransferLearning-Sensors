@@ -18,10 +18,13 @@ class Encoder(nn.Module):
 	
 	## encoder layers ##
 	def build(self):
+		
+		fcl1 = self.n_filters[2] * int(self.input_shape[1]/10) * int(self.input_shape[-1] / 3)
+		fcl2 = int(self.n_filters[2]/2) * int(self.input_shape[1]/10) * int(self.input_shape[-1] / 3)
 		for i in range(self.n_win):
 			self.CNN1.append(
 				nn.Sequential(
-				nn.Conv2d(in_channels=self.input_shape[0], kernel_size=self.kernel_dim[i],
+				nn.Conv1d(in_channels=self.input_shape[0], kernel_size=self.kernel_dim[i],
 				          out_channels=self.n_filters[i], padding='same', bias=True, groups=self.input_shape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
@@ -30,7 +33,7 @@ class Encoder(nn.Module):
 					)
 				)
 		self.DenseLayer = nn.Sequential(
-			nn.Conv2d(in_channels=self.n_filters[0] + self.n_filters[1],
+			nn.Conv1d(in_channels=self.n_filters[0] + self.n_filters[1],
 			          kernel_size=self.kernel_dim[0],
 			          out_channels=self.n_filters[2],
 			          padding='same', bias=True),
@@ -38,10 +41,10 @@ class Encoder(nn.Module):
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),
-			# nn.Linear(self.n_filters[2]*5*int(self.input_shape[-1]/3),self.n_filters[2]*5*int(self.input_shape[-1]/3)),
-			# nn.BatchNorm1d(self.n_filters[2]*5*int(self.input_shape[-1]/3)),
+			# nn.Linear(fcl1,fcl2),
+			# nn.BatchNorm1d(fcl2),
 			# nn.LeakyReLU(),
-			nn.Linear(self.n_filters[2] * int(self.input_shape[1]/10) * int(self.input_shape[-1] / 3), self.encoded_dim),
+			nn.Linear(fcl1, self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim),
 			nn.LeakyReLU()
 		)

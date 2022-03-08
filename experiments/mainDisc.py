@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='exp_name')
-parser.add_argument('--trainClf', type=bool, default=True)
+parser.add_argument('--trainClf', action='store_true')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
@@ -25,7 +25,8 @@ parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--saveModel', type=bool, default=True)
+parser.add_argument('--trials', type=int, default=10)
+parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
 
@@ -47,9 +48,9 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 	
-	# my_logger = WandbLogger(project='TL',
-	#                         log_model='all',
-	#                         name=args.expName + 'TL_' + args.source + '_to_' + args.target)
+	my_logger = WandbLogger(project='TL',
+	                        log_model='all',
+	                        name=args.expName + 'TL_' + args.source + '_to_' + args.target + 'DefExp')
 
 if __name__ == '__main__':
 	
@@ -86,41 +87,45 @@ if __name__ == '__main__':
 		class_weight = torch.tensor([0.5,8,8,0.5])
 	else:
 		class_weight = None
-	model = TLmodel(trainParams=TLparams,
-					n_classes = args.n_classes,
-	                lossParams = None,
-	                save_path = None,
-	                class_weight=class_weight,
-	                model_hyp=clfParams)
-
-	if my_logger:
-		params = {}
-		params['clfParams'] = clfParams
-		params['TLparams'] = TLparams
-		params['class_weight'] = class_weight
-		my_logger.log_hyperparams(params)
-		my_logger.watch(model)
-
-
 	
-	model.load_params(save_path,file)
-	model.setDatasets(dm_source, dm_target)
-	#early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
-	trainer = Trainer(gpus=1,
-	                  check_val_every_n_epoch=1,
-	                  max_epochs=TLparams['epoch'],
-	                  logger=my_logger,
-	                  min_epochs = 1,
-	                  progress_bar_refresh_rate=verbose,
-	                  callbacks = [],
-	                  multiple_trainloader_mode='max_size_cycle')
+	for i in range(args.trials):
+		
+		model = TLmodel(trainParams=TLparams,
+						n_classes = args.n_classes,
+		                lossParams = None,
+		                save_path = None,
+		                class_weight=class_weight,
+		                model_hyp=clfParams)
 	
-	trainer.fit(model)
-	#model.save_params(save_path = )
+		if my_logger:
+			params = {}
+			params['clfParams'] = clfParams
+			params['TLparams'] = TLparams
+			params['class_weight'] = class_weight
+			my_logger.log_hyperparams(params)
+			my_logger.watch(model)
 	
-	res = model.get_final_metrics()
-	print(res)
-	if my_logger:
-		my_logger.log_metrics(res)
-	if args.saveModel:
-		trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}_{args.expName}.ckpt")
+		model.load_params(save_path,file)
+		model.setDatasets(dm_source, dm_target)
+		early_stopping = EarlyStopping('val_acc_target', mode='max', patience=7, verbose=True)
+		trainer = Trainer(gpus=1,
+		                  check_val_every_n_epoch=1,
+		                  max_epochs=TLparams['epoch'],
+		                  logger=my_logger,
+		                  min_epochs = 1,
+		                  progress_bar_refresh_rate=verbose,
+		                  callbacks = [early_stopping],
+		                  multiple_trainloader_mode='max_size_cycle')
+		
+		trainer.fit(model)
+		#model.save_params(save_path = )
+		
+		res = model.get_final_metrics()
+		print(res)
+		if my_logger:
+			my_logger.log_metrics(res)
+		if args.saveModel:
+			trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}_{args.expName}.ckpt")
+		del model
+		print('target: ', res['acc_target_all'],'  source: ', res['acc_source_all'])
+		

@@ -22,7 +22,7 @@ parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Pamap2")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
@@ -58,10 +58,15 @@ if __name__ == '__main__':
 	if args.TLParamsFile:
 		path_TL_params = os.path.join(params_path, args.TLParamsFile)
 	
+	if args.source == 'Uschad':
+		class_weight = torch.tensor([0.5, 5, 5, 0.5])
+	else:
+		class_weight = None
+	
 	clfParams = get_Clfparams(path_clf_params)
 	TLparams = get_TLparams(path_TL_params)
 	
-	iter = 2
+	iter = 5
 	for i in range(iter):
 		if i > 0:
 			sl_path_file = os.path.join(args.inPath,f'{args.target}_pseudo_labels.npz')
@@ -74,7 +79,6 @@ if __name__ == '__main__':
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=clfParams['bs'])
 		dm_source.setup(split=False, normalize=True,SL_path_file =sl_path_file)
-
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
@@ -82,11 +86,8 @@ if __name__ == '__main__':
 		                                batch_size=TLparams['bs'],
 		                                type='target')
 		dm_target.setup(split=False, normalize=True)
-		if args.source == 'Uschad':
-			class_weight = torch.tensor([0.5, 8, 8, 0.5])
-		else:
-			class_weight = None
 		model = SLmodel(trainParams=TLparams,
+		                trashold = 0.75,
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
@@ -106,7 +107,7 @@ if __name__ == '__main__':
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
-		                  max_epochs=2,
+		                  max_epochs=5,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
@@ -140,7 +141,6 @@ if __name__ == '__main__':
 	                model_hyp=clfParams)
 	model.setDatasets(dm_source, dm_target)
 	model.create_model()
-	i = 0
 	if i % 2 == 0:
 		file = f'{args.source}_{args.target}_modelA'
 	else:

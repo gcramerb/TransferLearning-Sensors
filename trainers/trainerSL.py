@@ -34,14 +34,15 @@ class SLmodel(LightningModule):
 			trainParams: dict = None,
 			model_hyp: dict = None,
 			lossParams: dict = None,
+			trashold: float = 0.75,
 			save_path: str = None,
 			class_weight: torch.tensor = None,
 			**kwargs
 	):
 		super().__init__()
 		self.ps = []
-		self.trh = 0.75
-		self.batch_size = 128
+		self.trh =trashold
+		self.batch_size = model_hyp['bs']
 		self.n_classes = 4
 		self.datasetTarget = "Dsads"
 		
@@ -60,21 +61,32 @@ class SLmodel(LightningModule):
 		                      n_classes = self.n_classes)
 		self.clf.build()
 		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
+		
+		# if self.hparams.penalty == 'mmd':
+		# 	self.discLoss = MMDLoss()
+		# elif self.hparams.penalty == 'ot':
+		# 	self.discLoss = OTLoss(hyp=lossParams)
+		# elif self.hparams.penalty == 'skn':
+		# 	self.discLoss = SinkhornDistance(eps=1e-3, max_iter=200)
+		# elif self.hparams.penalty == 'coral':
+		# 	self.discLoss = CORAL()
+		# else:
+		# 	raise ValueError('specify a valid discrepancy loss!')
 
 
 	def load_params(self, save_path, file):
-		PATH = os.path.join(save_path, file + '_feature_extractorD')
+		PATH = os.path.join(save_path, file + '_feature_extractorSL')
 		self.clf.Encoder.load_state_dict(torch.load(PATH))
-		PATH = os.path.join(save_path, file + '_discriminatorD')
+		PATH = os.path.join(save_path, file + '_discriminatorSL')
 		self.clf.discrimination.load_state_dict(torch.load(PATH))
 		for param in self.clf.parameters():
 			param.requires_grad = True
 			
 	
 	def save_params(self,save_path,file):
-		path = os.path.join(save_path,file + '_feature_extractorD')
+		path = os.path.join(save_path,file + '_feature_extractorSL')
 		torch.save(self.clf.Encoder.state_dict(), path)
-		path = os.path.join(save_path,file + '_discriminatorD')
+		path = os.path.join(save_path,file + '_discriminatorSL')
 		torch.save(self.clf.discrimination.state_dict(), path)
 
 	def generate_pseudoLab(self,path):
@@ -84,7 +96,7 @@ class SLmodel(LightningModule):
 
 			for target in self.dm_target.train_dataloader():
 				dataTarget= target['data']
-				probs = self.clf(dataTarget)
+				lat_,probs = self.clf(dataTarget)
 				probs = probs.cpu().numpy()
 				idx = np.where(probs.max(axis = 0)>self.trh)[0]
 				labT_ps.append(np.argmax(probs[idx], axis=1))
@@ -100,10 +112,15 @@ class SLmodel(LightningModule):
 		log = {}
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
-		#dataTarget = target['data']
+		latentS,pred = self.clf(dataSource)
+		
+		loss = self.clfLoss(pred, labSource)
+		
+		# dataTarget = target['data']
+		# latentT,_ = self.clf(dataTarget)
+		# discrepancy = self.discLoss(latentT, latentS)
+		# loss = loss + self.hparams.alpha * discrepancy
 
-		pred = self.clf(dataSource)
-		loss = self.clfLoss(pred,labSource)
 		logs = {}
 		logs['loss'] = loss
 
@@ -114,8 +131,8 @@ class SLmodel(LightningModule):
 		dataSource, labSource = source['data'], source['label'].long()
 		dataTarget, labTarget = target['data'], target['label'].long()
 
-		pred_S = self.clf(dataSource)
-		pred_T = self.clf(dataTarget)
+		latS,pred_S = self.clf(dataSource)
+		latT,pred_T = self.clf(dataTarget)
 
 		metrics = {}
 		yhat_S = np.argmax(pred_S.detach().cpu().numpy(), axis=1)
@@ -196,7 +213,7 @@ class SLmodel(LightningModule):
 		                                    weight_decay=self.hparams.weight_decay)
 
 		
-		# lr_sch_FE = StepLR(opt_FE, step_size=20, gamma=0.5)
+		#lr_sch = StepLR(opt_FE, step_size=20, gamma=0.5)
 		return {"optimizer":opt}
 
 

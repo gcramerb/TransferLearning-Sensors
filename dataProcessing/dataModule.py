@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 import torch
 from Utils.data import categorical_to_int
+from Utils.pseudoLabSelection import generate_pseudoLab
 
 class myDataset(Dataset):
 	def __init__(self, X, Y,norm = False):
@@ -81,10 +82,9 @@ class SingleDatasetModule(LightningDataModule):
 			self.Y_train = Y[self.folds[fold_i][0]]
 			self.Y_val = Y[self.folds[fold_i][1]]
 		elif SL_path_file is not None:
-			with np.load(SL_path_file, allow_pickle=True) as tmp:
-				Xsl = tmp['Xsl'].astype('float32')
-				ysl = tmp['ysl']
 			
+			Xsl,ysl = generate_pseudoLab(SL_path_file,0.75)
+
 			self.X_val = X
 			self.Y_val = Y
 			self.Y_train = np.concatenate([Y,ysl],axis = 0)

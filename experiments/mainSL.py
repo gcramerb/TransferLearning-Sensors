@@ -107,14 +107,14 @@ if __name__ == '__main__':
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
-		                  max_epochs=5,
+		                  max_epochs=TLparams['epoch'],
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		model.generate_pseudoLab(path = args.inPath)
+		model.save_pseudoLab(path = args.inPath)
 		model.save_params(save_path,file)
 		del model,dm_source,dm_target,trainer
 	

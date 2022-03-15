@@ -36,6 +36,7 @@ class SLmodel(LightningModule):
 			lossParams: dict = None,
 			trashold: float = 0.75,
 			save_path: str = None,
+			penalty:str = 'ot',
 			class_weight: torch.tensor = None,
 			**kwargs
 	):
@@ -51,89 +52,100 @@ class SLmodel(LightningModule):
 		self.hparams.penalty = trainParams['discrepancy']
 		self.hparams.weight_decay = trainParams['weight_decay']
 		self.hparams.dropout_rate = model_hyp['dropout_rate']
-		self.hparams.lr = trainParams['lr']
+		self.hparams.lr_fe = trainParams['lr']
+		self.hparams.lr_disc = trainParams['lr']
 		self.hparams.input_shape = model_hyp['input_shape']
 		
-		
 	def create_model(self):
-		self.clf = classifier(hyp=self.hparams.model_hyp,
-		                  input_shape=self.hparams.input_shape,
-		                      n_classes = self.n_classes)
-		self.clf.build()
-		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
+
+		self.FE = Encoder(hyp=self.hparams.model_hyp,
+			              input_shape=self.hparams.input_shape)
+		self.FE.build()
 		
-		# if self.hparams.penalty == 'mmd':
-		# 	self.discLoss = MMDLoss()
-		# elif self.hparams.penalty == 'ot':
-		# 	self.discLoss = OTLoss(hyp=lossParams)
-		# elif self.hparams.penalty == 'skn':
-		# 	self.discLoss = SinkhornDistance(eps=1e-3, max_iter=200)
-		# elif self.hparams.penalty == 'coral':
-		# 	self.discLoss = CORAL()
-		# else:
-		# 	raise ValueError('specify a valid discrepancy loss!')
+		self.Disc  =  discriminator(dropout_rate = self.hparams.dropout_rate,
+		                                 encoded_dim = self.hparams.model_hyp['enc_dim'],
+		                                 n_classes = self.hparams.n_classes)
+		self.Disc.build()
+		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
+
+		if self.hparams.penalty == 'mmd':
+			self.discLoss = MMDLoss()
+		elif self.hparams.penalty == 'ot':
+			#self.discLoss = OTLoss(hyp=lossParams)
+			self.discLoss = OTLoss()
+		elif self.hparams.penalty == 'skn':
+			self.discLoss = SinkhornDistance(eps=1e-3, max_iter=200)
+		elif self.hparams.penalty == 'coral':
+			self.discLoss = CORAL()
+		else:
+			raise ValueError('specify a valid discrepancy loss!')
 
 
 	def load_params(self, save_path, file):
 		PATH = os.path.join(save_path, file + '_feature_extractorSL')
-		self.clf.Encoder.load_state_dict(torch.load(PATH))
+		self.FE.load_state_dict(torch.load(PATH))
 		PATH = os.path.join(save_path, file + '_discriminatorSL')
-		self.clf.discrimination.load_state_dict(torch.load(PATH))
-		for param in self.clf.parameters():
+		self.Disc.load_state_dict(torch.load(PATH))
+		for param in self.FE.parameters():
 			param.requires_grad = True
-			
-	
+		for param in self.Disc.parameters():
+			param.requires_grad = True
+
 	def save_params(self,save_path,file):
 		path = os.path.join(save_path,file + '_feature_extractorSL')
-		torch.save(self.clf.Encoder.state_dict(), path)
+		torch.save(self.FE.state_dict(), path)
 		path = os.path.join(save_path,file + '_discriminatorSL')
-		torch.save(self.clf.discrimination.state_dict(), path)
+		torch.save(self.Disc.state_dict(), path)
 
-	def generate_pseudoLab(self,path):
+	def save_pseudoLab(self,path):
 		with torch.no_grad():
 			labT_ps = []
 			dataT_ps = []
-
 			for target in self.dm_target.train_dataloader():
 				dataTarget= target['data']
-				lat_,probs = self.clf(dataTarget)
-				probs = probs.cpu().numpy()
-				idx = np.where(probs.max(axis = 0)>self.trh)[0]
-				labT_ps.append(np.argmax(probs[idx], axis=1))
-				dataT_ps.append(dataTarget[idx])
+				lat_ = self.FE(dataTarget)
+				probs = self.Disc(lat_)
+				labT_ps.append(probs.cpu().numpy())
+				dataT_ps.append(dataTarget)
 			dataT = np.concatenate(dataT_ps, axis=0)
 			labT = np.concatenate(labT_ps, axis=0)
-		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels')
+		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels.npz')
 		if dataT.shape[1] ==2:
 			dataT = np.concatenate([dataT[:,[0],:,:],dataT[:,[1],:,:]],axis = -1)
 		with open(path_file, "wb") as f:
 			np.savez(f,Xsl = dataT,ysl = labT)
 
-	def compute_loss(self, batch):
+	def compute_loss(self, batch,optimizer_idx):
 		log = {}
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
-		latentS,pred = self.clf(dataSource)
 		
-		loss = self.clfLoss(pred, labSource)
+		latentS= self.FE(dataSource)
+		predS = self.Disc(latentS)
 		
-		# dataTarget = target['data']
-		# latentT,_ = self.clf(dataTarget)
-		# discrepancy = self.discLoss(latentT, latentS)
-		# loss = loss + self.hparams.alpha * discrepancy
+		loss = self.clfLoss(predS, labSource)
+		if optimizer_idx ==0:
+			dataTarget = target['data']
+			latentT = self.FE(dataTarget)
+			discrepancy = self.discLoss(latentT, latentS)
+			loss = loss + self.hparams.alpha * discrepancy
 
 		logs = {}
 		logs['loss'] = loss
 
 		return loss,logs
 	
-	def _shared_eval_step(self, batch, stage='val'):
+	def _shared_eval_step(self, batch,optimizer_idx,stage='val'):
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
 		dataTarget, labTarget = target['data'], target['label'].long()
 
-		latS,pred_S = self.clf(dataSource)
-		latT,pred_T = self.clf(dataTarget)
+		latS = self.FE(dataSource)
+		pred_S = self.Disc(latS)
+		
+		latT = self.FE(dataTarget)
+		pred_T = self.Disc(latT)
+		
 
 		metrics = {}
 		yhat_S = np.argmax(pred_S.detach().cpu().numpy(), axis=1)
@@ -146,14 +158,14 @@ class SLmodel(LightningModule):
 		metrics[f'{stage}_acc_T'] = acc_T
 
 		if stage == 'val':
-			_, logs = self.compute_loss(batch)
+			_, logs = self.compute_loss(batch,optimizer_idx)
 			for k, v in logs.items():
 				metrics[stage + '_' + k] = v.detach()
 		return metrics
 	
-	def training_step(self, batch, batch_idx):
+	def training_step(self, batch, batch_idx,optimizer_idx):
 
-		loss, log = self.compute_loss(batch)
+		loss, log = self.compute_loss(batch,optimizer_idx)
 		tqdm_dict = log
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
@@ -173,7 +185,7 @@ class SLmodel(LightningModule):
 		return None
 	
 	def validation_step(self, batch, batch_idx):
-		metrics = self._shared_eval_step(batch, stage='val')
+		metrics = self._shared_eval_step(batch, stage='val',optimizer_idx = 0)
 		return metrics
 	def validation_epoch_end(self, out):
 		keys_ = out[0].keys()
@@ -209,13 +221,15 @@ class SLmodel(LightningModule):
 		return result
 	
 	def configure_optimizers(self):
-		opt = torch.optim.Adam(self.clf.parameters(),
-		                                    lr=self.hparams.lr,
-		                                    weight_decay=self.hparams.weight_decay)
-
+		opt_list = []
+		opt_list.append(torch.optim.Adam(self.FE.parameters(),
+		                                    lr=self.hparams.lr_fe,
+		                                    weight_decay=self.hparams.weight_decay))
+		
+		opt_list.append(torch.optim.Adam(self.Disc.parameters(), lr=self.hparams.lr_disc))
 		
 		#lr_sch = StepLR(opt_FE, step_size=20, gamma=0.5)
-		return {"optimizer":opt}
+		return  opt_list,[]
 
 
 	def _predict(self, dataloader,domain):

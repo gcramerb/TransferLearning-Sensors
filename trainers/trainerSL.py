@@ -106,7 +106,8 @@ class SLmodel(LightningModule):
 		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels')
 		if dataT.shape[1] ==2:
 			dataT = np.concatenate([dataT[:,[0],:,:],dataT[:,[1],:,:]],axis = -1)
-		np.savez(path_file,Xsl = dataT,ysl = labT)
+		with open(path_file, "wb") as f:
+			np.savez(f,Xsl = dataT,ysl = labT)
 
 	def compute_loss(self, batch):
 		log = {}

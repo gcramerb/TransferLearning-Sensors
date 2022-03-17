@@ -49,6 +49,7 @@ class TLmodel(LightningModule):
 		self.hparams.feat_eng = trainParams['feat_eng']
 		self.hparams.lr = trainParams['lr']
 		self.hparams.gan = trainParams['gan']
+	
 		if self.hparams.gan:
 			self.hparams.alpha *= -1
 		self.hparams.lr_gan = trainParams['lr_gan']

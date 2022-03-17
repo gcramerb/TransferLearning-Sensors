@@ -21,12 +21,15 @@ def get_TLparams(path_file = None):
 	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 1
+	TLparams['epoch'] = 7
 	TLparams['feat_eng'] = 'sym'
-	TLparams['alpha'] = 0.2
+	TLparams['alpha'] = 0.15
 	TLparams['beta'] = 0.5
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = 0.1
+	
+	#only in soft-Label techinique:
+	TLparams['iter'] = 5
 	return TLparams
 	
 def get_Clfparams(path_file = None):

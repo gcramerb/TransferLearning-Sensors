@@ -1,14 +1,12 @@
 import sys, argparse,os
-
 sys.path.insert(0, '../')
-
-# import geomloss
 from Utils.myUtils import get_Clfparams,get_TLparams,get_foldsInfo,MCI
-
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from dataProcessing.dataModule import SingleDatasetModule
 from trainers.runClf import runClassifier
+import numpy as np
+import scipy.stats as st
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
@@ -21,10 +19,10 @@ parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
-import numpy as np
-import scipy.stats as st
-
 datasetList = ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']
+my_logger = WandbLogger(project='classifier',
+                        log_model='all',
+                        name=args.source + f'{args.n_classes}' + '_no_TL')
 if args.slurm:
 	verbose = 0
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
@@ -41,32 +39,28 @@ def create_result_dict():
 		result[dat] = {}
 	return result
 
-
 if __name__ == '__main__':
-	path_clf_params = None
-	if args.ClfParamsFile:
-		path_clf_params = os.path.join(params_path,args.ClfParamsFile)
-	clfParams = get_Clfparams(path_clf_params)
+	"""
+	This experiment assumes that you alread have a good classifier for your source data.
 	
-	my_logger = WandbLogger(project='classifier',
-	                        log_model='all',
-	                        name=args.source + f'{args.n_classes}' + '_no_TL')
+	"""
+	if args.ClfParamsFile:
+		clfParams = get_Clfparams(os.path.join(params_path,args.ClfParamsFile))
+	else:
+		clfParams = get_Clfparams()
 
 	my_logger.log_hyperparams(clfParams)
-	
 	result = create_result_dict()
 	dm = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
-	                                n_classes=4,
+	                                n_classes=args.n_classes,
 	                                input_shape=clfParams['input_shape'],
 	                                batch_size=clfParams['bs'])
 	
 	dm.setup(split=False, normalize=True)
-	
-	trainer, clf, res = runClassifier(dm, get_Clfparams(),my_logger = my_logger)
-
+	trainer, clf, res = runClassifier(dm,clfParams ,my_logger = my_logger)
 	result[args.source][args.source] = res
-
+	
 	for dataset in datasetList:
 		if dataset != args.source:
 			dm_target = SingleDatasetModule(data_dir=args.inPath,

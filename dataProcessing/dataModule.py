@@ -1,13 +1,11 @@
-from pytorch_lightning import LightningDataModule, LightningModule, Trainer
-from torch.utils.data import DataLoader, random_split, Dataset
+from pytorch_lightning import LightningDataModule
+from torch.utils.data import DataLoader, Dataset
 
-import os, random
+import os
 import numpy as np
-import pandas as pd
-from sklearn.preprocessing import LabelEncoder
 import torch
 from Utils.data import categorical_to_int
-from Utils.pseudoLabSelection import generate_pseudoLab
+from models.pseudoLabSelection import generate_pseudoLab
 
 class myDataset(Dataset):
 	def __init__(self, X, Y,norm = False):

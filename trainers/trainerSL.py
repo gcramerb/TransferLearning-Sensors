@@ -99,21 +99,24 @@ class SLmodel(LightningModule):
 
 	def save_pseudoLab(self,path):
 		with torch.no_grad():
-			labT_ps = []
-			dataT_ps = []
+			lab_sl = []
+			latent_sl = []
+			data_sl = []
 			for target in self.dm_target.train_dataloader():
 				dataTarget= target['data']
 				lat_ = self.FE(dataTarget)
 				probs = self.Disc(lat_)
-				labT_ps.append(probs.cpu().numpy())
-				dataT_ps.append(dataTarget)
-			dataT = np.concatenate(dataT_ps, axis=0)
-			labT = np.concatenate(labT_ps, axis=0)
+				latent_sl.append(lat_.cpu().numpy())
+				lab_sl.append(probs.cpu().numpy())
+				data_sl.append(dataTarget)
+			data = np.concatenate(data_sl, axis=0)
+			lab = np.concatenate(lab_sl, axis=0)
+			latent = np.concatenate(latent_sl,axis =0)
 		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels.npz')
-		if dataT.shape[1] ==2:
-			dataT = np.concatenate([dataT[:,[0],:,:],dataT[:,[1],:,:]],axis = -1)
+		if data.shape[1] ==2:
+			data = np.concatenate([data[:,[0],:,:],data[:,[1],:,:]],axis = -1)
 		with open(path_file, "wb") as f:
-			np.savez(f,Xsl = dataT,ysl = labT)
+			np.savez(f,dataSL = data,latentSL=latent,ySL = lab)
 
 	def compute_loss(self, batch,optimizer_idx):
 		log = {}

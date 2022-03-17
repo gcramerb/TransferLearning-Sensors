@@ -30,10 +30,9 @@ def runClassifier(dm,clfParams,my_logger = None):
 		adicionalInfo = {}
 		adicionalInfo['class_weight'] = class_weight
 		my_logger.log_hyperparams(adicionalInfo)
-		my_logger.watch(model)
+		#my_logger.watch(model)
 
-	#early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=10,verbose = True)
-
+	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=5,verbose = True)
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,

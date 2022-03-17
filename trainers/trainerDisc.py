@@ -106,9 +106,9 @@ class TLmodel(LightningModule):
 			param.requires_grad = train
 			
 	def save_params(self,save_path,file):
-		path = os.path.join(save_path,file + '_feature_extractorD')
+		path = os.path.join(save_path,file + '_feature_extractor')
 		torch.save(self.FE.state_dict(), path)
-		path = os.path.join(save_path,file + '_discriminatorD')
+		path = os.path.join(save_path,file + '_discriminator')
 		torch.save(self.staticDisc.state_dict(), path)
 
 	def forward(self, X):

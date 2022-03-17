@@ -21,12 +21,15 @@ def get_TLparams(path_file = None):
 	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 50
+	TLparams['epoch'] = 7
 	TLparams['feat_eng'] = 'sym'
-	TLparams['alpha'] = 0.5
+	TLparams['alpha'] = 0.15
 	TLparams['beta'] = 0.5
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = 0.1
+	
+	#only in soft-Label techinique:
+	TLparams['iter'] = 5
 	return TLparams
 	
 def get_Clfparams(path_file = None):
@@ -37,13 +40,13 @@ def get_Clfparams(path_file = None):
 	clfParams['enc_dim'] = 64
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
-	clfParams['step_size'] = None
+	clfParams['step_size'] = 10
 	
-	clfParams['epoch'] = 30
-	clfParams["dropout_rate"] = 0.1
+	clfParams['epoch'] = 10
+	clfParams["dropout_rate"] = 0.25
 	clfParams['bs'] = 128
-	clfParams['lr'] = 0.0002
-	clfParams['weight_decay'] = 0.05
+	clfParams['lr'] = 0.0008
+	clfParams['weight_decay'] = 0.15
 	if path_file:
 		with open(path_file) as f:
 			aux = json.load(f)

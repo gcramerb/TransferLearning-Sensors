@@ -2,9 +2,13 @@
 slurm/
 saved/
 figures/
+tests/
 experiments/wandb/
 experiments/params/
 experiments/checkpoints/
+experiments/classifier/
+experiments/lightning_logs/
+trainers/checkpoints/
 results/
 # Byte-compiled / optimized / DLL files
 __pycache__/

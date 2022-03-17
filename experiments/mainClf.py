@@ -12,10 +12,8 @@ from trainers.runClf import runClassifier
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--ClfParamsFile', type=str, default=None)
-parser.add_argument('--source', type=str, default='Pamap2')
+parser.add_argument('--source', type=str, default='Uschad')
 args = parser.parse_args()
-
-
 
 if args.slurm:
 	verbose = 0
@@ -25,16 +23,18 @@ if args.slurm:
 	
 	my_logger = WandbLogger(project='classifier',
 	                        log_model='all',
-	                        name=args.source + '_t5_f25')
+	                        name=args.source + f'{args.n_classes}' + '_LOSO_clf')
 else:
 	verbose = 1
 	inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	outPath = '../results/tests/'
 	my_logger = None
+	my_logger = WandbLogger(project='classifier',
+	                        log_model='all',
+	                        name=args.source + '_LOSO_clf')
 	
 
 if __name__ == '__main__':
-	
 	folds = get_foldsInfo()
 	result = []
 	result_train = []
@@ -43,18 +43,22 @@ if __name__ == '__main__':
 		clfParams = get_Clfparams(path_clf_params)
 	else:
 		clfParams = get_Clfparams()
-	#for fold_i in range(folds[source]):
-	fold_i = 0
-	dm = SingleDatasetModule(data_dir=inPath,
-	                         datasetName=args.source,
-	                         n_classes=4,
-	                         input_shape=clfParams['input_shape'],
-	                         batch_size=128)
-	dm.setup(fold_i = fold_i,split=False, normalize=True)
-	trainer, clf, res = runClassifier(dm, clfParams, my_logger=my_logger)
-	result.append(res['test_acc'])
-	result_train.append(res['train_acc'])
+	my_logger.log_hyperparams(clfParams)
+	for fold_i in range(folds[args.source]):
+	#fold_i = 1
+		dm = SingleDatasetModule(data_dir=inPath,
+		                         datasetName=args.source,
+		                         n_classes=4,
+		                         input_shape=clfParams['input_shape'],
+		                         batch_size=clfParams['bs'])
+		dm.setup(fold_i = fold_i,split=False, normalize=True)
+		trainer, clf, res = runClassifier(dm, clfParams, my_logger=my_logger)
+		result.append(res['test_acc'])
+		result_train.append(res['train_acc'])
 
 	print("test: ",result,'\n', MCI(result),'\n\n\n')
 	print("train: ", result_train, '\n', MCI(result_train), '\n\n\n')
+	my_logger.log_metrics(MCI(result_train))
+	my_logger.log_metrics(MCI(result))
+
 

@@ -100,7 +100,7 @@ if __name__ == '__main__':
 		if my_logger:
 			params = {}
 			params['clfParams'] = clfParams
-			params['TLparams'] = TLparams
+			params['SLparams'] = TLparams
 			params['class_weight'] = class_weight
 			my_logger.log_hyperparams(params)
 			my_logger.watch(model)

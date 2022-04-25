@@ -113,7 +113,7 @@ def objective(trial):
 		best_metric = res['acc_target_all']
 		print(f'Result: {args.source} to {args.target}')
 		print('clfParams: ', clfParams,'\n')
-		print('TLparams: ',TLparams,'\n\n\n')
+		print('SLparams: ',TLparams,'\n\n\n')
 	return best_metric
 
 

@@ -7,14 +7,14 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
 from trainers.runClf import runClassifier
 from trainers.trainerSL import SLmodel
-from Utils.myUtils import get_Clfparams, get_TLparams
+from Utils.myUtils import get_Clfparams, get_TLparams,get_SLparams
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='exp_name')
 parser.add_argument('--trainClf', type=bool, default=False)
-parser.add_argument('--TLParamsFile', type=str, default=None)
+parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
@@ -31,9 +31,9 @@ if args.slurm:
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	save_path = '../saved/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
-	my_logger = WandbLogger(project='TL',
+	my_logger = WandbLogger(project='TransferLearning-Soft-Label',
 	                        log_model='all',
-	                        name=args.expName + '_SL_' + args.source + '_to_' + args.target)
+	                        name=args.expName + args.source + '_to_' + args.target)
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
@@ -43,11 +43,11 @@ else:
 
 if __name__ == '__main__':
 	
-	path_clf_params, path_TL_params = None, None
+	path_clf_params, path_SL_params = None, None
 	if args.ClfParamsFile:
 		path_clf_params = os.path.join(params_path, args.ClfParamsFile)
-	if args.TLParamsFile:
-		path_TL_params = os.path.join(params_path, args.TLParamsFile)
+	if args.SLParamsFile:
+		path_SL_params = os.path.join(params_path, args.SLParamsFile)
 	
 	if args.source == 'Uschad':
 		class_weight = torch.tensor([0.5, 5, 5, 0.5])
@@ -55,10 +55,10 @@ if __name__ == '__main__':
 		class_weight = None
 	
 	clfParams = get_Clfparams(path_clf_params)
-	TLparams = get_TLparams(path_TL_params)
+	SLparams = get_SLparams(path_SL_params)
 	
 	sl_path_file = None
-	for i in range(TLparams['iter']):
+	for i in range(SLparams['iter']):
 
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.source,
@@ -70,11 +70,11 @@ if __name__ == '__main__':
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
-		                                batch_size=TLparams['bs'],
+		                                batch_size=SLparams['bs'],
 		                                type='target')
 		dm_target.setup(split=False, normalize=True)
-		model = SLmodel(trainParams=TLparams,
-		                trashold = 0.75,
+		model = SLmodel(trainParams=SLparams,
+		                trashold = SLparams['trashold'],
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
@@ -89,24 +89,31 @@ if __name__ == '__main__':
 			file = f'{args.source}_{args.target}_modelB'
 		if i > 1:
 			model.load_params(save_path, file)
-	
-		
+			sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels.npz')
+
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
-		                  max_epochs=TLparams['epoch'],
+		                  max_epochs=SLparams['epoch'],
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		model.save_pseudoLab(path = args.inPath)
+		num_samples = model.save_pseudoLab(path = args.inPath)
 		model.save_params(save_path,file)
+		
+		if my_logger:
+			log_metr = {}
+			out = model.get_final_metrics()
+			log_metr[f'source metrics at iter {i}'] = out['acc_source_all']
+			log_metr[f'target metrics at iter {i}'] = out['acc_target_all']
+			log_metr[f'samples selected {i}'] = num_samples
+			my_logger.log_metrics(log_metr)
+			
 		del model,dm_source,dm_target,trainer
-		sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels.npz')
-	
-	
+
 	#evaluating the model:
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
@@ -119,10 +126,10 @@ if __name__ == '__main__':
 	                                datasetName=args.target,
 	                                input_shape=clfParams['input_shape'],
 	                                n_classes=args.n_classes,
-	                                batch_size=TLparams['bs'],
+	                                batch_size=SLparams['bs'],
 	                                type='target')
 	dm_target.setup(split=False, normalize=True)
-	model = SLmodel(trainParams=TLparams,
+	model = SLmodel(trainParams=SLparams,
 	                n_classes=args.n_classes,
 	                lossParams=None,
 	                save_path=None,
@@ -131,7 +138,7 @@ if __name__ == '__main__':
 	model.setDatasets(dm_source, dm_target)
 	model.create_model()
 	
-	#acess the leas model created.
+	#acess the lasted model created.
 	if i % 2 == 0:
 		file = f'{args.source}_{args.target}_modelA'
 	else:

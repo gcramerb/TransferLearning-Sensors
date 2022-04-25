@@ -14,7 +14,7 @@ sys.path.insert(0, '../')
 from models.classifier import classifier
 from models.blocks import Encoder, discriminator, domainClf
 from models.customLosses import MMDLoss, OTLoss, classDistance, SinkhornDistance, CORAL
-# import geomloss
+from models.pseudoLabSelection import simplest_SLselec
 
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.callbacks import Callback
@@ -105,18 +105,24 @@ class SLmodel(LightningModule):
 			for target in self.dm_target.train_dataloader():
 				dataTarget= target['data']
 				lat_ = self.FE(dataTarget)
-				probs = self.Disc(lat_)
-				latent_sl.append(lat_.cpu().numpy())
-				lab_sl.append(probs.cpu().numpy())
-				data_sl.append(dataTarget)
+				probs = self.Disc(lat_).cpu().numpy()
+				idx,sl = simplest_SLselec(probs,self.trh)
+
+				#latent_sl.append(lat_.cpu().numpy())
+				lab_sl.append(sl)
+				data_sl.append(dataTarget[idx])
+			
 			data = np.concatenate(data_sl, axis=0)
 			lab = np.concatenate(lab_sl, axis=0)
-			latent = np.concatenate(latent_sl,axis =0)
+			#latent = np.concatenate(latent_sl,axis =0)
+
 		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels.npz')
 		if data.shape[1] ==2:
 			data = np.concatenate([data[:,[0],:,:],data[:,[1],:,:]],axis = -1)
 		with open(path_file, "wb") as f:
-			np.savez(f,dataSL = data,latentSL=latent,ySL = lab)
+			#np.savez(f,dataSL = data,latentSL=latent,ySL = lab)
+			np.savez(f, dataSL=data, ySL=lab)
+		return len(data)
 
 	def compute_loss(self, batch,optimizer_idx):
 		log = {}
@@ -217,7 +223,7 @@ class SLmodel(LightningModule):
 	def get_final_metrics(self):
 		result = {}
 		predictions = self.getPredict()
-		result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
+		result['acc_source_all'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
 		result['cm_source'] = confusion_matrix(predictions['trueSource'], predictions['predSource'])
 		result['cm_target'] = confusion_matrix(predictions['trueTarget'], predictions['predTarget'])
@@ -242,9 +248,10 @@ class SLmodel(LightningModule):
 		true = []
 		for data in dataloader:
 			X, y = data['data'], data['label'].long()
-			l = self.clf.getLatent(X)
-			pred = self.clf.forward_from_latent(l).cpu().numpy()
-			latent.append(l.cpu().numpy())
+			lat = self.FE(X)
+			pred = self.Disc(lat)
+			pred = pred.cpu().numpy()
+			latent.append(lat.cpu().numpy())
 			probs.append(pred)
 			y_hat.append(np.argmax(pred, axis=1))
 			true.append(y.cpu().numpy())

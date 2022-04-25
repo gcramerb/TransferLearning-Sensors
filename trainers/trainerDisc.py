@@ -33,7 +33,7 @@ class TLmodel(LightningModule):
 			self,
 			trainParams: dict = None,
 			model_hyp: dict = None,
-			n_classes: int = 6,
+			n_classes: int = 4,
 			lossParams: dict = None,
 			save_path: str = None,
 			class_weight: torch.tensor = None,
@@ -232,7 +232,7 @@ class TLmodel(LightningModule):
 	def get_final_metrics(self):
 		result = {}
 		predictions = self.predict()
-		result['acc_source_test'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
+		result['acc_source_all'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
 		result['cm_source'] = confusion_matrix(predictions['trueSource'], predictions['predSource'])
 		result['cm_target'] = confusion_matrix(predictions['trueTarget'], predictions['predTarget'])

@@ -43,7 +43,8 @@ class ClfModel(LightningModule):
 		# self.p_loss = classDistance()
 	
 	def save_params(self,save_path,file):
-		path = os.path.join(save_path,file + '_feature_extractor')
+		path = os.path.join(save_path,file + ''
+		                                     '')
 		torch.save(self.model.Encoder.state_dict(), path)
 		path = os.path.join(save_path,file + '_discriminator')
 		torch.save(self.model.discrimination.state_dict(), path)

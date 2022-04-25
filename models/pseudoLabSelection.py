@@ -11,6 +11,11 @@ def generate_pseudoLab(path_file,trh = 0.75):
 	dataSL = X[idx]
 	return dataSL,softL
 
+def simplest_SLselec(probs,trh):
+	idx = np.where(probs.max(axis=0) > trh)[0]
+	softLab = np.argmax(probs[idx], axis=1)
+	return idx,softLab
+
 
 def simpleKernelProcess(path_file,trh = 0.75):
 	"""
@@ -39,10 +44,6 @@ def simpleKernelProcess(path_file,trh = 0.75):
 	softL = np.argmax(probs[idx], axis=1)
 	dataSL = X[idx]
 	return dataSL,softL
-
-path_file = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\Dsads_pseudo_labels.npz'
-simpleKernelProcess(path_file,trh = 0.75)
-
 
 
 def kernelProcess(path_file):

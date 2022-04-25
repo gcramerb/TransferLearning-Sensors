@@ -18,8 +18,8 @@ parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
-parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--source', type=str, default="Dsads")
+parser.add_argument('--target', type=str, default="Pamap2")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
@@ -58,6 +58,9 @@ if __name__ == '__main__':
 	SLparams = get_SLparams(path_SL_params)
 	
 	sl_path_file = None
+	source_metric_i = []
+	target_metric_i = []
+	num_samples = []
 	for i in range(SLparams['iter']):
 
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
@@ -101,18 +104,21 @@ if __name__ == '__main__':
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		num_samples = model.save_pseudoLab(path = args.inPath)
+		ns = model.save_pseudoLab(path = args.inPath)
 		model.save_params(save_path,file)
+		out = model.get_final_metrics()
+		source_metric_i.append(out['acc_source_all'])
+		target_metric_i.append(out['acc_target_all'])
+		num_samples.append(ns)
 		
-		if my_logger:
-			log_metr = {}
-			out = model.get_final_metrics()
-			log_metr[f'source metrics at iter {i}'] = out['acc_source_all']
-			log_metr[f'target metrics at iter {i}'] = out['acc_target_all']
-			log_metr[f'samples selected {i}'] = num_samples
-			my_logger.log_metrics(log_metr)
-			
 		del model,dm_source,dm_target,trainer
+	
+	if my_logger:
+		log_metr = {}
+		log_metr['source acc iter'] = source_metric_i
+		log_metr['target acc iter'] = target_metric_i
+		log_metr[f'samples selected'] = num_samples
+		my_logger.log_metrics(log_metr)
 
 	#evaluating the model:
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
@@ -148,3 +154,7 @@ if __name__ == '__main__':
 	outcomes = model.get_final_metrics()
 	print("final Results: \n")
 	print(outcomes)
+	
+	if my_logger:
+		my_logger.log_metrics(outcomes)
+		my_logger.log_hyperparams(SLparams)

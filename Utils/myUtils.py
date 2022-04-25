@@ -39,14 +39,13 @@ def get_SLparams(path_file=None):
 	SLparams['lr'] = 0.001
 	SLparams['bs'] = 128
 	SLparams['step_size'] = None
-	SLparams['epoch'] = 7
+	SLparams['epoch'] = 15
 	SLparams['feat_eng'] = 'sym'
-	SLparams['alpha'] = 0.15
-	SLparams['beta'] = 0.5
+	SLparams['alpha'] = 0.75
 	SLparams['discrepancy'] = 'ot'
 	SLparams['weight_decay'] = 0.1
-	SLparams['iter'] = 5
-	SLparams['trashold'] = 0.8
+	SLparams['iter'] = 10
+	SLparams['trashold'] = 0.49
 	return SLparams
 	
 def get_Clfparams(path_file = None):

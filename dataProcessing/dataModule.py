@@ -5,7 +5,7 @@ import os
 import numpy as np
 import torch
 from Utils.data import categorical_to_int
-from models.pseudoLabSelection import generate_pseudoLab
+# from models.pseudoLabSelection import generate_pseudoLab
 
 class myDataset(Dataset):
 	def __init__(self, X, Y,norm = False):
@@ -39,7 +39,6 @@ class SingleDatasetModule(LightningDataModule):
 		super().__init__()
 		self.data_dir = data_dir
 		self.datasetName = datasetName
-		self.file_name = file_name
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.n_classes = n_classes
@@ -64,9 +63,7 @@ class SingleDatasetModule(LightningDataModule):
 		testRate = 0.2
 		if self.datasetName == 'Pamap2':
 			self.datasetName = 'my' + self.datasetName
-		
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
-
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
 			y = tmp['y']
@@ -81,9 +78,9 @@ class SingleDatasetModule(LightningDataModule):
 			self.Y_train = Y[self.folds[fold_i][0]]
 			self.Y_val = Y[self.folds[fold_i][1]]
 		elif SL_path_file is not None:
-			
-			Xsl,ysl = generate_pseudoLab(SL_path_file,0.75)
-
+			with np.load(SL_path_file, allow_pickle=True) as tmp:
+				Xsl = tmp['dataSL'].astype('float32')
+				ysl = tmp['ySL']
 			self.X_val = X
 			self.Y_val = Y
 			self.Y_train = np.concatenate([Y,ysl],axis = 0)
@@ -130,34 +127,7 @@ class SingleDatasetModule(LightningDataModule):
 		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=False)
-	
-	def set_overfitting(self):
-		file = os.path.join(self.data_dir, self.file_name)
-		with np.load(file, allow_pickle=True) as tmp:
-			self.X = tmp['X'].astype('float32')
-			y = tmp['y']
-		# self.folds = tmp['folds']
-		if self.datasetName == 'Pamap2':
-			acts = ['Pamap2-walking', 'Pamap2-ascending stairs', 'Pamap2-descending stairs', 'Pamap2-lying']
-			idx = [i for i, v in enumerate(y) if v in acts]
-			self.X = self.X[idx].copy()
-			y = y[idx].copy()
-		y = categorical_to_int(y).astype('int')
-		self.Y = np.argmax(y, axis=1).astype('long')
-		self.X, self.Y = self.normalize()
-		
-		n_samples = 128
-		idx = np.where(self.Y == 0)[0].tolist()[:n_samples]
-		idx += np.where(self.Y == 1)[0].tolist()[:n_samples]
-		idx += np.where(self.Y == 2)[0].tolist()[:n_samples]
-		idx += np.where(self.Y == 3)[0].tolist()[:n_samples]
-		self.X, self.Y = self.X[idx], self.Y[idx]
-		
-		if self.input_shape[0] == 2:
-			self.X = np.concatenate([self.X[:, :, :, 0:3], self.X[:, :, :, 3:6]], axis=1)
-		self.dataTrain = myDataset(self.X, self.Y)
-		self.dataVal = myDataset(self.X, self.Y)
-		self.dataTest = myDataset(self.X, self.Y)
+
 
 class CrossDatasetModule(LightningDataModule):
 	def __init__(

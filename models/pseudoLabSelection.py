@@ -2,14 +2,14 @@ import numpy as np
 from sklearn.neighbors import KernelDensity
 
 
-def generate_pseudoLab(path_file,trh = 0.75):
-	with np.load(path_file, allow_pickle=True) as tmp:
-		X = tmp['dataSL'].astype('float32')
-		probs = tmp['ySL']
-	idx = np.where(probs.max(axis = 0 ) >trh)[0]
-	softL = np.argmax(probs[idx], axis=1)
-	dataSL = X[idx]
-	return dataSL,softL
+# def generate_pseudoLab(path_file,trh = 0.75):
+# 	with np.load(path_file, allow_pickle=True) as tmp:
+# 		X = tmp['dataSL'].astype('float32')
+# 		probs = tmp['ySL']
+# 	idx = np.where(probs.max(axis = 0 ) >trh)[0]
+# 	softL = np.argmax(probs[idx], axis=1)
+# 	dataSL = X[idx]
+# 	return dataSL,softL
 
 def simplest_SLselec(probs,trh):
 	idx = np.where(probs.max(axis=0) > trh)[0]

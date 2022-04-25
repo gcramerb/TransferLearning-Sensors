@@ -53,7 +53,7 @@ else:
 	                        name=args.expName + 'TL_' + args.source + '_to_' + args.target + 'DefExp')
 
 if __name__ == '__main__':
-	
+	# TODO: not working getting from file?
 	path_clf_params, path_TL_params = None, None
 	if args.ClfParamsFile:
 		path_clf_params = os.path.join(params_path,args.ClfParamsFile)

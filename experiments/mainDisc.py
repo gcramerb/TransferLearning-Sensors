@@ -69,11 +69,11 @@ if __name__ == '__main__':
 	                                input_shape=clfParams['input_shape'],
 	                                batch_size=clfParams['bs'])
 	dm_source.setup(split=False,normalize = True)
-	file = f'mainModel_{args.source}'
+	file = f'mainDisc_Model_{args.source}'
 	#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
 	if args.trainClf:
 		trainer, clf, res = runClassifier(dm_source,clfParams)
-		print('Source: ',res['train_acc'])
+		print('Source (first train): ',res['train_acc'])
 		clf.save_params(save_path,file)
 
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -100,13 +100,14 @@ if __name__ == '__main__':
 		if my_logger:
 			params = {}
 			params['clfParams'] = clfParams
-			params['SLparams'] = TLparams
+			params['TLparams'] = TLparams
 			params['class_weight'] = class_weight
 			my_logger.log_hyperparams(params)
 			my_logger.watch(model)
 	
 		model.load_params(save_path,file)
 		model.setDatasets(dm_source, dm_target)
+		
 		early_stopping = EarlyStopping('val_acc_target', mode='max', patience=7, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,

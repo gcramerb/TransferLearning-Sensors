@@ -86,10 +86,8 @@ if __name__ == '__main__':
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
 
-		if i%2 ==0:
-			file = f'{args.source}_{args.target}_modelA'
-		else:
-			file = f'{args.source}_{args.target}_modelB'
+
+		file = f'{args.source}_{args.target}_model{i%2}'
 		if i > 1:
 			model.load_params(save_path, file)
 			sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels.npz')
@@ -110,7 +108,6 @@ if __name__ == '__main__':
 		source_metric_i.append(out['acc_source_all'])
 		target_metric_i.append(out['acc_target_all'])
 		num_samples.append(ns)
-		
 		del model,dm_source,dm_target,trainer
 	
 	if my_logger:
@@ -145,11 +142,9 @@ if __name__ == '__main__':
 	model.create_model()
 	
 	#acess the lasted model created.
-	if i % 2 == 0:
-		file = f'{args.source}_{args.target}_modelA'
-	else:
-		file = f'{args.source}_{args.target}_modelB'
-		
+
+	file = f'{args.source}_{args.target}_model{i % 2}'
+
 	model.load_params(save_path, file)
 	outcomes = model.get_final_metrics()
 	print("final Results: \n")

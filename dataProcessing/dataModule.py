@@ -61,8 +61,6 @@ class SingleDatasetModule(LightningDataModule):
 	def setup(self,split = True,normalize = False, fold_i = None,SL_path_file = None):
 		valRate = 0.1
 		testRate = 0.2
-		if self.datasetName == 'Pamap2':
-			self.datasetName = 'my' + self.datasetName
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')

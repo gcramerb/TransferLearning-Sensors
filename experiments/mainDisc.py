@@ -16,7 +16,7 @@ from Utils.myUtils import get_Clfparams, get_TLparams
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='exp_name')
+parser.add_argument('--expName', type=str, default='bench')
 parser.add_argument('--trainClf', action='store_true')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
@@ -88,45 +88,43 @@ if __name__ == '__main__':
 	else:
 		class_weight = None
 	
-	for i in range(args.trials):
-		
-		model = TLmodel(trainParams=TLparams,
-						n_classes = args.n_classes,
-		                lossParams = None,
-		                save_path = None,
-		                class_weight=class_weight,
-		                model_hyp=clfParams)
+	model = TLmodel(trainParams=TLparams,
+					n_classes = args.n_classes,
+	                lossParams = None,
+	                save_path = None,
+	                class_weight=class_weight,
+	                model_hyp=clfParams)
+
+	if my_logger:
+		params = {}
+		params['clfParams'] = clfParams
+		params['TLparams'] = TLparams
+		params['class_weight'] = class_weight
+		my_logger.log_hyperparams(params)
+		my_logger.watch(model)
+
+	model.load_params(save_path,file)
+	model.setDatasets(dm_source, dm_target)
 	
-		if my_logger:
-			params = {}
-			params['clfParams'] = clfParams
-			params['TLparams'] = TLparams
-			params['class_weight'] = class_weight
-			my_logger.log_hyperparams(params)
-			my_logger.watch(model)
+	early_stopping = EarlyStopping('val_acc_target', mode='max', patience=7, verbose=True)
+	trainer = Trainer(gpus=1,
+	                  check_val_every_n_epoch=1,
+	                  max_epochs=TLparams['epoch'],
+	                  logger=my_logger,
+	                  min_epochs = 1,
+	                  progress_bar_refresh_rate=verbose,
+	                  callbacks = [early_stopping],
+	                  multiple_trainloader_mode='max_size_cycle')
 	
-		model.load_params(save_path,file)
-		model.setDatasets(dm_source, dm_target)
-		
-		early_stopping = EarlyStopping('val_acc_target', mode='max', patience=7, verbose=True)
-		trainer = Trainer(gpus=1,
-		                  check_val_every_n_epoch=1,
-		                  max_epochs=TLparams['epoch'],
-		                  logger=my_logger,
-		                  min_epochs = 1,
-		                  progress_bar_refresh_rate=verbose,
-		                  callbacks = [early_stopping],
-		                  multiple_trainloader_mode='max_size_cycle')
-		
-		trainer.fit(model)
-		#model.save_params(save_path = )
-		
-		res = model.get_final_metrics()
-		print(res)
-		if my_logger:
-			my_logger.log_metrics(res)
-		if args.saveModel:
-			trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}_{args.expName}.ckpt")
-		del model
-		print('target: ', res['acc_target_all'],'  source: ', res['acc_source_all'])
-		
+	trainer.fit(model)
+	#model.save_params(save_path = )
+	
+	res = model.get_final_metrics()
+	print(res)
+	if my_logger:
+		my_logger.log_metrics(res)
+	if args.saveModel:
+		trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}_{args.expName}.ckpt")
+	del model
+	print('target: ', res['acc_target_all'],'  source: ', res['acc_source_all'])
+	

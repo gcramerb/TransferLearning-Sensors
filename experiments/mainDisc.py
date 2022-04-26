@@ -16,7 +16,7 @@ from Utils.myUtils import get_Clfparams, get_TLparams
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='bench')
+parser.add_argument('--expName', type=str, default='benchDisc')
 parser.add_argument('--trainClf', action='store_true')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
@@ -71,10 +71,10 @@ if __name__ == '__main__':
 	dm_source.setup(split=False,normalize = True)
 	file = f'mainDisc_Model_{args.source}'
 	#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
-	if args.trainClf:
-		trainer, clf, res = runClassifier(dm_source,clfParams)
-		print('Source (first train): ',res['train_acc'])
-		clf.save_params(save_path,file)
+	# if args.trainClf:
+	# 	trainer, clf, res = runClassifier(dm_source,clfParams)
+	# 	print('Source (first train): ',res['train_acc'])
+	# 	clf.save_params(save_path,file)
 
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.target,
@@ -84,7 +84,7 @@ if __name__ == '__main__':
 	                                type='target')
 	dm_target.setup(split=False,normalize = True)
 	if args.source =='Uschad':
-		class_weight = torch.tensor([0.5,8,8,0.5])
+		class_weight = torch.tensor([0.5,3,3,0.5])
 	else:
 		class_weight = None
 	
@@ -103,17 +103,17 @@ if __name__ == '__main__':
 		my_logger.log_hyperparams(params)
 		my_logger.watch(model)
 
-	model.load_params(save_path,file)
+	#model.load_params(save_path,file)
 	model.setDatasets(dm_source, dm_target)
 	
-	early_stopping = EarlyStopping('val_acc_target', mode='max', patience=7, verbose=True)
+	#early_stopping = EarlyStopping('val_acc_target', mode='max', patience=7, verbose=True)
 	trainer = Trainer(gpus=1,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=TLparams['epoch'],
 	                  logger=my_logger,
 	                  min_epochs = 1,
 	                  progress_bar_refresh_rate=verbose,
-	                  callbacks = [early_stopping],
+	                  callbacks = [],
 	                  multiple_trainloader_mode='max_size_cycle')
 	
 	trainer.fit(model)

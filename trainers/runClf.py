@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import WandbLogger
 from trainers.trainerClf import ClfModel
 from dataProcessing.dataModule import SingleDatasetModule
 
-def runClassifier(dm,clfParams,my_logger = None):
+def runClassifier(dm,clfParams,my_logger = None,load_params_path = None,file =None):
 	class_weight = None
 	if dm.datasetName =='Pamap2':
 		class_weight = torch.tensor([1.0, 1.5,1.8, 3.0])
@@ -40,6 +40,8 @@ def runClassifier(dm,clfParams,my_logger = None):
 	                  progress_bar_refresh_rate=1,
 	                  callbacks=[])
 
+	if load_params_path:
+		model.load_params()
 	trainer.fit(model, datamodule=dm)
 	metrics = model.get_all_metrics(dm)
 	return trainer, model, metrics

@@ -16,6 +16,15 @@ def simplest_SLselec(probs,trh):
 	softLab = np.argmax(probs[idx], axis=1)
 	return idx,softLab
 
+def saveSL(path,data, probs,trh = 0.5):
+	idx = np.where(probs.max(axis=0) > trh)[0]
+	softLab = np.argmax(probs[idx], axis=1)
+	softLab = int2categorical(so)
+	
+	with open(path, "wb") as f:
+		np.savez(f,X = data[idx],y = softLab)
+	return True
+
 
 def simpleKernelProcess(path_file,trh = 0.75):
 	"""

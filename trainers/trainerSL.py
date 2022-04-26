@@ -121,7 +121,7 @@ class SLmodel(LightningModule):
 			data = np.concatenate([data[:,[0],:,:],data[:,[1],:,:]],axis = -1)
 		with open(path_file, "wb") as f:
 			#np.savez(f,dataSL = data,latentSL=latent,ySL = lab)
-			np.savez(f, dataSL=data, ySL=lab)
+			np.savez(f, X=data, y=lab)
 		return len(data)
 
 	def compute_loss(self, batch,optimizer_idx):

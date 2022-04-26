@@ -43,11 +43,16 @@ class ClfModel(LightningModule):
 		# self.p_loss = classDistance()
 	
 	def save_params(self,save_path,file):
-		path = os.path.join(save_path,file + ''
-		                                     '')
+		path = os.path.join(save_path,file + '_feature_extractor')
 		torch.save(self.model.Encoder.state_dict(), path)
 		path = os.path.join(save_path,file + '_discriminator')
 		torch.save(self.model.discrimination.state_dict(), path)
+	
+	def load_params(self,save_path,file):
+		path = os.path.join(save_path,file + '_feature_extractor')
+		self.model.Encoder.load_state_dict(torch.load(path))
+		path = os.path.join(save_path,file + '_discriminator')
+		self.model.discrimination.load_state_dict(torch.load(path))
 
 	def forward(self, X):
 		return self.model(X)
@@ -129,16 +134,23 @@ class ClfModel(LightningModule):
 			latent = []
 			pred = []
 			true = []
+			probs = []
+			X = []
 			for batch in dataLoaderTest:
 				data, label = batch['data'], batch['label']
 				l, pdS = self.model(data)
 				latent.append(l.cpu().numpy())
+				probs.append(pdS.cpu().numpy())
 				pred.append(np.argmax(pdS.cpu().numpy(), axis=1))
 				true.append(label.cpu().numpy())
+				X.append(data.cpu().numpy())
 		predictions = {}
 		predictions['latent'] = np.concatenate(latent, axis=0)
 		predictions['pred'] = np.concatenate(pred, axis=0)
+		predictions['probs'] = np.concatenate(probs,axis =0)
 		predictions['true'] = np.concatenate(true, axis=0)
+		predictions['data'] = np.concatenate(X,axis =0)
+		
 		return predictions
 	
 	def get_all_metrics(self,dm):

@@ -58,10 +58,10 @@ def get_Clfparams(path_file = None):
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
 	
-	clfParams['epoch'] = 5
+	clfParams['epoch'] = 50
 	clfParams["dropout_rate"] = 0.2
 	clfParams['bs'] = 128
-	clfParams['lr'] = 0.00005
+	clfParams['lr'] = 0.0001
 	clfParams['weight_decay'] = 0.1
 	if path_file:
 		with open(path_file) as f:

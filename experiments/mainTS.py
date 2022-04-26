@@ -1,18 +1,27 @@
 import sys, argparse, os, glob
+
 sys.path.insert(0, '../')
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
+from dataProcessing.dataModule import SingleDatasetModule, CrossDatasetModule
 from trainers.runClf import runClassifier
+from models.pseudoLabSelection import saveSL
 from trainers.trainerSL import SLmodel
-from Utils.myUtils import get_Clfparams, get_TLparams,get_SLparams
+from Utils.myUtils import get_Clfparams, get_TLparams, get_SLparams
+
+"""
+The main idea of this experiment is to train iterativilly two models, the theacher and the student.
+The teacher uses the source and target data with discrepancy loss to learn similar features.
+The student are a simple classifer that lerns only by the soft label data from target domain.
+
+"""
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='mainSL')
+parser.add_argument('--expName', type=str, default='Teach_stud')
 parser.add_argument('--trainClf', type=bool, default=False)
 parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
@@ -41,13 +50,15 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 
+
+
 if __name__ == '__main__':
 	
-	path_clf_params, path_SL_params = None, None
+	path_clf_params, path_TL_params = None, None
 	if args.ClfParamsFile:
 		path_clf_params = os.path.join(params_path, args.ClfParamsFile)
 	if args.SLParamsFile:
-		path_SL_params = os.path.join(params_path, args.SLParamsFile)
+		path_TL_params = os.path.join(params_path, args.SLParamsFile)
 	
 	if args.source == 'Uschad':
 		class_weight = torch.tensor([0.5, 5, 5, 0.5])
@@ -55,20 +66,24 @@ if __name__ == '__main__':
 		class_weight = None
 	
 	clfParams = get_Clfparams(path_clf_params)
-	SLparams = get_SLparams(path_SL_params)
+	SLparams = get_SLparams(path_TL_params)
 	
-	sl_path_file = None
+	ts_path_file = None
 	source_metric_i = []
 	target_metric_i = []
 	num_samples = []
+	models_name  = ['teacher','student']
+	
+	file_clf = f'Model_{args.source}_{args.target}_Student'
+	file_sl =  f'Model_{args.source}_{args.target}_Teacher'
+	
 	for i in range(SLparams['iter']):
-
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.source,
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=clfParams['bs'])
-		dm_source.setup(split=False, normalize=True,SL_path_file =sl_path_file)
+		dm_source.setup(split=False, normalize=True, SL_path_file=ts_path_file)
 		
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
@@ -76,10 +91,10 @@ if __name__ == '__main__':
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'],
 		                                type='target')
+		
 		dm_target.setup(split=False, normalize=True)
 		
 		model = SLmodel(trainParams=SLparams,
-		                trashold = SLparams['trashold'],
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
@@ -87,13 +102,11 @@ if __name__ == '__main__':
 		                model_hyp=clfParams)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
-
-
-		file = f'{args.source}_{args.target}_model{i%2}'
+		
+		#TODO: It is reallly necessary to save the params? Why I did that?
 		if i > 1:
-			model.load_params(save_path, file)
-			sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels.npz')
-
+			model.load_params(save_path, file_sl)
+			
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
@@ -104,27 +117,59 @@ if __name__ == '__main__':
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		ns = model.save_pseudoLab(path = args.inPath)
-		model.save_params(save_path,file)
+		
+		ns = model.save_pseudoLab(path=args.inPath)
+		model.save_params(save_path, file_sl)
+		
 		out = model.get_final_metrics()
 		source_metric_i.append(out['acc_source_all'])
 		target_metric_i.append(out['acc_target_all'])
 		num_samples.append(ns)
-		del model,dm_source,dm_target,trainer
-	
+		del model, dm_source, trainer
+
+		dm_SL  = SingleDatasetModule(data_dir=args.inPath,
+		                                datasetName=  f'{args.target}_pseudo_labels.npz',
+		                                input_shape=clfParams['input_shape'],
+		                                n_classes=args.n_classes,
+		                                batch_size=SLparams['bs'],
+		                                type='target')
+		dm_SL.setup(split=False, normalize=True)
+		
+		if i > 1:
+			trainer, clf, res = runClassifier(dm_SL, clfParams,load_params_path =save_path,file = file_clf)
+		else:
+			trainer, clf, res = runClassifier(dm_SL, clfParams)
+
+		print('Target (first train): ', res['train_acc'])
+		predictions = clf.predict(dm_target.test_dataloader())
+
+		ts_path_file = os.path.join(args.inPath,f'{args.target}_pseudo_labels.npz')
+		saveSL(path=ts_path_file, data = predictions['data'], probs = predictions['probs'])
+		clf.save_params(save_path, file_clf)
+		del clf, trainer
+
 	if my_logger:
 		log_metr = {}
 		log_metr['source acc iter'] = source_metric_i
 		log_metr['target acc iter'] = target_metric_i
 		log_metr[f'samples selected'] = num_samples
 		my_logger.log_metrics(log_metr)
+	
+	
+	
 
-	#evaluating the model:
+	
+	
+	
+	
+	
+	
+	# evaluating the model:
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
 	                                input_shape=clfParams['input_shape'],
-	                                type = 'source',
+	                                type='source',
 	                                batch_size=clfParams['bs'])
 	dm_source.setup(split=False, normalize=True)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -134,24 +179,24 @@ if __name__ == '__main__':
 	                                batch_size=SLparams['bs'],
 	                                type='target')
 	dm_target.setup(split=False, normalize=True)
+	
 	model = SLmodel(trainParams=SLparams,
 	                n_classes=args.n_classes,
 	                lossParams=None,
 	                save_path=None,
 	                class_weight=None,
 	                model_hyp=clfParams)
+	
 	model.setDatasets(dm_source, dm_target)
 	model.create_model()
-	
-	#acess the lasted model created.
-
-	file = f'{args.source}_{args.target}_model{i % 2}'
-
-	model.load_params(save_path, file)
+	model.load_params(save_path, file_sl)
 	outcomes = model.get_final_metrics()
-	print("final Results: \n")
-	print(outcomes)
+	print("final Results (teacher): \n",outcomes,'\n\n')
 	
+	trainer, clf, res = runClassifier(dm_target, clfParams, load_params_path=save_path, file=file_clf)
+	
+	print("final results (student): ",res,'\n')
 	if my_logger:
 		my_logger.log_metrics(outcomes)
+		my_logger.log_metrics(res)
 		my_logger.log_hyperparams(SLparams)

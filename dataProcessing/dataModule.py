@@ -61,20 +61,27 @@ class SingleDatasetModule(LightningDataModule):
 	def setup(self,split = True,normalize = False, fold_i = None,SL_path_file = None):
 		valRate = 0.1
 		testRate = 0.2
-		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
+		if self.datasetName.split('.')[-1] =='npz':
+			is_cat = False
+			file = os.path.join(self.data_dir,self.datasetName)
+		else:
+			is_cat = True
+			file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
+		
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
-			y = tmp['y']
-			self.folds = tmp['folds']
-
-		y = categorical_to_int(y).astype('int')
-		Y = np.argmax(y, axis=1).astype('long')
+			Y = tmp['y']
+			#self.folds = tmp['folds']
+		if is_cat:
+			y = categorical_to_int(Y).astype('int')
+			Y = np.argmax(y, axis=1).astype('long')
 		
 		if fold_i is not None:
-			self.X_val = X[self.folds[fold_i][1]]
-			self.X_train = X[self.folds[fold_i][0]]
-			self.Y_train = Y[self.folds[fold_i][0]]
-			self.Y_val = Y[self.folds[fold_i][1]]
+			raise ValueError("fold_i must be None")
+			# self.X_val = X[self.folds[fold_i][1]]
+			# self.X_train = X[self.folds[fold_i][0]]
+			# self.Y_train = Y[self.folds[fold_i][0]]
+			# self.Y_val = Y[self.folds[fold_i][1]]
 		elif SL_path_file is not None:
 			with np.load(SL_path_file, allow_pickle=True) as tmp:
 				Xsl = tmp['dataSL'].astype('float32')

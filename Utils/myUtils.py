@@ -21,10 +21,10 @@ def get_TLparams(path_file = None):
 	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 50
+	TLparams['epoch'] = 75
 	TLparams['feat_eng'] = 'sym'
 	TLparams['alpha'] = 0.5
-	TLparams['beta'] = 0.5
+	TLparams['beta'] = 0.0
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = 0.1
 	return TLparams
@@ -58,11 +58,11 @@ def get_Clfparams(path_file = None):
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
 	
-	clfParams['epoch'] = 50
+	clfParams['epoch'] = 15
 	clfParams["dropout_rate"] = 0.2
 	clfParams['bs'] = 128
-	clfParams['lr'] = 0.0001
-	clfParams['weight_decay'] = 0.1
+	clfParams['lr'] = 0.00007
+	clfParams['weight_decay'] = 0.2
 	if path_file:
 		with open(path_file) as f:
 			aux = json.load(f)

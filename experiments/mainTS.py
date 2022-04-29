@@ -22,13 +22,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--expName', type=str, default='Teach_stud')
-parser.add_argument('--trainClf', type=bool, default=False)
 parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Dsads")
-parser.add_argument('--target', type=str, default="Pamap2")
+parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
@@ -73,27 +72,27 @@ if __name__ == '__main__':
 	target_metric_i = []
 	num_samples = []
 	models_name  = ['teacher','student']
-	
+
 	file_clf = f'Model_{args.source}_{args.target}_Student'
 	file_sl =  f'Model_{args.source}_{args.target}_Teacher'
-	
+
 	for i in range(SLparams['iter']):
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.source,
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=clfParams['bs'])
-		dm_source.setup(split=False, normalize=True, SL_path_file=ts_path_file)
-		
+		dm_source.setup(normalize = True, SL_path_file=ts_path_file)
+
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'],
 		                                type='target')
-		
-		dm_target.setup(split=False, normalize=True)
-		
+
+		dm_target.setup(normalize=True)
+
 		model = SLmodel(trainParams=SLparams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
@@ -102,11 +101,11 @@ if __name__ == '__main__':
 		                model_hyp=clfParams)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
-		
+
 		#TODO: It is reallly necessary to save the params? Why I did that?
 		if i > 1:
 			model.load_params(save_path, file_sl)
-			
+
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
@@ -115,12 +114,12 @@ if __name__ == '__main__':
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
 		                  multiple_trainloader_mode='max_size_cycle')
-		
+
 		trainer.fit(model)
-		
+
 		ns = model.save_pseudoLab(path=args.inPath)
 		model.save_params(save_path, file_sl)
-		
+
 		out = model.get_final_metrics()
 		source_metric_i.append(out['acc_source_all'])
 		target_metric_i.append(out['acc_target_all'])
@@ -128,12 +127,13 @@ if __name__ == '__main__':
 		del model, dm_source, trainer
 
 		dm_SL  = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=  f'{args.target}_pseudo_labels.npz',
+		                                datasetName=  f'{args.target}_pseudo_labels',
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'],
 		                                type='target')
-		dm_SL.setup(split=False, normalize=True)
+		
+		dm_SL.setup(normalize=True)
 		
 		if i > 1:
 			trainer, clf, res = runClassifier(dm_SL, clfParams,load_params_path =save_path,file = file_clf)
@@ -154,15 +154,7 @@ if __name__ == '__main__':
 		log_metr['target acc iter'] = target_metric_i
 		log_metr[f'samples selected'] = num_samples
 		my_logger.log_metrics(log_metr)
-	
-	
-	
 
-	
-	
-	
-	
-	
 	
 	# evaluating the model:
 	dm_source = SingleDatasetModule(data_dir=args.inPath,

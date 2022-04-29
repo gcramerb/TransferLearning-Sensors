@@ -16,7 +16,7 @@ def simplest_SLselec(probs,trh):
 	softLab = np.argmax(probs[idx], axis=1)
 	return idx,softLab
 
-def saveSL(path,data, probs,trh = 0.5):
+def saveSL(path,data, probs,trh = 0.35):
 	idx = np.where(probs.max(axis=0) > trh)[0]
 	softLab = np.argmax(probs[idx], axis=1)
 	softLab = int2categorical(so)

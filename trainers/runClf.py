@@ -15,6 +15,10 @@ def runClassifier(dm,clfParams,my_logger = None,load_params_path = None,file =No
 	class_weight = None
 	if dm.datasetName =='Pamap2':
 		class_weight = torch.tensor([1.0, 1.5,1.8, 3.0])
+		clfParams['epoch'] = 30
+	if dm.datasetName =='Dsads':
+		clfParams['epoch'] = 30
+		
 	if dm.datasetName =='Uschad':
 		class_weight = torch.tensor([0.5,3,3,0.5])
 
@@ -30,15 +34,16 @@ def runClassifier(dm,clfParams,my_logger = None,load_params_path = None,file =No
 		adicionalInfo = {}
 		adicionalInfo['class_weight'] = class_weight
 		my_logger.log_hyperparams(adicionalInfo)
-		#my_logger.watch(model)
+		my_logger.watch(model)
 
-	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=5,verbose = True)
+	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=10,verbose = True)
+
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=clfParams['epoch'],
-	                  progress_bar_refresh_rate=1,
-	                  callbacks=[])
+	                  progress_bar_refresh_rate=0,
+	                  callbacks=[early_stopping])
 
 	if load_params_path:
 		model.load_params()

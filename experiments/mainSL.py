@@ -68,7 +68,7 @@ if __name__ == '__main__':
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=clfParams['bs'])
-		dm_source.setup(split=False, normalize=True,SL_path_file =sl_path_file)
+		dm_source.setup(normalize=True,SL_path_file =sl_path_file)
 		
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
@@ -76,7 +76,7 @@ if __name__ == '__main__':
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'],
 		                                type='target')
-		dm_target.setup(split=False, normalize=True)
+		dm_target.setup(normalize=True)
 		
 		model = SLmodel(trainParams=SLparams,
 		                trashold = SLparams['trashold'],
@@ -92,7 +92,7 @@ if __name__ == '__main__':
 		file = f'{args.source}_{args.target}_model{i%2}'
 		if i > 1:
 			model.load_params(save_path, file)
-			sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels.npz')
+			sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels_f25_t2_{args.n_classes}actv.npz')
 
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,

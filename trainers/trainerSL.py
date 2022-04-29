@@ -44,9 +44,6 @@ class SLmodel(LightningModule):
 		self.ps = []
 		self.trh =trashold
 		self.batch_size = model_hyp['bs']
-		self.n_classes = 4
-		self.datasetTarget = "Dsads"
-		
 		self.save_hyperparameters()
 		self.hparams.alpha = trainParams['alpha']
 		self.hparams.penalty = trainParams['discrepancy']
@@ -107,21 +104,17 @@ class SLmodel(LightningModule):
 				lat_ = self.FE(dataTarget)
 				probs = self.Disc(lat_).cpu().numpy()
 				idx,sl = simplest_SLselec(probs,self.trh)
-
-				#latent_sl.append(lat_.cpu().numpy())
 				lab_sl.append(sl)
 				data_sl.append(dataTarget[idx])
-			
 			data = np.concatenate(data_sl, axis=0)
 			lab = np.concatenate(lab_sl, axis=0)
-			#latent = np.concatenate(latent_sl,axis =0)
 
-		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels.npz')
+		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels_f25_t2_{self.n_classes}actv.npz')
+		
 		if data.shape[1] ==2:
 			data = np.concatenate([data[:,[0],:,:],data[:,[1],:,:]],axis = -1)
 		with open(path_file, "wb") as f:
-			#np.savez(f,dataSL = data,latentSL=latent,ySL = lab)
-			np.savez(f, X=data, y=lab)
+			np.savez(f, X=data, y=lab,folds = np.zeros(1))
 		return len(data)
 
 	def compute_loss(self, batch,optimizer_idx):

@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-
 from torch.optim.lr_scheduler import StepLR
 from torch import optim
 
-import sys, os, argparse
+import sys, os, argparse,glob
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 
@@ -94,28 +93,6 @@ class SLmodel(LightningModule):
 		path = os.path.join(save_path,file + '_discriminatorSL')
 		torch.save(self.Disc.state_dict(), path)
 
-	def save_pseudoLab(self,path):
-		with torch.no_grad():
-			lab_sl = []
-			latent_sl = []
-			data_sl = []
-			for target in self.dm_target.train_dataloader():
-				dataTarget= target['data']
-				lat_ = self.FE(dataTarget)
-				probs = self.Disc(lat_).cpu().numpy()
-				idx,sl = simplest_SLselec(probs,self.trh)
-				lab_sl.append(sl)
-				data_sl.append(dataTarget[idx])
-			data = np.concatenate(data_sl, axis=0)
-			lab = np.concatenate(lab_sl, axis=0)
-
-		path_file = os.path.join(path,f'{self.datasetTarget}_pseudo_labels_f25_t2_{self.n_classes}actv.npz')
-		
-		if data.shape[1] ==2:
-			data = np.concatenate([data[:,[0],:,:],data[:,[1],:,:]],axis = -1)
-		with open(path_file, "wb") as f:
-			np.savez(f, X=data, y=lab,folds = np.zeros(1))
-		return len(data)
 
 	def compute_loss(self, batch,optimizer_idx):
 		log = {}
@@ -126,7 +103,7 @@ class SLmodel(LightningModule):
 		predS = self.Disc(latentS)
 		
 		loss = self.clfLoss(predS, labSource)
-		if optimizer_idx ==0:
+		if optimizer_idx ==0: # updating FE
 			dataTarget = target['data']
 			latentT = self.FE(dataTarget)
 			discrepancy = self.discLoss(latentT, latentS)
@@ -202,57 +179,66 @@ class SLmodel(LightningModule):
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 		return None
 	
-	def getPredict(self):
+	def configure_optimizers(self):
+		opt_list = []
+		opt_list.append(torch.optim.Adam(self.FE.parameters(),
+		                                 lr=self.hparams.lr_fe,
+		                                 weight_decay=self.hparams.weight_decay))
+		
+		opt_list.append(torch.optim.Adam(self.Disc.parameters(), lr=self.hparams.lr_disc))
+		
+		# lr_sch = StepLR(opt_FE, step_size=20, gamma=0.5)
+		return opt_list, []
+	
+	def getPredict(self,domain = 'Target'):
 		"""
-
 		:return:
 		"""
-		with torch.no_grad():
-			source = self._predict(self.dm_source.test_dataloader(), 'Source')
-			target = self._predict(self.dm_target.test_dataloader(), 'Target')
 		
-		out = {**source, **target}
+		with torch.no_grad():
+			if domain =='Source':
+				out = self._predict(self.dm_source.test_dataloader(), 'Source')
+			elif domain =='Target':
+				out = self._predict(self.dm_target.test_dataloader(), 'Target')
+			else:
+				raise ValueError('You must specify a valid domain!')
 		return out
 	def get_final_metrics(self):
 		result = {}
-		predictions = self.getPredict()
+		pred_source = self.getPredict(domain = 'Source')
+		pred_target = self.getPredict(domain='Target')
+		predictions = {**pred_source,**pred_target}
+
 		result['acc_source_all'] = accuracy_score(predictions['trueSource'], predictions['predSource'])
 		result['acc_target_all'] = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
 		result['cm_source'] = confusion_matrix(predictions['trueSource'], predictions['predSource'])
 		result['cm_target'] = confusion_matrix(predictions['trueTarget'], predictions['predTarget'])
 		return result
 	
-	def configure_optimizers(self):
-		opt_list = []
-		opt_list.append(torch.optim.Adam(self.FE.parameters(),
-		                                    lr=self.hparams.lr_fe,
-		                                    weight_decay=self.hparams.weight_decay))
-		
-		opt_list.append(torch.optim.Adam(self.Disc.parameters(), lr=self.hparams.lr_disc))
-		
-		#lr_sch = StepLR(opt_FE, step_size=20, gamma=0.5)
-		return  opt_list,[]
-
 
 	def _predict(self, dataloader,domain):
 		latent = []
 		probs = []
 		y_hat = []
 		true = []
+		data_ori = []
 		for data in dataloader:
 			X, y = data['data'], data['label'].long()
 			lat = self.FE(X)
-			pred = self.Disc(lat)
-			pred = pred.cpu().numpy()
+			pred = self.Disc(lat).cpu().numpy()
+			y_hat.append(np.argmax(pred, axis=1))
 			latent.append(lat.cpu().numpy())
 			probs.append(pred)
-			y_hat.append(np.argmax(pred, axis=1))
 			true.append(y.cpu().numpy())
+			data_ori.append(X)
 		predictions = {}
 		predictions['latent' +domain ] = np.concatenate(latent, axis=0)
 		predictions['pred' + domain] = np.concatenate(y_hat, axis=0)
 		predictions['true' + domain] = np.concatenate(true, axis=0)
 		predictions['prob'  + domain] = np.concatenate(probs, axis=0)
+		predictions['data' + domain] = np.concatenate(data_ori, axis=0)
+		l = len(predictions['data' + domain])
+		print(f'\n\n Len data Target total: {l}\n')
 		return predictions
 	
 	def train_dataloader(self):

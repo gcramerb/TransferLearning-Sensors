@@ -33,7 +33,6 @@ class SingleDatasetModule(LightningDataModule):
 			n_classes: int = 4,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
-			type: str = 'source',
 			num_workers: int = 1,
 	):
 		super().__init__()
@@ -59,15 +58,25 @@ class SingleDatasetModule(LightningDataModule):
 		return newX[:,None,:,:],newY
 
 
-	def setup(self,split = False,normalize = True, fold_i = None,SL_path_file = None):
+	def setup(self,normalize = True, fold_i = None,SL_path_file = None):
+		"""
+		The data input is going to be always (None,1,50,6) = np(None,dumb,Freq,3*n_sensors)
+		
+		:param normalize:
+		:param fold_i:
+		:param SL_path_file:
+		:return:
+		"""
+		
 		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
 			Y = tmp['y']
 			self.folds = tmp['folds']
-
-		y = categorical_to_int(Y).astype('int')
-		Y = np.argmax(y, axis=1).astype('long')
+		
+		if Y.dtype.type is np.str_:
+			y = categorical_to_int(Y).astype('int')
+			Y = np.argmax(y, axis=1).astype('long')
 		
 		if fold_i is not None:
 			self.X_val = X[self.folds[fold_i][1]]
@@ -101,7 +110,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.dataTrain = myDataset(self.X_train, self.Y_train)
 		self.dataVal = myDataset(self.X_val, self.Y_val)
 		self.dataTest =myDataset(self.X_val, self.Y_val)
-			
+		
 	def train_dataloader(self):
 		return DataLoader(
 			self.dataTrain,

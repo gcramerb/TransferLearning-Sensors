@@ -26,8 +26,8 @@ parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Dsads")
-parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Uschad")
+parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
 args = parser.parse_args()
@@ -68,13 +68,20 @@ if __name__ == '__main__':
 	SLparams = get_SLparams(path_TL_params)
 	
 	ts_path_file = None
+	#ts_path_file = ts_path_file = os.path.join(args.inPath, f'{args.source}_to_{args.target}_pseudo_labels_f25_t2_{args.n_classes}actv.npz')
+	first_save = True
 	source_metric_i = []
 	target_metric_i = []
-	num_samples = []
+	num_samplesT = []
+	num_samplesS = []
 	models_name  = ['teacher','student']
 
 	file_clf = f'Model_{args.source}_{args.target}_Student'
 	file_sl =  f'Model_{args.source}_{args.target}_Teacher'
+	
+	if my_logger:
+		my_logger.log_hyperparams(clfParams)
+		my_logger.log_hyperparams(SLparams)
 
 	for i in range(SLparams['iter']):
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
@@ -82,14 +89,16 @@ if __name__ == '__main__':
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=clfParams['bs'])
+		
 		dm_source.setup(normalize = True, SL_path_file=ts_path_file)
 
+		# the file name must be in that way because to be readen as "main" data in dataModule
+		ts_path_file = os.path.join(args.inPath, f'{args.source}_to_{args.target}_pseudo_labels_f25_t2_{args.n_classes}actv.npz')
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
-		                                batch_size=SLparams['bs'],
-		                                type='target')
+		                                batch_size=SLparams['bs'])
 
 		dm_target.setup(normalize=True)
 
@@ -101,10 +110,13 @@ if __name__ == '__main__':
 		                model_hyp=clfParams)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
+		if my_logger:
+			my_logger.watch(model)
 
 		#TODO: It is reallly necessary to save the params? Why I did that?
-		if i > 1:
-			model.load_params(save_path, file_sl)
+		if i > 0:
+		# 	model.load_params(save_path, file_sl)
+			first_save = False
 
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
@@ -116,35 +128,45 @@ if __name__ == '__main__':
 		                  multiple_trainloader_mode='max_size_cycle')
 
 		trainer.fit(model)
+		pred = model.getPredict(domain = 'Target')
+		ns = saveSL(path_file=ts_path_file, data = pred['dataTarget'],
+		            probs = pred['probTarget'],trh = SLparams['trasholdDisc'],
+		            first_save = first_save)
+		print(f'\n\n\n Iter {i}: SL len = {ns}\n\n\n')
+		del pred
+		#ns = model.save_pseudoLab(path_file=ts_path_file,first_save = first_save)
 
-		ns = model.save_pseudoLab(path=args.inPath)
-		model.save_params(save_path, file_sl)
+		# TODO: It is reallly necessary to save the params? Why I did that?
+		#model.save_params(save_path, file_sl)
 
 		out = model.get_final_metrics()
 		source_metric_i.append(out['acc_source_all'])
 		target_metric_i.append(out['acc_target_all'])
-		num_samples.append(ns)
+		print(f'Results at Iter {i}  - \n {out} \n')
+		num_samplesT.append(ns)
 		del model, dm_source, trainer
 
 		dm_SL  = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=  f'{args.target}_pseudo_labels',
+		                                datasetName=  f'{args.source}_to_{args.target}_pseudo_labels',
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
-		                                batch_size=SLparams['bs'],
-		                                type='target')
+		                                batch_size=SLparams['bs'])
 		
 		dm_SL.setup(normalize=True)
 		
-		if i > 1:
-			trainer, clf, res = runClassifier(dm_SL, clfParams,load_params_path =save_path,file = file_clf)
+		if i > 0:
+			trainer, clf, res = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
+			
 		else:
-			trainer, clf, res = runClassifier(dm_SL, clfParams)
+			trainer, clf, res = runClassifier(dm_SL, clfParams,my_logger = my_logger)
 
 		print('Target (first train): ', res['train_acc'])
 		predictions = clf.predict(dm_target.test_dataloader())
 
-		ts_path_file = os.path.join(args.inPath,f'{args.target}_pseudo_labels.npz')
-		saveSL(path=ts_path_file, data = predictions['data'], probs = predictions['probs'])
+		ns = saveSL(path_file=ts_path_file, data = predictions['data'],
+		            probs = predictions['probs'],trh = SLparams['trasholdStu'],
+		            first_save = first_save)
+		num_samplesS.append(ns)
 		clf.save_params(save_path, file_clf)
 		del clf, trainer
 
@@ -152,7 +174,8 @@ if __name__ == '__main__':
 		log_metr = {}
 		log_metr['source acc iter'] = source_metric_i
 		log_metr['target acc iter'] = target_metric_i
-		log_metr[f'samples selected'] = num_samples
+		log_metr[f'samples selected Teacher'] = num_samplesT
+		log_metr[f'samples selected Student'] = num_samplesS
 		my_logger.log_metrics(log_metr)
 
 	
@@ -161,16 +184,14 @@ if __name__ == '__main__':
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
 	                                input_shape=clfParams['input_shape'],
-	                                type='source',
 	                                batch_size=clfParams['bs'])
-	dm_source.setup(split=False, normalize=True)
+	dm_source.setup(normalize=True)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.target,
 	                                input_shape=clfParams['input_shape'],
 	                                n_classes=args.n_classes,
-	                                batch_size=SLparams['bs'],
-	                                type='target')
-	dm_target.setup(split=False, normalize=True)
+	                                batch_size=SLparams['bs'])
+	dm_target.setup(normalize=True)
 	
 	model = SLmodel(trainParams=SLparams,
 	                n_classes=args.n_classes,

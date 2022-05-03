@@ -46,7 +46,7 @@ def runClassifier(dm,clfParams,my_logger = None,load_params_path = None,file =No
 	                  callbacks=[early_stopping])
 
 	if load_params_path:
-		model.load_params()
+		model.load_params(load_params_path,file)
 	trainer.fit(model, datamodule=dm)
 	metrics = model.get_all_metrics(dm)
 	return trainer, model, metrics

@@ -1,13 +1,14 @@
 import sys, argparse, os, glob
-sys.path.insert(0, '../')
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
+sys.path.insert(0, '../')
 from trainers.runClf import runClassifier
 from trainers.trainerSL import SLmodel
 from Utils.myUtils import get_Clfparams, get_TLparams,get_SLparams
+from models.pseudoLabSelection import saveSL
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
@@ -41,6 +42,8 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 
+
+
 if __name__ == '__main__':
 	
 	path_clf_params, path_SL_params = None, None
@@ -56,7 +59,7 @@ if __name__ == '__main__':
 	
 	clfParams = get_Clfparams(path_clf_params)
 	SLparams = get_SLparams(path_SL_params)
-	
+	first_save = True
 	sl_path_file = None
 	source_metric_i = []
 	target_metric_i = []
@@ -67,19 +70,16 @@ if __name__ == '__main__':
 		                                datasetName=args.source,
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
-		                                batch_size=clfParams['bs'])
+		                                batch_size=SLparams['bs'])
 		dm_source.setup(normalize=True,SL_path_file =sl_path_file)
-		
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
-		                                batch_size=SLparams['bs'],
-		                                type='target')
+		                                batch_size=SLparams['bs'])
 		dm_target.setup(normalize=True)
-		
 		model = SLmodel(trainParams=SLparams,
-		                trashold = SLparams['trashold'],
+		                trashold = SLparams['trasholdDisc'],
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
@@ -87,12 +87,14 @@ if __name__ == '__main__':
 		                model_hyp=clfParams)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
-
+		if my_logger:
+			my_logger.watch(model)
 
 		file = f'{args.source}_{args.target}_model{i%2}'
-		if i > 1:
+		if i > 0:
 			model.load_params(save_path, file)
-			sl_path_file = os.path.join(args.inPath, f'{args.target}_pseudo_labels_f25_t2_{args.n_classes}actv.npz')
+			sl_path_file = os.path.join(args.inPath, f'{args.target}_to_{args.n_classes}_mainSL.npz')
+			first_save = False
 
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
@@ -104,11 +106,16 @@ if __name__ == '__main__':
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		ns = model.save_pseudoLab(path = args.inPath)
+		
+		pred = model.getPredict(domain='Target')
+		ns = saveSL(path_file=sl_path_file, data = pred['data'],
+		            probs = pred['probs'],trh = SLparams['trasholdDisc'],
+		            first_save = first_save)
+		target_metric_i.append(accuracy_score(pred['trueTarget'], pred['predTarget']))
+		pred = model.getPredict(domain='Source')
+		source_metric_i.append(accuracy_score(pred['trueSource'], pred['predSource']))
+
 		model.save_params(save_path,file)
-		out = model.get_final_metrics()
-		source_metric_i.append(out['acc_source_all'])
-		target_metric_i.append(out['acc_target_all'])
 		num_samples.append(ns)
 		del model,dm_source,dm_target,trainer
 	
@@ -118,40 +125,6 @@ if __name__ == '__main__':
 		log_metr['target acc iter'] = target_metric_i
 		log_metr[f'samples selected'] = num_samples
 		my_logger.log_metrics(log_metr)
+		
+	print(log_metr)
 
-	#evaluating the model:
-	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.source,
-	                                n_classes=args.n_classes,
-	                                input_shape=clfParams['input_shape'],
-	                                type = 'source',
-	                                batch_size=clfParams['bs'])
-	dm_source.setup(split=False, normalize=True)
-	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.target,
-	                                input_shape=clfParams['input_shape'],
-	                                n_classes=args.n_classes,
-	                                batch_size=SLparams['bs'],
-	                                type='target')
-	dm_target.setup(split=False, normalize=True)
-	model = SLmodel(trainParams=SLparams,
-	                n_classes=args.n_classes,
-	                lossParams=None,
-	                save_path=None,
-	                class_weight=None,
-	                model_hyp=clfParams)
-	model.setDatasets(dm_source, dm_target)
-	model.create_model()
-	
-	#acess the lasted model created.
-
-	file = f'{args.source}_{args.target}_model{i % 2}'
-
-	model.load_params(save_path, file)
-	outcomes = model.get_final_metrics()
-	print("final Results: \n")
-	print(outcomes)
-	
-	if my_logger:
-		my_logger.log_metrics(outcomes)
-		my_logger.log_hyperparams(SLparams)

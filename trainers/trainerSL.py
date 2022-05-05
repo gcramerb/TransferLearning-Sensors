@@ -124,8 +124,6 @@ class SLmodel(LightningModule):
 		
 		latT = self.FE(dataTarget)
 		pred_T = self.Disc(latT)
-		
-
 		metrics = {}
 		yhat_S = np.argmax(pred_S.detach().cpu().numpy(), axis=1)
 		yhat_T = np.argmax(pred_T.detach().cpu().numpy(), axis=1)
@@ -237,8 +235,6 @@ class SLmodel(LightningModule):
 		predictions['true' + domain] = np.concatenate(true, axis=0)
 		predictions['prob'  + domain] = np.concatenate(probs, axis=0)
 		predictions['data' + domain] = np.concatenate(data_ori, axis=0)
-		l = len(predictions['data' + domain])
-		print(f'\n\n Len data Target total: {l}\n')
 		return predictions
 	
 	def train_dataloader(self):

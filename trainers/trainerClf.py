@@ -154,14 +154,12 @@ class ClfModel(LightningModule):
 		return predictions
 	
 	def get_all_metrics(self,dm):
+		stage = 'test'
 		metric = {}
-		dataLoaders = [dm.train_dataloader(),dm.val_dataloader(),dm.test_dataloader()]
-		with torch.no_grad():
-			for i,stage in enumerate(['train','val','test']):
-				cm = np.zeros([self.hparams.n_classes, self.hparams.n_classes])
-				predictions = self.predict(dataLoaders[i])
-				metric[f'{stage}_acc'] =  accuracy_score(predictions['true'],predictions['pred'])
-				metric[f'{stage}_cm'] = confusion_matrix(predictions['true'],predictions['pred'])
+		dataLoaders = dm.test_dataloader()
+		predictions = self.predict(dataLoaders)
+		metric[f'{stage}_acc'] =  accuracy_score(predictions['true'],predictions['pred'])
+		metric[f'{stage}_cm'] = confusion_matrix(predictions['true'],predictions['pred'])
 		return metric
 
 	def configure_optimizers(self):

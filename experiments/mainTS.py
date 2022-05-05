@@ -1,15 +1,16 @@
 import sys, argparse, os, glob
+from sklearn.metrics import accuracy_score, confusion_matrix
 
-sys.path.insert(0, '../')
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+sys.path.insert(0, '../')
 from dataProcessing.dataModule import SingleDatasetModule, CrossDatasetModule
 from trainers.runClf import runClassifier
 from models.pseudoLabSelection import saveSL
 from trainers.trainerSL import SLmodel
-from Utils.myUtils import get_Clfparams, get_TLparams, get_SLparams
+from Utils.myUtils import get_Clfparams, get_SLparams
 
 """
 The main idea of this experiment is to train iterativilly two models, the theacher and the student.
@@ -21,7 +22,7 @@ The student are a simple classifer that lerns only by the soft label data from t
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='Teach_stud')
+parser.add_argument('--expName', type=str, default='Teach_stud_v2')
 parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
@@ -53,11 +54,11 @@ else:
 
 if __name__ == '__main__':
 	
-	path_clf_params, path_TL_params = None, None
+	path_clf_params, path_SL_params = None, None
 	if args.ClfParamsFile:
 		path_clf_params = os.path.join(params_path, args.ClfParamsFile)
 	if args.SLParamsFile:
-		path_TL_params = os.path.join(params_path, args.SLParamsFile)
+		path_SL_params = os.path.join(params_path, args.SLParamsFile)
 	
 	if args.source == 'Uschad':
 		class_weight = torch.tensor([0.5, 5, 5, 0.5])
@@ -65,19 +66,19 @@ if __name__ == '__main__':
 		class_weight = None
 	
 	clfParams = get_Clfparams(path_clf_params)
-	SLparams = get_SLparams(path_TL_params)
+	SLparams = get_SLparams(path_SL_params)
 	
 	ts_path_file = None
 	#ts_path_file = ts_path_file = os.path.join(args.inPath, f'{args.source}_to_{args.target}_pseudo_labels_f25_t2_{args.n_classes}actv.npz')
 	first_save = True
 	source_metric_i = []
 	target_metric_i = []
-	num_samplesT = []
-	num_samplesS = []
-	models_name  = ['teacher','student']
+	num_samplesTea = []
+	num_samplesStu = []
+	models_name  = ['Teacher','Student']
 
-	file_clf = f'Model_{args.source}_{args.target}_Student'
-	file_sl =  f'Model_{args.source}_{args.target}_Teacher'
+	file_sl =  f'Model_{args.source}_{args.target}_{models_name[0]}'
+	file_clf = f'Model_{args.source}_{args.target}_{models_name[1]}'
 	
 	if my_logger:
 		my_logger.log_hyperparams(clfParams)
@@ -88,7 +89,7 @@ if __name__ == '__main__':
 		                                datasetName=args.source,
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
-		                                batch_size=clfParams['bs'])
+		                                batch_size=SLparams['bs'])
 		
 		dm_source.setup(normalize = True, SL_path_file=ts_path_file)
 
@@ -110,12 +111,13 @@ if __name__ == '__main__':
 		                model_hyp=clfParams)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
-		if my_logger:
-			my_logger.watch(model)
+		# if my_logger:
+		# 	my_logger.watch(model)
 
-		#TODO: It is reallly necessary to save the params? Why I did that?
+
 		if i > 0:
-		# 	model.load_params(save_path, file_sl)
+			# pode ser usado para treinar mais rapido.
+			model.load_params(save_path, file_sl)
 			first_save = False
 
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
@@ -132,84 +134,58 @@ if __name__ == '__main__':
 		ns = saveSL(path_file=ts_path_file, data = pred['dataTarget'],
 		            probs = pred['probTarget'],trh = SLparams['trasholdDisc'],
 		            first_save = first_save)
-		print(f'\n\n\n Iter {i}: SL len = {ns}\n\n\n')
+		
+		print(f'\n\n Iter {i}: added {ns} samples for SL dataset (teacher) \n\n')
+		predS = model.getPredict(domain = 'Source')
+		accS = accuracy_score(predS['trueSource'], predS['predSource'])
+		accT = accuracy_score(pred['trueTarget'], pred['predTarget'])
+		source_metric_i.append((accS,accT))
 		del pred
-		#ns = model.save_pseudoLab(path_file=ts_path_file,first_save = first_save)
-
-		# TODO: It is reallly necessary to save the params? Why I did that?
-		#model.save_params(save_path, file_sl)
-
-		out = model.get_final_metrics()
-		source_metric_i.append(out['acc_source_all'])
-		target_metric_i.append(out['acc_target_all'])
-		print(f'Results at Iter {i}  - \n {out} \n')
-		num_samplesT.append(ns)
+		model.save_params(save_path, file_sl)
+		print(f'Results (teacher) at Iter {i}: \n source: {accS}  target: {accT} \n')
+		num_samplesTea.append(ns)
 		del model, dm_source, trainer
+		# ----------------------- finished the Teacher part -------------------------------------------#
 
 		dm_SL  = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=  f'{args.source}_to_{args.target}_pseudo_labels',
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
-		                                batch_size=SLparams['bs'])
+		                                batch_size=clfParams['bs'])
 		
 		dm_SL.setup(normalize=True)
-		
 		if i > 0:
-			trainer, clf, res = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
-			
+			trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
 		else:
-			trainer, clf, res = runClassifier(dm_SL, clfParams,my_logger = my_logger)
-
-		print('Target (first train): ', res['train_acc'])
+			trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger)
+			
+		# res = metrics = clf.get_all_metrics(dm_SL.test_dataloader())
+		# print('Target train (student) in SL data: ', res['test_acc'],'\n')
+		
 		predictions = clf.predict(dm_target.test_dataloader())
+		acc = accuracy_score(predictions['true'], predictions['pred'])
+		cm = confusion_matrix(predictions['true'],predictions['pred'])
+		print(f'Student acc in Target data: {acc}')
+		target_metric_i.append(acc)
+		stud_metrics = {}
+		stud_metrics['Final acc Student'] = acc
+		stud_metrics['Final cm Student'] = cm
 
+		#TODO: so salvar os pseudo Labels se o treinamento do clf tiver sido bom...
 		ns = saveSL(path_file=ts_path_file, data = predictions['data'],
 		            probs = predictions['probs'],trh = SLparams['trasholdStu'],
 		            first_save = first_save)
-		num_samplesS.append(ns)
+		print(f'\n\n Iter {i}: Student added {ns} samples in SL dataset \n\n')
+		num_samplesStu.append(ns)
 		clf.save_params(save_path, file_clf)
-		del clf, trainer
-
+		del clf, trainer,dm_SL,dm_target
+		
 	if my_logger:
 		log_metr = {}
-		log_metr['source acc iter'] = source_metric_i
-		log_metr['target acc iter'] = target_metric_i
-		log_metr[f'samples selected Teacher'] = num_samplesT
-		log_metr[f'samples selected Student'] = num_samplesS
+		log_metr['source acc iter (teacher)'] = source_metric_i
+		log_metr['target acc iter (student)'] = target_metric_i
+		log_metr[f'samples selected by Teacher'] = num_samplesTea
+		log_metr[f'samples selected by Student'] = num_samplesStu
 		my_logger.log_metrics(log_metr)
-
-	
-	# evaluating the model:
-	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.source,
-	                                n_classes=args.n_classes,
-	                                input_shape=clfParams['input_shape'],
-	                                batch_size=clfParams['bs'])
-	dm_source.setup(normalize=True)
-	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.target,
-	                                input_shape=clfParams['input_shape'],
-	                                n_classes=args.n_classes,
-	                                batch_size=SLparams['bs'])
-	dm_target.setup(normalize=True)
-	
-	model = SLmodel(trainParams=SLparams,
-	                n_classes=args.n_classes,
-	                lossParams=None,
-	                save_path=None,
-	                class_weight=None,
-	                model_hyp=clfParams)
-	
-	model.setDatasets(dm_source, dm_target)
-	model.create_model()
-	model.load_params(save_path, file_sl)
-	outcomes = model.get_final_metrics()
-	print("final Results (teacher): \n",outcomes,'\n\n')
-	
-	trainer, clf, res = runClassifier(dm_target, clfParams, load_params_path=save_path, file=file_clf)
-	
-	print("final results (student): ",res,'\n')
-	if my_logger:
-		my_logger.log_metrics(outcomes)
-		my_logger.log_metrics(res)
-		my_logger.log_hyperparams(SLparams)
+		my_logger.log_metrics(stud_metrics)
+	print(stud_metrics)

@@ -9,9 +9,16 @@ def simplest_SLselec(probs,trh):
 	softLab = np.argmax(probs[idx], axis=1)
 	return idx,softLab
 
-def saveSL(path_file,data, probs,first_save,trh = 0.35):
+def saveSL(path_file,data, probs,first_save,trh = 0.75):
+	"""
+	:param path_file: the path to the pseudo Label file
+	:param data: the data (X) that will be saved after the filtering
+	:param probs: the classification probability of each sample prediction
+	:param first_save: (bool) if is true, the data will be replaced anyway
+	:param trh: the threshhold for filtering.
+	:return:
+	"""
 	idx,SLab = simplest_SLselec(probs,trh)
-	print(f'\n Len idx: {len(idx)} \n')
 	data= data[idx]
 	if data.shape[1] == 2:
 		data = np.concatenate([data[:, [0], :,:], data[:, [1], :,:]], axis=-1)
@@ -23,7 +30,7 @@ def saveSL(path_file,data, probs,first_save,trh = 0.35):
 		data = np.concatenate([data, Xsl], axis=0)
 	with open(path_file, "wb") as f:
 		np.savez(f,X =data,y = SLab,folds = np.zeros(1))
-	return len(data)
+	return len(idx)
 
 def simpleKernelProcess(path_file,trh = 0.75):
 	"""

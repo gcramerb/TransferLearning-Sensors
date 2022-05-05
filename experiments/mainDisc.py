@@ -83,7 +83,7 @@ if __name__ == '__main__':
 		                                datasetName=args.source,
 		                                n_classes=args.n_classes,
 		                                input_shape=clfParams['input_shape'],
-		                                batch_size=clfParams['bs'])
+		                                batch_size=TLparams['bs'])
 		dm_source.setup(split=False,normalize = True)
 		file = f'mainDisc_Model_{args.source}'
 		#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):

@@ -45,8 +45,8 @@ def get_SLparams(path_file=None):
 	SLparams['discrepancy'] = 'ot'
 	SLparams['weight_decay'] = 0.1
 	SLparams['iter'] = 5
-	SLparams['trasholdDisc'] = 0.7
-	SLparams['trasholdStu'] = 0.8
+	SLparams['trasholdDisc'] = 0.85
+	SLparams['trasholdStu'] = 0.85
 	return SLparams
 	
 def get_Clfparams(path_file = None):

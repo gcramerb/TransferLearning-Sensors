@@ -30,7 +30,7 @@ def saveSL(path_file,data, probs,first_save,trh = 0.75):
 		data = np.concatenate([data, Xsl], axis=0)
 	with open(path_file, "wb") as f:
 		np.savez(f,X =data,y = SLab,folds = np.zeros(1))
-	return len(idx)
+	return idx
 
 def simpleKernelProcess(path_file,trh = 0.75):
 	"""

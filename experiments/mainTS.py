@@ -1,4 +1,5 @@
 import sys, argparse, os, glob
+import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 import torch
@@ -75,6 +76,8 @@ if __name__ == '__main__':
 	target_metric_i = []
 	num_samplesTea = []
 	num_samplesStu = []
+	purityTea_i =[]
+	purityStu_i = []
 	models_name  = ['Teacher','Student']
 
 	file_sl =  f'Model_{args.source}_{args.target}_{models_name[0]}'
@@ -102,7 +105,6 @@ if __name__ == '__main__':
 		                                batch_size=SLparams['bs'])
 
 		dm_target.setup(normalize=True)
-
 		model = SLmodel(trainParams=SLparams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
@@ -131,11 +133,16 @@ if __name__ == '__main__':
 
 		trainer.fit(model)
 		pred = model.getPredict(domain = 'Target')
-		ns = saveSL(path_file=ts_path_file, data = pred['dataTarget'],
+		idx = saveSL(path_file=ts_path_file, data = pred['dataTarget'],
 		            probs = pred['probTarget'],trh = SLparams['trasholdDisc'],
 		            first_save = first_save)
 		
-		print(f'\n\n Iter {i}: added {ns} samples for SL dataset (teacher) \n\n')
+		softLab = np.argmax(pred['probTarget'][idx], axis=1)
+		purityTea_i.append(accuracy_score(pred['trueTarget'][idx], softLab))
+		print(f'\n\n Iter {i}: added {len(idx)} samples for SL dataset (teacher) \n\n')
+		print(f'{purityTea_i[-1]} % of those are correct\n')
+		
+		# tem que lembrar o que source esta misturado com o softLabel do target.
 		predS = model.getPredict(domain = 'Source')
 		accS = accuracy_score(predS['trueSource'], predS['predSource'])
 		accT = accuracy_score(pred['trueTarget'], pred['predTarget'])
@@ -143,7 +150,7 @@ if __name__ == '__main__':
 		del pred
 		model.save_params(save_path, file_sl)
 		print(f'Results (teacher) at Iter {i}: \n source: {accS}  target: {accT} \n')
-		num_samplesTea.append(ns)
+		num_samplesTea.append(len(idx))
 		del model, dm_source, trainer
 		# ----------------------- finished the Teacher part -------------------------------------------#
 
@@ -154,17 +161,19 @@ if __name__ == '__main__':
 		                                batch_size=clfParams['bs'])
 		
 		dm_SL.setup(normalize=True)
-		if i > 0:
-			trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
-		else:
-			trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger)
-			
+		
+		# if i > 0:
+		# 	trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
+		# else:
+		# 	trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger)
+		
+		trainer, clf = runClassifier(dm_SL, clfParams, my_logger=my_logger)
 		# res = metrics = clf.get_all_metrics(dm_SL.test_dataloader())
 		# print('Target train (student) in SL data: ', res['test_acc'],'\n')
 		
-		predictions = clf.predict(dm_target.test_dataloader())
-		acc = accuracy_score(predictions['true'], predictions['pred'])
-		cm = confusion_matrix(predictions['true'],predictions['pred'])
+		pred = clf.predict(dm_target.test_dataloader())
+		acc = accuracy_score(pred['true'], pred['pred'])
+		cm = confusion_matrix(pred['true'],pred['pred'])
 		print(f'Student acc in Target data: {acc}')
 		target_metric_i.append(acc)
 		stud_metrics = {}
@@ -172,11 +181,14 @@ if __name__ == '__main__':
 		stud_metrics['Final cm Student'] = cm
 
 		#TODO: so salvar os pseudo Labels se o treinamento do clf tiver sido bom...
-		ns = saveSL(path_file=ts_path_file, data = predictions['data'],
-		            probs = predictions['probs'],trh = SLparams['trasholdStu'],
+		idx = saveSL(path_file=ts_path_file, data = pred['data'],
+		            probs = pred['probs'],trh = SLparams['trasholdStu'],
 		            first_save = first_save)
-		print(f'\n\n Iter {i}: Student added {ns} samples in SL dataset \n\n')
-		num_samplesStu.append(ns)
+		softLab = np.argmax(pred['probs'][idx], axis=1)
+		purityStu_i.append(accuracy_score(pred['true'][idx], softLab))
+		print(f'\n\n Iter {i}: Student added {len(idx)} samples in SL dataset \n')
+		print(f'{purityStu_i[-1]} % of those are correct\n')
+		num_samplesStu.append(len(idx))
 		clf.save_params(save_path, file_clf)
 		del clf, trainer,dm_SL,dm_target
 		
@@ -186,6 +198,8 @@ if __name__ == '__main__':
 		log_metr['target acc iter (student)'] = target_metric_i
 		log_metr[f'samples selected by Teacher'] = num_samplesTea
 		log_metr[f'samples selected by Student'] = num_samplesStu
+		log_metr['SL purity inter (teacher)'] = purityTea_i
+		log_metr['SL purity inter (student)'] = purityStu_i
 		my_logger.log_metrics(log_metr)
 		my_logger.log_metrics(stud_metrics)
 	print(stud_metrics)

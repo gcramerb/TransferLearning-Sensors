@@ -1,13 +1,17 @@
 import sys, argparse, os, glob
+import numpy as np
+from sklearn.metrics import accuracy_score, confusion_matrix
+
 import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
+
 sys.path.insert(0, '../')
 from trainers.runClf import runClassifier
 from trainers.trainerSL import SLmodel
 from Utils.myUtils import get_Clfparams, get_TLparams,get_SLparams
+from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
 from models.pseudoLabSelection import saveSL
 
 parser = argparse.ArgumentParser()
@@ -63,6 +67,7 @@ if __name__ == '__main__':
 	sl_path_file = None
 	source_metric_i = []
 	target_metric_i = []
+	puritySL_i =[]
 	num_samples = []
 	for i in range(SLparams['iter']):
 
@@ -93,9 +98,6 @@ if __name__ == '__main__':
 		file = f'{args.source}_{args.target}_model{i%2}'
 		if i > 0:
 			model.load_params(save_path, file)
-			sl_path_file = os.path.join(args.inPath, f'{args.target}_to_{args.n_classes}_mainSL.npz')
-			first_save = False
-
 		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
@@ -106,18 +108,24 @@ if __name__ == '__main__':
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		
+		sl_path_file = os.path.join(args.inPath, f'{args.target}_to_{args.n_classes}_mainSL.npz')
 		pred = model.getPredict(domain='Target')
-		ns = saveSL(path_file=sl_path_file, data = pred['data'],
-		            probs = pred['probs'],trh = SLparams['trasholdDisc'],
+		idx = saveSL(path_file=sl_path_file, data = pred['dataTarget'],
+		            probs = pred['probTarget'],trh = SLparams['trasholdDisc'],
 		            first_save = first_save)
 		target_metric_i.append(accuracy_score(pred['trueTarget'], pred['predTarget']))
+		softLab = np.argmax(pred['probTarget'][idx], axis=1)
+		puritySL_i.append(accuracy_score(pred['trueTarget'][idx], softLab))
+		print(f'\n\n Iter {i}: added {len(idx)} samples for SL dataset \n\n')
+		print(f'{puritySL_i[-1]} % of those are correct\n')
+		
 		pred = model.getPredict(domain='Source')
 		source_metric_i.append(accuracy_score(pred['trueSource'], pred['predSource']))
 
 		model.save_params(save_path,file)
-		num_samples.append(ns)
+		num_samples.append(len(idx))
 		del model,dm_source,dm_target,trainer
+		first_save = False
 	
 	if my_logger:
 		log_metr = {}

@@ -6,9 +6,44 @@ from sklearn.neighbors import KernelDensity
 
 def simplest_SLselec(probs,trh):
 	idx = np.where(probs.max(axis=1) > trh)[0]
-	softLab = np.argmax(probs[idx], axis=1)
+	softLab = np.argmax(probs, axis=1)
 	return idx,softLab
 
+def saveSLdim(path_file,data, probs,first_save,trh = 0.75):
+	"""
+	:param path_file: the path to the pseudo Label file
+	:param data: the data (X) that will be saved after the filtering
+	:param probs: the classification probability of each sample prediction
+	:param first_save: (bool) if is true, the data will be replaced anyway
+	:param trh: the threshhold for filtering.
+	:return:
+	"""
+	idx,SLab = simplest_SLselec(probs,trh)
+	if data.shape[1] == 2:
+		data = np.concatenate([data[:, [0], :,:], data[:, [1], :,:]], axis=-1)
+	if os.path.isfile(path_file) and not first_save:
+		with np.load(path_file, allow_pickle=True) as tmp:
+			Xsl = tmp['X'].astype('float32')
+			ysl = tmp['y']
+			old_idx = tmp['idx']
+		new_idx = np.array(list(set(idx) - set(old_idx)))
+		if new_idx.size > 0:
+			data = data[new_idx]
+			SLab = SLab[new_idx]
+			SLab = np.concatenate([SLab, ysl], axis=0)
+			data = np.concatenate([data, Xsl], axis=0)
+			idx = np.concatenate([new_idx,old_idx],axis = 0)
+		else:
+			SLab = ysl
+			idx = old_idx
+			data = Xsl
+	else:
+		new_idx = idx
+		data = data[idx]
+		SLab = SLab[idx]
+	with open(path_file, "wb") as f:
+		np.savez(f,X =data,y = SLab,folds = np.zeros(1),idx = idx)
+	return new_idx
 def saveSL(path_file,data, probs,first_save,trh = 0.75):
 	"""
 	:param path_file: the path to the pseudo Label file
@@ -31,6 +66,7 @@ def saveSL(path_file,data, probs,first_save,trh = 0.75):
 	with open(path_file, "wb") as f:
 		np.savez(f,X =data,y = SLab,folds = np.zeros(1))
 	return idx
+
 
 def simpleKernelProcess(path_file,trh = 0.75):
 	"""

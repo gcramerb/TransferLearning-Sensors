@@ -21,7 +21,7 @@ def get_TLparams(path_file = None):
 	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
-	TLparams['epoch'] = 75
+	TLparams['epoch'] = 60
 	TLparams['feat_eng'] = 'sym'
 	TLparams['alpha'] = 0.5
 	TLparams['beta'] = 0.0
@@ -44,8 +44,8 @@ def get_SLparams(path_file=None):
 	SLparams['alpha'] = 0.5
 	SLparams['discrepancy'] = 'ot'
 	SLparams['weight_decay'] = 0.1
-	SLparams['iter'] = 5
-	SLparams['trasholdDisc'] = 0.85
+	SLparams['iter'] = 8
+	SLparams['trasholdDisc'] = 0.9
 	SLparams['trasholdStu'] = 0.85
 	return SLparams
 	

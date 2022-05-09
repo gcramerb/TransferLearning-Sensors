@@ -9,7 +9,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 sys.path.insert(0, '../')
 from dataProcessing.dataModule import SingleDatasetModule, CrossDatasetModule
 from trainers.runClf import runClassifier
-from models.pseudoLabSelection import saveSL
+from models.pseudoLabSelection import saveSL,saveSLdim
 from trainers.trainerSL import SLmodel
 from Utils.myUtils import get_Clfparams, get_SLparams
 
@@ -23,7 +23,7 @@ The student are a simple classifer that lerns only by the soft label data from t
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='Teach_stud_v2')
+parser.add_argument('--expName', type=str, default='Teach_stud_v3')
 parser.add_argument('--SLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
@@ -86,7 +86,7 @@ if __name__ == '__main__':
 	if my_logger:
 		my_logger.log_hyperparams(clfParams)
 		my_logger.log_hyperparams(SLparams)
-
+		
 	for i in range(SLparams['iter']):
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.source,
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 		                                batch_size=SLparams['bs'])
 		
 		dm_source.setup(normalize = True, SL_path_file=ts_path_file)
-
+	
 		# the file name must be in that way because to be readen as "main" data in dataModule
 		ts_path_file = os.path.join(args.inPath, f'{args.source}_to_{args.target}_pseudo_labels_f25_t2_{args.n_classes}actv.npz')
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -103,7 +103,7 @@ if __name__ == '__main__':
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'])
-
+	
 		dm_target.setup(normalize=True)
 		model = SLmodel(trainParams=SLparams,
 		                n_classes=args.n_classes,
@@ -115,14 +115,14 @@ if __name__ == '__main__':
 		model.create_model()
 		# if my_logger:
 		# 	my_logger.watch(model)
-
-
-		if i > 0:
-			# pode ser usado para treinar mais rapido.
-			model.load_params(save_path, file_sl)
-			first_save = False
-
-		# early_stopping = EarlyStopping('val_acc_target', mode='max', patience=10, verbose=True)
+	
+	
+		# if i > 0:
+		# 	# pode ser usado para treinar mais rapido (diminui as epocas com early stopping).
+		# 	model.load_params(save_path, file_sl)
+		# 	first_save = False
+	
+		early_stopping = EarlyStopping('val_loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
 		                  max_epochs=SLparams['epoch'],
@@ -130,64 +130,77 @@ if __name__ == '__main__':
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
 		                  multiple_trainloader_mode='max_size_cycle')
-
+	
 		trainer.fit(model)
 		pred = model.getPredict(domain = 'Target')
-		idx = saveSL(path_file=ts_path_file, data = pred['dataTarget'],
+		idx = saveSLdim(path_file=ts_path_file, data = pred['dataTarget'],
 		            probs = pred['probTarget'],trh = SLparams['trasholdDisc'],
 		            first_save = first_save)
 		
 		softLab = np.argmax(pred['probTarget'][idx], axis=1)
 		purityTea_i.append(accuracy_score(pred['trueTarget'][idx], softLab))
-		print(f'\n\n Iter {i}: added {len(idx)} samples for SL dataset (teacher) \n\n')
-		print(f'{purityTea_i[-1]} % of those are correct\n')
-		
 		# tem que lembrar o que source esta misturado com o softLabel do target.
 		predS = model.getPredict(domain = 'Source')
 		accS = accuracy_score(predS['trueSource'], predS['predSource'])
 		accT = accuracy_score(pred['trueTarget'], pred['predTarget'])
 		source_metric_i.append((accS,accT))
-		del pred
 		model.save_params(save_path, file_sl)
-		print(f'Results (teacher) at Iter {i}: \n source: {accS}  target: {accT} \n')
 		num_samplesTea.append(len(idx))
-		del model, dm_source, trainer
+		print(f'\n\n Iter {i}: Teacher added {len(idx)} samples for SL dataset \n\n')
+		print(f'{purityTea_i[-1]} % of those are correct\n')
+		print(f'Teacher results at Iter {i}: \n source: {accS}  target: {accT} \n')
+		del model, dm_source, trainer,pred,dm_target
 		# ----------------------- finished the Teacher part -------------------------------------------#
-
+	
+	#for i in range(SLparams['iter']):
+		dm_target = SingleDatasetModule(data_dir=args.inPath,
+		                                datasetName=args.target,
+		                                input_shape=clfParams['input_shape'],
+		                                n_classes=args.n_classes,
+		                                batch_size=SLparams['bs'])
+		
+		dm_target.setup(normalize=True)
 		dm_SL  = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=  f'{args.source}_to_{args.target}_pseudo_labels',
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
 		                                batch_size=clfParams['bs'])
-		
 		dm_SL.setup(normalize=True)
 		
-		# if i > 0:
-		# 	trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
-		# else:
-		# 	trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger)
+		if i > 0:
+			trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger,load_params_path =save_path,file = file_clf)
+		else:
+			trainer, clf = runClassifier(dm_SL, clfParams,my_logger = my_logger)
 		
-		trainer, clf = runClassifier(dm_SL, clfParams, my_logger=my_logger)
+		#trainer, clf = runClassifier(dm_SL, clfParams, my_logger=my_logger)
 		# res = metrics = clf.get_all_metrics(dm_SL.test_dataloader())
 		# print('Target train (student) in SL data: ', res['test_acc'],'\n')
 		
 		pred = clf.predict(dm_target.test_dataloader())
 		acc = accuracy_score(pred['true'], pred['pred'])
 		cm = confusion_matrix(pred['true'],pred['pred'])
-		print(f'Student acc in Target data: {acc}')
+
 		target_metric_i.append(acc)
 		stud_metrics = {}
 		stud_metrics['Final acc Student'] = acc
 		stud_metrics['Final cm Student'] = cm
+		
 
 		#TODO: so salvar os pseudo Labels se o treinamento do clf tiver sido bom...
-		idx = saveSL(path_file=ts_path_file, data = pred['data'],
+		idx = saveSLdim(path_file=ts_path_file, data = pred['data'],
 		            probs = pred['probs'],trh = SLparams['trasholdStu'],
 		            first_save = first_save)
-		softLab = np.argmax(pred['probs'][idx], axis=1)
-		purityStu_i.append(accuracy_score(pred['true'][idx], softLab))
-		print(f'\n\n Iter {i}: Student added {len(idx)} samples in SL dataset \n')
-		print(f'{purityStu_i[-1]} % of those are correct\n')
+		print(f'Student acc in Target data: {acc}')
+		pred = clf.predict(dm_SL.test_dataloader())
+		acc = accuracy_score(pred['true'], pred['pred'])
+		stud_metrics['Student acc in SL'] = acc
+		
+		if len(idx) > clfParams['bs']:
+			softLab = np.argmax(pred['probs'][idx], axis=1)
+			purityStu_i.append(accuracy_score(pred['true'][idx], softLab))
+			print(f'\n\n Iter {i}: Student added {len(idx)} samples in SL dataset \n')
+			print(f'{purityStu_i[-1]} % of those are correct\n')
+			first_save = False
 		num_samplesStu.append(len(idx))
 		clf.save_params(save_path, file_clf)
 		del clf, trainer,dm_SL,dm_target

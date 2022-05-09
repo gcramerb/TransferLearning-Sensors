@@ -63,6 +63,11 @@ if __name__ == '__main__':
 	
 	clfParams = get_Clfparams(path_clf_params)
 	SLparams = get_SLparams(path_SL_params)
+	if my_logger:
+		my_logger.log_hyperparams(clfParams)
+		my_logger.log_hyperparams(SLparams)
+	
+	
 	first_save = True
 	sl_path_file = None
 	source_metric_i = []
@@ -131,6 +136,7 @@ if __name__ == '__main__':
 		log_metr = {}
 		log_metr['source acc iter'] = source_metric_i
 		log_metr['target acc iter'] = target_metric_i
+		log_metr['target purity'] = puritySL_i
 		log_metr[f'samples selected'] = num_samples
 		my_logger.log_metrics(log_metr)
 		

@@ -25,7 +25,7 @@ def saveSLdim(path_file,data, probs,first_save,trh = 0.75):
 		with np.load(path_file, allow_pickle=True) as tmp:
 			Xsl = tmp['X'].astype('float32')
 			ysl = tmp['y']
-			old_idx = tmp['idx']
+			old_idx = tmp['new_idx']
 		new_idx = np.array(list(set(idx) - set(old_idx)))
 		if new_idx.size > 0:
 			data = data[new_idx]

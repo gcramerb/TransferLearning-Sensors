@@ -13,18 +13,14 @@ def get_TLparams(path_file = None):
 	if path_file:
 		with open(path_file) as f:
 			TLparams = json.load(f)
-		TLparams['gan'] = TLparams['gan'] =='True'
 		return TLparams
 	TLparams = {}
 	TLparams['lr'] =  0.001
-	TLparams['gan'] = False
-	TLparams['lr_gan'] = 0.0005
 	TLparams['bs'] = 128
 	TLparams['step_size'] = None
 	TLparams['epoch'] = 60
 	TLparams['feat_eng'] = 'sym'
 	TLparams['alpha'] = 0.5
-	TLparams['beta'] = 0.0
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = 0.1
 	return TLparams
@@ -41,12 +37,12 @@ def get_SLparams(path_file=None):
 	SLparams['step_size'] = None
 	SLparams['epoch'] = 60
 	SLparams['feat_eng'] = 'sym'
-	SLparams['alpha'] = 0.5
+	SLparams['alpha'] = 0.6
 	SLparams['discrepancy'] = 'ot'
 	SLparams['weight_decay'] = 0.1
 	SLparams['iter'] = 8
-	SLparams['trasholdDisc'] = 0.9
-	SLparams['trasholdStu'] = 0.85
+	SLparams['trasholdDisc'] = 0.95
+	SLparams['trasholdStu'] = 0.6
 	return SLparams
 	
 def get_Clfparams(path_file = None):
@@ -58,10 +54,10 @@ def get_Clfparams(path_file = None):
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
-	clfParams['clf_epoch'] = 15
+	clfParams['clf_epoch'] = 5
 	clfParams["dropout_rate"] = 0.2
-	clfParams['bs'] = 64
-	clfParams['clf_lr'] = 0.00007
+	clfParams['bs'] = 128
+	clfParams['clf_lr'] = 0.00003
 	clfParams['weight_decay'] = 0.2
 	if path_file:
 		with open(path_file) as f:

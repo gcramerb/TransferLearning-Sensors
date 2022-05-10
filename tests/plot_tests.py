@@ -34,8 +34,8 @@ with np.load(file, allow_pickle=True) as tmp:
 	
 act= f'{datasetName}-descending stairs'
 #acts = ['-walking','Pamap2-ascending stairs','Pamap2-descending stairs','Pamap2-lying']
-# idx = [i for i,v in enumerate(y) if v in acts]
-# X_fil = X[idx].copy()
+# new_idx = [i for i,v in enumerate(y) if v in acts]
+# X_fil = X[new_idx].copy()
 
 idx = np.where(y==act)[0]
 sample = 50

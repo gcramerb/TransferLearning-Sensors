@@ -1,4 +1,5 @@
 import sys, argparse,os,glob
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 sys.path.insert(0, '../')
 
@@ -9,7 +10,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
 
 from trainers.runClf import runClassifier
-from trainers.trainerDisc import TLmodel
+from trainers.trainerTL import TLmodel
 
 from Utils.myUtils import get_Clfparams, get_TLparams
 
@@ -62,8 +63,6 @@ if __name__ == '__main__':
 	clfParams = get_Clfparams(path_clf_params)
 	TLparams = get_TLparams(path_TL_params)
 
-	
-	
 	if args.source == 'Uschad':
 		class_weight = torch.tensor([0.5, 3, 3, 0.5])
 	else:
@@ -115,11 +114,11 @@ if __name__ == '__main__':
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
-		pred = model.getPredict(domain='Target')
+		predT = model.getPredict(domain='Target')
 		predS = model.getPredict(domain = 'Source')
 		
 		accS = accuracy_score(predS['trueSource'], predS['predSource'])
-		accT = accuracy_score(pred['trueTarget'], pred['predTarget'])
+		accT = accuracy_score(predT['trueTarget'], predT['predTarget'])
 		print('Target: ',accT,'  Source: ', accS)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
@@ -128,4 +127,6 @@ if __name__ == '__main__':
 	if args.saveModel:
 		trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}_{args.expName}.ckpt")
 	if my_logger:
+		final_result['Target acc mean'] = MCI(final_result["Acc Target"])
+		final_result['Source acc mean'] = MCI(final_result["Acc Source"])
 		my_logger.log_metrics(final_result)

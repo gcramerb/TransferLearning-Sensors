@@ -9,7 +9,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 sys.path.insert(0, '../')
 from trainers.runClf import runClassifier
-from trainers.trainerSL import SLmodel
+from trainers.trainerTL import TLmodel
 from Utils.myUtils import get_Clfparams, get_TLparams,get_SLparams
 from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
 from models.pseudoLabSelection import saveSL
@@ -66,8 +66,7 @@ if __name__ == '__main__':
 	if my_logger:
 		my_logger.log_hyperparams(clfParams)
 		my_logger.log_hyperparams(SLparams)
-	
-	
+
 	first_save = True
 	sl_path_file = None
 	source_metric_i = []
@@ -88,7 +87,7 @@ if __name__ == '__main__':
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'])
 		dm_target.setup(normalize=True)
-		model = SLmodel(trainParams=SLparams,
+		model = TLmodel(trainParams=SLparams,
 		                trashold = SLparams['trasholdDisc'],
 		                n_classes=args.n_classes,
 		                lossParams=None,

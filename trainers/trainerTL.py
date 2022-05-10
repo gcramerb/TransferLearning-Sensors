@@ -26,23 +26,19 @@ in the future I can use only one Decoder (more dificult to converge)
 """
 #TODO: implementar que cada modelo treine mais de uma epoca..
 
-class SLmodel(LightningModule):
+class TLmodel(LightningModule):
 	
 	def __init__(
 			self,
 			trainParams: dict = None,
 			model_hyp: dict = None,
 			lossParams: dict = None,
-			trashold: float = 0.75,
 			save_path: str = None,
 			penalty:str = 'ot',
 			class_weight: torch.tensor = None,
 			**kwargs
 	):
 		super().__init__()
-		self.ps = []
-		self.trh =trashold
-		self.batch_size = model_hyp['bs']
 		self.save_hyperparameters()
 		self.hparams.alpha = trainParams['alpha']
 		self.hparams.penalty = trainParams['discrepancy']
@@ -62,6 +58,7 @@ class SLmodel(LightningModule):
 		                                 encoded_dim = self.hparams.model_hyp['enc_dim'],
 		                                 n_classes = self.hparams.n_classes)
 		self.Disc.build()
+		
 		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
 
 		if self.hparams.penalty == 'mmd':
@@ -78,9 +75,9 @@ class SLmodel(LightningModule):
 
 
 	def load_params(self, save_path, file):
-		PATH = os.path.join(save_path, file + '_feature_extractorSL')
+		PATH = os.path.join(save_path, file + '_feature_extractor')
 		self.FE.load_state_dict(torch.load(PATH))
-		PATH = os.path.join(save_path, file + '_discriminatorSL')
+		PATH = os.path.join(save_path, file + '_discriminator')
 		self.Disc.load_state_dict(torch.load(PATH))
 		for param in self.FE.parameters():
 			param.requires_grad = True
@@ -88,9 +85,9 @@ class SLmodel(LightningModule):
 			param.requires_grad = True
 
 	def save_params(self,save_path,file):
-		path = os.path.join(save_path,file + '_feature_extractorSL')
+		path = os.path.join(save_path,file + '_feature_extractor')
 		torch.save(self.FE.state_dict(), path)
-		path = os.path.join(save_path,file + '_discriminatorSL')
+		path = os.path.join(save_path,file + '_discriminator')
 		torch.save(self.Disc.state_dict(), path)
 
 
@@ -110,7 +107,7 @@ class SLmodel(LightningModule):
 			loss = loss + self.hparams.alpha * discrepancy
 
 		logs = {}
-		logs['loss'] = loss
+		logs['loss'] = loss.detach()
 
 		return loss,logs
 	
@@ -256,7 +253,6 @@ class SLmodel(LightningModule):
 		return combined_loaders
 	
 	def setDatasets(self, dm_source, dm_target):
-		self.batch_size = dm_source.batch_size
 		self.dm_source = dm_source
 		self.dm_target = dm_target
 		self.n_classes = dm_target.n_classes

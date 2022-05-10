@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
 from trainers.runClf import runClassifier
-from trainers.trainerDisc import TLmodel
+from trainers.trainerTL import TLmodel
 import optuna
 
 parser = argparse.ArgumentParser()

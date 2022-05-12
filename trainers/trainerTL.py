@@ -39,7 +39,6 @@ class TLmodel(LightningModule):
 			**kwargs
 	):
 		super().__init__()
-		self.save_hyperparameters()
 		self.hparams.alpha = trainParams['alpha']
 		self.hparams.penalty = trainParams['discrepancy']
 		self.hparams.weight_decay = trainParams['weight_decay']
@@ -47,6 +46,7 @@ class TLmodel(LightningModule):
 		self.hparams.lr_fe = trainParams['lr']
 		self.hparams.lr_disc = trainParams['lr']
 		self.hparams.input_shape = model_hyp['input_shape']
+		self.save_hyperparameters()
 		
 	def create_model(self):
 
@@ -256,4 +256,7 @@ class TLmodel(LightningModule):
 		self.dm_source = dm_source
 		self.dm_target = dm_target
 		self.n_classes = dm_target.n_classes
+		self.batch_size = dm_target.batch_size
+		if self.batch_size != dm_source.batch_size:
+			raise ValueError("Differents Batch size!")
 		self.datasetTarget = dm_target.datasetName

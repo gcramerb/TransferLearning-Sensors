@@ -36,7 +36,7 @@ def runClassifier(dm,clfParams,my_logger = None,load_params_path = None,file =No
 		my_logger.log_hyperparams(adicionalInfo)
 		my_logger.watch(model,log_graph = False)
 	
-	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.001, patience=5,verbose = True)
+	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.05, patience=4,verbose = True)
 
 	trainer = Trainer(gpus=1,
 	                  logger=my_logger,

@@ -44,7 +44,35 @@ def saveSLdim(path_file,data, probs,first_save,trh = 0.75):
 	with open(path_file, "wb") as f:
 		np.savez(f,X =data,y = SLab,folds = np.zeros(1),idx = idx)
 	return new_idx
-def saveSL(path_file,data, probs,first_save,trh = 0.75):
+
+
+def saveSL(path_file, data, probs, first_save, trh=0.75):
+	"""
+	:param path_file: the path to the pseudo Label file
+	:param data: the data (X) that will be saved after the filtering
+	:param probs: the classification probability of each sample prediction
+	:param first_save: (bool) if is true, the data will be replaced anyway
+	:param trh: the threshhold for filtering.
+	:return:
+	"""
+	idx, SLab = simplest_SLselec(probs, trh)
+	data = data[idx]
+	SLab = SLab[idx]
+	
+	if data.shape[1] == 2:
+		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
+	if os.path.isfile(path_file) and not first_save:
+		with np.load(path_file, allow_pickle=True) as tmp:
+			Xsl = tmp['X'].astype('float32')
+			ysl = tmp['y']
+		SLab = np.concatenate([SLab, ysl], axis=0)
+		data = np.concatenate([data, Xsl], axis=0)
+	with open(path_file, "wb") as f:
+		np.savez(f, X=data, y=SLab, folds=np.zeros(1))
+	return idx
+
+
+def saveSL_exp(path_file,data, probs,first_save,latent = None, trh = 0.75):
 	"""
 	:param path_file: the path to the pseudo Label file
 	:param data: the data (X) that will be saved after the filtering
@@ -54,7 +82,13 @@ def saveSL(path_file,data, probs,first_save,trh = 0.75):
 	:return:
 	"""
 	idx,SLab = simplest_SLselec(probs,trh)
+	print("old pl len: ", len(idx))
+	new_idx = expandPS(latent, probs)
+	print(" new: ",len(new_idx))
+	idx = list(set(idx).union(set(new_idx)))
+
 	data= data[idx]
+	SLab = SLab[idx]
 	if data.shape[1] == 2:
 		data = np.concatenate([data[:, [0], :,:], data[:, [1], :,:]], axis=-1)
 	if os.path.isfile(path_file) and not first_save:
@@ -66,6 +100,23 @@ def saveSL(path_file,data, probs,first_save,trh = 0.75):
 	with open(path_file, "wb") as f:
 		np.savez(f,X =data,y = SLab,folds = np.zeros(1))
 	return idx
+
+
+def expandPS(data,probs):
+	from sklearn.mixture import GaussianMixture
+	"""
+	proximo passo: testar a qualidade de cada cluster...
+	eu estou 'expandindo com seguranca' pois escolho os que prob maior que 0.5 no pseudo lebel
+	mas tambem os que estao no centro do cluster.
+	"""
+	gm = GaussianMixture(n_components=4, random_state=0).fit(data)
+	GMMprobs = gm.predict_proba(data) # (n_samples, n_components)
+	GMMpl = np.argmax(GMMprobs, axis=1)
+	
+	GMMidx = np.where(GMMprobs.max(axis=1) > 0.5)[0]
+	idx_aux = np.where(probs.max(axis=1) > 0.5)[0]
+	new_idx = list(set(idx_aux).intersection(set(GMMidx)))
+	return new_idx
 
 
 def simpleKernelProcess(path_file,trh = 0.75):
@@ -126,5 +177,9 @@ def dicrepPerClass(path_file,thr = 0.5):
 		X = tmp['dataSL'].astype('float32')
 		latent = tmp['latentSL']
 		probs = tmp['ySL']
-	
+
+
+
+
+
 

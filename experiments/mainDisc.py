@@ -16,7 +16,7 @@ from Utils.myUtils import get_Clfparams, get_TLparams
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
-parser.add_argument('--debug', action='store_true')
+parser.add_argument('--log', action='store_true')
 parser.add_argument('--expName', type=str, default='benchDisc_ntrials')
 parser.add_argument('--trainClf', action='store_true')
 parser.add_argument('--TLParamsFile', type=str, default=None)
@@ -38,16 +38,18 @@ if args.slurm:
 	verbose = 0
 	save_path = '../saved/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
-	my_logger = WandbLogger(project='Disc',
-	                        log_model='all',
-	                        name= args.source + '_to_' + args.target + args.expName)
-
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
+if args.log:
+	my_logger = WandbLogger(project='Disc',
+	                        log_model='all',
+	                        name= args.source + '_to_' + args.target + args.expName)
+
+
 
 if __name__ == '__main__':
 	path_clf_params, path_TL_params = None, None
@@ -67,10 +69,10 @@ if __name__ == '__main__':
 		class_weight = torch.tensor([0.5, 3, 3, 0.5])
 	else:
 		class_weight = None
-	if my_logger:
-		my_logger.log_hyperparams(clfParams)
-		my_logger.log_hyperparams(TLparams)
-		my_logger.log_hyperparams({'class_weight': class_weight})
+	# if my_logger:
+	# 	my_logger.log_hyperparams(clfParams)
+	# 	my_logger.log_hyperparams(TLparams)
+	# 	my_logger.log_hyperparams({'class_weight': class_weight})
 
 	for i in range(args.trials):
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
@@ -79,13 +81,6 @@ if __name__ == '__main__':
 		                                input_shape=clfParams['input_shape'],
 		                                batch_size=TLparams['bs'])
 		dm_source.setup(normalize = True)
-		file = f'mainDisc_Model_{args.source}'
-		#if os.path.join(save_path,file + '_feature_extractor') not in glob.glob(save_path + '*'):
-		# if args.trainClf:
-		# 	trainer, clf, res = runClassifier(dm_source,clfParams)
-		# 	# print('Source (first train): ',res['train_acc'])
-		# 	clf.save_params(save_path,file)
-	
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=args.target,
 		                                input_shape=clfParams['input_shape'],
@@ -122,10 +117,10 @@ if __name__ == '__main__':
 		print('Target: ',accT,'  Source: ', accS)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
+		
+		model.save_params(save_path, f'DiscSaved_{args.source}_{args.target}')
 		del model, trainer, dm_target, dm_source
 	print(final_result)
-	if args.saveModel:
-		trainer.save_checkpoint(f"../saved/FTmodel{args.source}_to_{args.target}_{args.expName}.ckpt")
 	if my_logger:
 		final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 		final_result['Source acc mean'] = MCI(final_result["Acc Source"])

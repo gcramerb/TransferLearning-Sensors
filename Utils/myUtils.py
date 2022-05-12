@@ -37,10 +37,10 @@ def get_SLparams(path_file=None):
 	SLparams['step_size'] = None
 	SLparams['epoch'] = 60
 	SLparams['feat_eng'] = 'sym'
-	SLparams['alpha'] = 0.6
+	SLparams['alpha'] = 0.5
 	SLparams['discrepancy'] = 'ot'
 	SLparams['weight_decay'] = 0.1
-	SLparams['iter'] = 8
+	SLparams['iter'] = 10
 	SLparams['trasholdDisc'] = 0.95
 	SLparams['trasholdStu'] = 0.6
 	return SLparams
@@ -54,10 +54,10 @@ def get_Clfparams(path_file = None):
 	clfParams['input_shape'] = (2, 50, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = None
-	clfParams['clf_epoch'] = 5
+	clfParams['clf_epoch'] = 12
 	clfParams["dropout_rate"] = 0.2
 	clfParams['bs'] = 128
-	clfParams['clf_lr'] = 0.00003
+	clfParams['clf_lr'] = 0.00004
 	clfParams['weight_decay'] = 0.2
 	if path_file:
 		with open(path_file) as f:

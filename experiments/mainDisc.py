@@ -11,8 +11,11 @@ from dataProcessing.dataModule import SingleDatasetModule
 
 from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
-
 from Utils.myUtils import get_Clfparams, get_TLparams
+
+seed = 2809
+print('Seeding with {}'.format(seed))
+torch.manual_seed(seed)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
@@ -98,6 +101,11 @@ if __name__ == '__main__':
 		# model.load_params(save_path,file)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
+		
+		from torchsummary import summary
+	
+		summary(model.FE, (2, 50, 3))
+		
 		#early_stopping = EarlyStopping('val_loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
@@ -114,7 +122,7 @@ if __name__ == '__main__':
 		
 		accS = accuracy_score(predS['trueSource'], predS['predSource'])
 		accT = accuracy_score(predT['trueTarget'], predT['predTarget'])
-		print('Target: ',accT,'  Source: ', accS)
+		print('Source: ',accS,'  Target: ', accT)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
 		

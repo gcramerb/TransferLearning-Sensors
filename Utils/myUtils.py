@@ -32,17 +32,12 @@ def get_SLparams(path_file=None):
 			SLparams = json.load(f)
 		return SLparams
 	SLparams = {}
-	SLparams['lr'] = 0.001
 	SLparams['bs'] = 128
 	SLparams['step_size'] = None
 	SLparams['epoch'] = 60
-	SLparams['feat_eng'] = 'sym'
-	SLparams['alpha'] = 0.5
-	SLparams['discrepancy'] = 'ot'
-	SLparams['weight_decay'] = 0.1
 	SLparams['iter'] = 10
 	SLparams['trasholdDisc'] = 0.95
-	SLparams['trasholdStu'] = 0.6
+	SLparams['trasholdStu'] = 0.75
 	return SLparams
 	
 def get_Clfparams(path_file = None):
@@ -57,7 +52,7 @@ def get_Clfparams(path_file = None):
 	clfParams['clf_epoch'] = 12
 	clfParams["dropout_rate"] = 0.2
 	clfParams['bs'] = 128
-	clfParams['clf_lr'] = 0.00004
+	clfParams['clf_lr'] = 0.0001
 	clfParams['weight_decay'] = 0.2
 	if path_file:
 		with open(path_file) as f:

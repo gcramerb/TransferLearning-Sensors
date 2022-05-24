@@ -25,7 +25,8 @@ class Encoder(nn.Module):
 			self.CNN1.append(
 				nn.Sequential(
 				nn.Conv1d(in_channels=self.input_shape[0], kernel_size=self.kernel_dim[i],
-				          out_channels=self.n_filters[i], padding='same', bias=True, groups=self.input_shape[0]),
+				          out_channels=self.n_filters[i], padding='same', bias=True,
+				          groups=self.input_shape[0]),
 				
 				nn.BatchNorm2d(self.n_filters[i]),
 				nn.MaxPool2d(self.pooling_1),

@@ -1,14 +1,19 @@
 import sys, argparse, os, glob
+import numpy as np
+from sklearn.metrics import accuracy_score, confusion_matrix
 
-
-sys.path.insert(0, '../')
-
+import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+sys.path.insert(0, '../')
 from dataProcessing.dataModule import SingleDatasetModule
-from trainers.runClf import runClassifier
+from models.pseudoLabSelection import saveSL,saveSLdim,saveSL_exp
 from trainers.trainerTL import TLmodel
+from trainers.trainerClf import ClfModel
+from Utils.myUtils import get_Clfparams, get_SLparams, MCI
+
+
 import optuna
 
 parser = argparse.ArgumentParser()
@@ -20,19 +25,22 @@ parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 args = parser.parse_args()
 
+my_logger = None
 if args.slurm:
+	verbose = 0
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
-	verbose = 0
 	save_path = '../saved/'
-
+	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
+	my_logger = WandbLogger(project='TransferLearning-Soft-Label',
+	                        log_model='all',
+	                        name=args.expName + args.source + '_to_' + args.target)
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
-
 
 def suggest_hyperparameters(trial):
 	clfParams = {}
@@ -61,7 +69,8 @@ def suggest_hyperparameters(trial):
 	TLparams['alpha'] = trial.suggest_float("alpha", 1.1, 5.1, step=0.2)
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = trial.suggest_float("TLweight_decay", 0.0, 0.9, step=0.1)
-	return clfParams,TLparams
+	
+	return clfParams,SLparams
 	
 
 

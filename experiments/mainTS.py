@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 sys.path.insert(0, '../')
 from dataProcessing.dataModule import SingleDatasetModule
-from models.pseudoLabSelection import saveSL,saveSLdim,saveSL_exp
+from models.pseudoLabSelection import saveSL,saveSLdim,saveSL_gmm
 from trainers.trainerTL import TLmodel
 from trainers.trainerClf import ClfModel
 from Utils.myUtils import get_Clfparams, get_SLparams, MCI
@@ -53,7 +53,7 @@ else:
 
 
 
-def runTS(clfParams,SLparams,expName):
+def runTS(clfParams,SLparams,expName,source,target):
 	metrics = {}
 	metrics['Student acc in Target'] = []
 	metrics['Student acc in SL'] = []
@@ -62,12 +62,12 @@ def runTS(clfParams,SLparams,expName):
 	
 	class_weight = None
 	
-	SLdatasetName = f'{args.source}_to_{args.target}_PS_{expName}'
+	SLdatasetName = f'{source}_to_{target}_PS_{expName}'
 	ts_path_file = os.path.join(args.inPath, f'{SLdatasetName}_f25_t2_{args.n_classes}actv.npz')
 	first_save = True
 
-	file = f'DiscSaved_{args.source}_{args.target}'
-	file_clf = f'Student_{args.source}_{args.target}'
+	file = f'DiscSaved_{source}_{target}'
+	file_clf = f'Student_{source}_{target}'
 	
 	if my_logger:
 		my_logger.log_hyperparams(SLparams)
@@ -75,7 +75,7 @@ def runTS(clfParams,SLparams,expName):
 
 	for i in range(SLparams['iter']):
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=args.target,
+		                                datasetName=target,
 		                                input_shape=clfParams['input_shape'],
 		                                n_classes=args.n_classes,
 		                                batch_size=SLparams['bs'])

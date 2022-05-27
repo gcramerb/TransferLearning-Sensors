@@ -53,6 +53,33 @@ class ClfModel(LightningModule):
 		self.model.Encoder.load_state_dict(torch.load(path))
 		path = os.path.join(save_path,file + '_discriminator')
 		self.model.discrimination.load_state_dict(torch.load(path))
+		
+	def load_paramsFL(self,save_path,file):
+		"""
+		Just load the first layer. if the weights were loaded, we freezes these initial layers
+		
+		:param save_path:
+		:param file:
+		:return:
+		"""
+		path = os.path.join(save_path,file + '_feature_extractor')
+		pretrained_dict =torch.load(path)
+
+		#TODO: testar se esta conjelando as camadas corretas.
+		i = 0
+		processed_dict = {}
+		model_dict = self.model.Encoder.state_dict()  # new model keys
+		
+		for k in model_dict.keys():
+			
+			decomposed_key = k.split(".")
+			if ("model" in decomposed_key):
+				pretrained_key = ".".join(decomposed_key[1:])
+				processed_dict[k] = pretrained_dict[pretrained_key]  # Here we are creating the new state dict to make our new model able to load the pretrained parameters without the head.
+			i = i +1
+			if i > 1:
+				break
+		self.model.Encoder.load_state_dict(processed_dict, strict=False)
 
 	def forward(self, X):
 		return self.model(X)

@@ -33,7 +33,7 @@ class SingleDatasetModule(LightningDataModule):
 			n_classes: int = 4,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
-			num_workers: int = 4,
+			num_workers: int = 0,
 	):
 		super().__init__()
 		self.data_dir = data_dir

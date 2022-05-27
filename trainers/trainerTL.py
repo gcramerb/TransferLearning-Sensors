@@ -12,7 +12,7 @@ sys.path.insert(0, '../')
 
 from models.classifier import classifier
 from models.blocks import Encoder, discriminator, domainClf
-from models.customLosses import MMDLoss, OTLoss, classDistance, SinkhornDistance, CORAL
+from models.customLosses import MMDLoss, OTLoss, CenterLoss, SinkhornDistance, CORAL
 from models.pseudoLabSelection import simplest_SLselec
 
 from pytorch_lightning import LightningDataModule, LightningModule
@@ -40,6 +40,7 @@ class TLmodel(LightningModule):
 	):
 		super().__init__()
 		self.hparams.alpha = trainParams['alpha']
+		self.hparams.beta = trainParams['beta']
 		self.hparams.penalty = trainParams['discrepancy']
 		self.hparams.weight_decay = trainParams['weight_decay']
 		self.hparams.dropout_rate = model_hyp['dropout_rate']
@@ -60,6 +61,8 @@ class TLmodel(LightningModule):
 		self.Disc.build()
 		
 		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
+		
+		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=90, use_gpu=True)
 
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
@@ -72,6 +75,7 @@ class TLmodel(LightningModule):
 			self.discLoss = CORAL()
 		else:
 			raise ValueError('specify a valid discrepancy loss!')
+		
 
 
 	def load_params(self, save_path, file):
@@ -92,21 +96,25 @@ class TLmodel(LightningModule):
 
 
 	def compute_loss(self, batch,optimizer_idx):
-		log = {}
+		logs = {}
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
 		
 		latentS= self.FE(dataSource)
+		
 		predS = self.Disc(latentS)
 		
-		loss = self.clfLoss(predS, labSource)
+		classDistence = self.classDist(latentS,labSource)
+		loss = self.clfLoss(predS, labSource) + self.hparams.beta * classDistence
+		logs['classDistence'] = classDistence.detach()
 		if optimizer_idx ==0: # updating FE
 			dataTarget = target['data']
 			latentT = self.FE(dataTarget)
 			discrepancy = self.discLoss(latentT, latentS)
+			
 			loss = loss + self.hparams.alpha * discrepancy
+			logs['discrepancy'] = discrepancy.detach()
 
-		logs = {}
 		logs['loss'] = loss.detach()
 
 		return loss,logs

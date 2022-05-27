@@ -5,12 +5,21 @@ from sklearn.neighbors import KernelDensity
 
 
 def simplest_SLselec(probs,trh):
+	"""
+	Select the samples with the highest probability class are higher than a trashhold
+	:param probs:
+	:param trh:
+	:return:
+	"""
 	idx = np.where(probs.max(axis=1) > trh)[0]
 	softLab = np.argmax(probs, axis=1)
 	return idx,softLab
 
 def saveSLdim(path_file,data, probs,first_save,trh = 0.75):
 	"""
+	Filter the ps labels and save in a npz file. Can be saved incrementaly or just save
+	Save just the labels that were not saved before.
+	
 	:param path_file: the path to the pseudo Label file
 	:param data: the data (X) that will be saved after the filtering
 	:param probs: the classification probability of each sample prediction
@@ -48,6 +57,8 @@ def saveSLdim(path_file,data, probs,first_save,trh = 0.75):
 
 def saveSL(path_file, data, probs, first_save, trh=0.75):
 	"""
+	Filter the ps labels and save in a npz file. Can be saved incrementaly or just save
+
 	:param path_file: the path to the pseudo Label file
 	:param data: the data (X) that will be saved after the filtering
 	:param probs: the classification probability of each sample prediction
@@ -72,8 +83,10 @@ def saveSL(path_file, data, probs, first_save, trh=0.75):
 	return idx
 
 
-def saveSL_exp(path_file,data, probs,first_save,latent = None, trh = 0.75):
+def saveSL_gmm(path_file,data, probs,first_save,latent = None, trh = 0.75):
 	"""
+	The same method described before, but use a gaussian mixture model to select the pseudo label
+	
 	:param path_file: the path to the pseudo Label file
 	:param data: the data (X) that will be saved after the filtering
 	:param probs: the classification probability of each sample prediction
@@ -83,7 +96,7 @@ def saveSL_exp(path_file,data, probs,first_save,latent = None, trh = 0.75):
 	"""
 	idx,SLab = simplest_SLselec(probs,trh)
 	print("old pl len: ", len(idx))
-	new_idx = expandPS(latent, probs)
+	new_idx = expandGMM(latent, probs)
 	print(" new: ",len(new_idx))
 	idx = list(set(idx).union(set(new_idx)))
 
@@ -102,7 +115,7 @@ def saveSL_exp(path_file,data, probs,first_save,latent = None, trh = 0.75):
 	return idx
 
 
-def expandPS(data,probs):
+def expandGMM(data,probs):
 	from sklearn.mixture import GaussianMixture
 	"""
 	proximo passo: testar a qualidade de cada cluster...
@@ -119,7 +132,7 @@ def expandPS(data,probs):
 	return new_idx
 
 
-def simpleKernelProcess(path_file,trh = 0.75):
+def simpleKernelProcess(latent,probs):
 	"""
 	Model some distribution based on the initial prob of each point.
 	Calculate over each of the prob shape, to do not merge different possible classes
@@ -130,56 +143,43 @@ def simpleKernelProcess(path_file,trh = 0.75):
 	:param latentData:
 	:return:
 	"""
-	with np.load(path_file, allow_pickle=True) as tmp:
-		X = tmp['dataSL'].astype('float32')
-		latent = tmp['latentSL']
-		probs = tmp['ySL']
-	dens_score =  np.zeros_like(probs)
+
+	dens_score = np.zeros_like(latent)
 	for i in range(probs.shape[1]):
 		kde = KernelDensity(kernel='gaussian', bandwidth=0.2).fit(latent,sample_weight = probs[:,i])
 		dens_score[:,i] = kde.score_samples(latent)
 		del kde
-	
-	#entender o que eh o score e definir: como escolher.
-	# nao faz muito sentido escolher o score relativo (percentil)
-	idx = np.where(dens_score.max(axis=0) > trh)[0]
-	softL = np.argmax(probs[idx], axis=1)
-	dataSL = X[idx]
-	return dataSL,softL
+	softLab = np.argmax(dens_score, axis=1)
+	return softLab
 
 
-def kernelProcess(path_file):
+def saveSL_kernel(path_file, data, probs, latent, first_save, trh=0.45):
 	"""
-	Model some distribution based on the initial prob of each point.
-	maybe a mixture of gaussian (or student-T)
-	Calculate over each of the prob shape, to do not merge different possible classes
-
-
-	:param path_file:
-	:param latentData:
+	:param path_file: the path to the pseudo Label file
+	:param data: the data (X) that will be saved after the filtering
+	:param probs: the classification probability of each sample prediction
+	:param first_save: (bool) if is true, the data will be replaced anyway
+	:param latent
+	:param trh: the threshhold for filtering.
 	:return:
 	"""
-	with np.load(path_file, allow_pickle=True) as tmp:
-		X = tmp['dataSL'].astype('float32')
-		latent = tmp['latentSL']
-		probs = tmp['ySL']
-
-
-
-def dicrepPerClass(path_file,thr = 0.5):
-	"""
-	Not just analyse if the max prob is upper a certain thrashhold, but also
-	check fi the dicrepance of that point is lower in the same class in source
 	
-	:return:
-	"""
-	with np.load(path_file, allow_pickle=True) as tmp:
-		X = tmp['dataSL'].astype('float32')
-		latent = tmp['latentSL']
-		probs = tmp['ySL']
+	idx, _ = simplest_SLselec(probs, trh)
+	
+	data = data[idx]
+	latent = latent[idx]
+	probs = probs[idx]
+	
+	SLab = simpleKernelProcess(latent,probs)
 
-
-
-
-
-
+	if data.shape[1] == 2:
+		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
+	if os.path.isfile(path_file) and not first_save:
+		with np.load(path_file, allow_pickle=True) as tmp:
+			Xsl = tmp['X'].astype('float32')
+			ysl = tmp['y']
+		SLab = np.concatenate([SLab, ysl], axis=0)
+		data = np.concatenate([data, Xsl], axis=0)
+	with open(path_file, "wb") as f:
+		np.savez(f, X=data, y=SLab, folds=np.zeros(1))
+	return idx

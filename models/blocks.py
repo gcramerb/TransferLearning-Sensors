@@ -41,13 +41,7 @@ class Encoder(nn.Module):
 			nn.BatchNorm2d(self.n_filters[2]),
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
-			nn.Flatten(),
-			# nn.Linear(fcl1,fcl2),
-			# nn.BatchNorm1d(fcl2),
-			# nn.LeakyReLU(),
-			nn.Linear(fcl1, self.encoded_dim),
-			nn.BatchNorm1d(self.encoded_dim),
-			nn.LeakyReLU()
+			nn.Flatten()
 		)
 	
 	def forward(self, X):
@@ -68,6 +62,9 @@ class discriminator(nn.Module):
 
 	def build(self):
 		self.layer = nn.Sequential(
+			nn.Linear(90, self.encoded_dim),
+			nn.BatchNorm1d(self.encoded_dim),
+			nn.LeakyReLU(),
 			nn.Dropout(p = self.dropout_rate ),
 			nn.Linear(self.encoded_dim, self.n_classes),
 			nn.Softmax(dim=1)

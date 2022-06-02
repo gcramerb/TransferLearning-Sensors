@@ -21,7 +21,7 @@ def get_TLparams(path_file = None):
 	TLparams['epoch'] = 60
 	TLparams['feat_eng'] = 'sym'
 	TLparams['alpha'] = 0.5
-	TLparams['beta'] = 0.005
+	TLparams['beta'] = 0.001
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = 0.1
 	return TLparams

@@ -62,7 +62,7 @@ class TLmodel(LightningModule):
 		
 		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
 		
-		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=90, use_gpu=True)
+		#self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=90, use_gpu=True)
 
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
@@ -101,12 +101,12 @@ class TLmodel(LightningModule):
 		dataSource, labSource = source['data'], source['label'].long()
 		
 		latentS= self.FE(dataSource)
-		
 		predS = self.Disc(latentS)
 		
-		classDistence = self.classDist(latentS,labSource)
-		loss = self.clfLoss(predS, labSource) + self.hparams.beta * classDistence
-		logs['classDistence'] = classDistence.detach()
+		#classDistence = self.classDist(latentS,labSource)
+		#loss = self.clfLoss(predS, labSource) + self.hparams.beta * classDistence
+		loss = self.clfLoss(predS, labSource)
+		#logs['classDistence'] = classDistence.detach()
 		if optimizer_idx ==0: # updating FE
 			dataTarget = target['data']
 			latentT = self.FE(dataTarget)

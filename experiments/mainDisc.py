@@ -39,14 +39,14 @@ if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	verbose = 0
-	save_path = '../saved/'
+	save_path = '../saved/Disc/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
 	args.paramsPath = None
-	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
+	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\Disc\\'
 if args.log:
 	my_logger = WandbLogger(project='Disc',
 	                        log_model='all',
@@ -112,7 +112,7 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		print('Source: ', accS, '  Target: ', accT)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
-		model.save_params(save_path, f'DiscSaved_{source}_{target}')
+		model.save_params(save_path, f'Disc_{source}_{target}')
 		del model, trainer, dm_target, dm_source
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])

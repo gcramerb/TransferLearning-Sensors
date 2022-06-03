@@ -33,7 +33,7 @@ class SingleDatasetModule(LightningDataModule):
 			n_classes: int = 4,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
-			num_workers: int = 0,
+			num_workers: int = 1,
 	):
 		super().__init__()
 		self.data_dir = data_dir
@@ -123,14 +123,14 @@ class SingleDatasetModule(LightningDataModule):
 		return DataLoader(
 			self.dataVal,
 	        batch_size=self.batch_size,
-	        shuffle=False,
+	        shuffle=True,
 	        num_workers=self.num_workers,
 	        drop_last=False)
 	
 	def test_dataloader(self):
 		return DataLoader(self.dataTest,
 		                  batch_size=self.batch_size,
-		                  shuffle=False,
+		                  shuffle=True,
 		                  num_workers=self.num_workers,
 		                  drop_last=False)
 

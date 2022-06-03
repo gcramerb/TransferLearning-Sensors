@@ -13,7 +13,7 @@ from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
 from Utils.myUtils import get_Clfparams, get_TLparams, MCI
 
-seed = 2809
+seed = 2804
 print('Seeding with {}'.format(seed))
 torch.manual_seed(seed)
 
@@ -26,10 +26,10 @@ parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Ucihar")
-parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--trials', type=int, default=10)
+parser.add_argument('--trials', type=int, default=1)
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
@@ -97,7 +97,8 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		# early_stopping = EarlyStopping('val_loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
-		                  max_epochs=TLparams['epoch'],
+		                  #max_epochs=TLparams['epoch'],
+		                  max_epochs = 10,
 		                  logger=my_logger,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,

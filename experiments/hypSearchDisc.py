@@ -56,7 +56,7 @@ def suggest_hyperparameters(trial):
 	TLparams['epoch']  = trial.suggest_int("epoch", 15, 120, step=15)
 	TLparams['feat_eng'] = 'sym'
 	TLparams['alpha'] = trial.suggest_float("alpha", 0.0, 1.0, step=0.1)
-	TLparams['beta'] = trial.suggest_float("beta", 0.0005, 0.005, step=0.0005)
+	TLparams['beta'] = trial.suggest_float("beta", 0.005, 0.05, step=0.0005)
 	TLparams['discrepancy'] = 'ot'
 	TLparams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
 	
@@ -94,4 +94,4 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 
 if __name__ == '__main__':
-	run(200)
+	run(300)

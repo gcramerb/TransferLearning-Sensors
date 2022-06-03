@@ -62,7 +62,7 @@ class TLmodel(LightningModule):
 		
 		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
 		
-		#self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=90, use_gpu=True)
+		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=90, use_gpu=True)
 
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
@@ -103,10 +103,10 @@ class TLmodel(LightningModule):
 		latentS= self.FE(dataSource)
 		predS = self.Disc(latentS)
 		
-		#classDistence = self.classDist(latentS,labSource)
-		#loss = self.clfLoss(predS, labSource) + self.hparams.beta * classDistence
-		loss = self.clfLoss(predS, labSource)
-		#logs['classDistence'] = classDistence.detach()
+		classDistence = self.classDist(latentS,labSource)
+		loss = self.clfLoss(predS, labSource) + self.hparams.beta * classDistence
+		logs['clf loss'] = loss.detach()
+		logs['classDistence'] = classDistence.detach()
 		if optimizer_idx ==0: # updating FE
 			dataTarget = target['data']
 			latentT = self.FE(dataTarget)
@@ -169,6 +169,7 @@ class TLmodel(LightningModule):
 	def validation_step(self, batch, batch_idx):
 		metrics = self._shared_eval_step(batch, stage='val',optimizer_idx = 0)
 		return metrics
+	
 	def validation_epoch_end(self, out):
 		keys_ = out[0].keys()
 		metrics = {}
@@ -184,7 +185,7 @@ class TLmodel(LightningModule):
 	
 	def configure_optimizers(self):
 		opt_list = []
-		opt_list.append(torch.optim.Adam(self.FE.parameters(),
+		opt_list.append(torch.optim.RMSprop(self.FE.parameters(),
 		                                 lr=self.hparams.lr_fe,
 		                                 weight_decay=self.hparams.weight_decay))
 		
@@ -220,27 +221,28 @@ class TLmodel(LightningModule):
 	
 
 	def _predict(self, dataloader,domain):
-		latent = []
-		probs = []
-		y_hat = []
-		true = []
-		data_ori = []
-		for data in dataloader:
-			X, y = data['data'], data['label'].long()
-			lat = self.FE(X)
-			pred = self.Disc(lat).cpu().numpy()
-			y_hat.append(np.argmax(pred, axis=1))
-			latent.append(lat.cpu().numpy())
-			probs.append(pred)
-			true.append(y.cpu().numpy())
-			data_ori.append(X)
-		predictions = {}
-		predictions['latent' +domain ] = np.concatenate(latent, axis=0)
-		predictions['pred' + domain] = np.concatenate(y_hat, axis=0)
-		predictions['true' + domain] = np.concatenate(true, axis=0)
-		predictions['prob'  + domain] = np.concatenate(probs, axis=0)
-		predictions['data' + domain] = np.concatenate(data_ori, axis=0)
-		return predictions
+		with torch.no_grad():
+			latent = []
+			probs = []
+			y_hat = []
+			true = []
+			data_ori = []
+			for data in dataloader:
+				X, y = data['data'], data['label'].long()
+				lat = self.FE(X)
+				p = self.Disc(lat).cpu().numpy()
+				y_hat.append(np.argmax(p, axis=1))
+				latent.append(lat.cpu().numpy())
+				probs.append(p)
+				true.append(y.cpu().numpy())
+				data_ori.append(X)
+			predictions = {}
+			predictions['latent' +domain ] = np.concatenate(latent, axis=0)
+			predictions['pred' + domain] = np.concatenate(y_hat, axis=0)
+			predictions['true' + domain] = np.concatenate(true, axis=0)
+			predictions['prob'  + domain] = np.concatenate(probs, axis=0)
+			predictions['data' + domain] = np.concatenate(data_ori, axis=0)
+			return predictions
 	
 	def train_dataloader(self):
 		loaders = [self.dm_source.train_dataloader(),

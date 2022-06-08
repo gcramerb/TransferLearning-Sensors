@@ -57,6 +57,10 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["Acc Source"] = []
+	for class_ in range(4):
+		final_result[f"Acc Target class {class_}"] = []
+		final_result[f"Acc Source class {class_}"]  = []
+	
 	if source == 'Uschad':
 		class_weight = torch.tensor([0.5, 3, 3, 0.5])
 	else:
@@ -94,7 +98,7 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		# from torchsummary import summary
 		# summary(model.FE, (2, 50, 3))
 		
-		# early_stopping = EarlyStopping('val_loss', mode='min', patience=10, verbose=True)
+		early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
 		                  #max_epochs=TLparams['epoch'],
@@ -102,7 +106,7 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		                  logger=my_logger,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
-		                  callbacks=[],
+		                  callbacks=[early_stopping],
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
@@ -110,13 +114,22 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		predS = model.getPredict(domain='Source')
 		accS = accuracy_score(predS['trueSource'], predS['predSource'])
 		accT = accuracy_score(predT['trueTarget'], predT['predTarget'])
+		cmS = confusion_matrix(predS['trueSource'], predS['predSource'])
+		cmT = confusion_matrix(predT['trueTarget'], predT['predTarget'])
 		print('Source: ', accS, '  Target: ', accT)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
-		model.save_params(save_path, f'Disc_{source}_{target}')
+		for class_ in range(4):
+			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_]/cmT[class_][:].sum())
+			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
+
+		#model.save_params(save_path, f'Disc_{source}_{target}')
 		del model, trainer, dm_target, dm_source
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])
+	for class_ in range(4):
+		final_result[f"Acc Target class {class_}"] = MCI(final_result[f"Acc Target class {class_}"])
+		final_result[f"Acc Source class {class_}"]= MCI(final_result[f"Acc Source class {class_}"])
 	return final_result
 
 if __name__ == '__main__':
@@ -128,6 +141,11 @@ if __name__ == '__main__':
 	
 	clfParams = get_Clfparams(path_clf_params)
 	TLparams = get_TLparams(path_TL_params)
+	
+	if 'dropout_rate' in TLparams.keys():
+		clfParams['dropout_rate'] = TLparams['dropout_rate']
+		
+		
 	
 	final_result = runDisc(clfParams,TLparams,args.source,args.target,args.trials,save_path)
 

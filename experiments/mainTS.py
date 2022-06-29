@@ -11,7 +11,7 @@ from dataProcessing.dataModule import SingleDatasetModule
 from models.pseudoLabSelection import saveSL,saveSLdim,saveSL_gmm
 from trainers.trainerTL import TLmodel
 from trainers.trainerClf import ClfModel
-from Utils.myUtils import get_Clfparams, get_SLparams, MCI
+from Utils.myUtils import get_Clfparams, get_Stuparams, MCI
 
 """
 The main idea of this experiment is to train iterativilly two models, the theacher and the student.
@@ -52,109 +52,137 @@ else:
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
 
 
+def generateFirstPL(tsPathFile,teacherParams,source,target):
+	
+	dm_target = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=target,
+	                                input_shape=teacherParams['input_shape'],
+	                                n_classes=args.n_classes,
+	                                batch_size=teacherParams['bs'])
+	
+	dm_target.setup(normalize=True)
+	teacher = ClfModel(lr=teacherParams['lr'],
+	                   n_classes=args.n_classes,
+	                   alpha=teacherParams['alpha'],
+	                   step_size=teacherParams['step_size'],
+	                   model_hyp=teacherParams,
+	                   weight_decay=teacherParams['weight_decay'],
+	                   class_weight=class_weight,
+	                   input_shape=teacherParams['input_shape'])
+	
+	file = f'DiscSaved_{source}_{target}'
+	teacher.load_params(save_path, file)
+	pred = teacher.predict(dm_target.test_dataloader())
+	acc = accuracy_score(pred['true'], pred['pred'])
+	print(f'Init (Teacher) acc in Target{acc}')
 
-def runTS(clfParams,SLparams,expName,source,target):
+	#save all samples:
+	saveAllLabels(path_file=tsPathFile, data=pred['data'],
+	                 yTrue = pred['true'],probs=pred['probs'],pred['latent'])
+	del teacher, dm_target
+	return True
+
+
+
+def runTS(teacherParams,stuParams,expName,source,target):
 	metrics = {}
 	metrics['Student acc in Target'] = []
 	metrics['Student acc in SL'] = []
-	metrics[f'Num samples selected'] = []
-	metrics['SL purity by Student'] = []
+	# metrics[f'Num samples selected'] = []
+	# metrics['SL purity by Student'] = []
 	
 	class_weight = None
 	
-	SLdatasetName = f'{source}_to_{target}_PS_{expName}'
-	ts_path_file = os.path.join(args.inPath, f'{SLdatasetName}_f25_t2_{args.n_classes}actv.npz')
-	first_save = True
+	tsDatasetName = f'{source}_to_{target}_PS_{expName}'
+	tsPathFile = os.path.join(args.inPath, f'{tsDatasetName}_f25_t2_{args.n_classes}actv.npz')
+	
+	if not os.path.isfile(tsPathFile):
+		generateFirstPL(tsPathFile,teacherParams, source, target)
 
-	file = f'DiscSaved_{source}_{target}'
-	file_clf = f'Student_{source}_{target}'
+	first_save = True
+	studentDataset = f'Student_{source}_{target}'
+	studentPathFile = os.path.join(args.inPath, f'{student_dataset}_f25_t2_{args.n_classes}actv.npz')
 	
 	if my_logger:
-		my_logger.log_hyperparams(SLparams)
-	# my_logger.log_hyperparams(clfParams)
-
-	for i in range(SLparams['iter']):
-		dm_target = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=target,
-		                                input_shape=clfParams['input_shape'],
-		                                n_classes=args.n_classes,
-		                                batch_size=SLparams['bs'])
-		
-		dm_target.setup(normalize=True)
-		clf = ClfModel(lr=clfParams['clf_lr'],
-		               n_classes=args.n_classes,
-		               alpha=clfParams['alpha'],
-		               step_size=clfParams['step_size'],
-		               model_hyp=clfParams,
-		               weight_decay=clfParams['weight_decay'],
-		               class_weight=class_weight,
-		               input_shape=clfParams['input_shape'])
-		
-		if my_logger:
-			adicionalInfo = {}
-			adicionalInfo['class_weight'] = class_weight
-			my_logger.log_hyperparams(adicionalInfo)
-			my_logger.watch(clf, log_graph=False)
-		
-		clf.load_params(save_path, file)
-		file = file_clf
-		pred = clf.predict(dm_target.test_dataloader())
-		acc = accuracy_score(pred['true'], pred['pred'])
-		print(f'Student acc in Target data: {acc}')
-		metrics['Student acc in Target'].append(acc)
-		
-		new_idx = saveSL(path_file=ts_path_file, data=pred['data'],
-		                     probs=pred['probs'], trh=SLparams['trasholdStu'],
-		                     first_save=first_save)
-		
-		if len(new_idx) > clfParams['bs']:
-			softLab = np.argmax(pred['probs'][new_idx], axis=1)
-			pu = accuracy_score(pred['true'][new_idx], softLab)
-			metrics['SL purity by Student'].append(pu)
-			print(f'\n\n Iter {i}: Student added {len(new_idx)} samples in SL dataset \n')
-			print(f'{pu * 100} % of those are correct\n')
-			first_save = False
-		
-		metrics[f'Num samples selected'].append(len(new_idx))
-		
-		# TODO: so salvar os pseudo Labels se o treinamento do clf tiver sido bom...
-		dm_SL = SingleDatasetModule(data_dir=args.inPath,
-		                            datasetName=SLdatasetName,
-		                            input_shape=clfParams['input_shape'],
-		                            n_classes=args.n_classes,
-		                            batch_size=clfParams['bs'])
-		dm_SL.setup(normalize=True)
-		early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.05, patience=4, verbose=True)
-		trainer = Trainer(gpus=1,
-		                  logger=my_logger,
-		                  check_val_every_n_epoch=1,
-		                  max_epochs=clfParams['clf_epoch'],
-		                  progress_bar_refresh_rate=0,
-		                  callbacks=[early_stopping])
-		
-		trainer.fit(clf, datamodule=dm_SL)
-		clf.save_params(save_path, file_clf)
-		predSL = clf.predict(dm_SL.test_dataloader())
-		acc = accuracy_score(predSL['true'], predSL['pred'])
-		print(f'Student acc in SL data: {acc}')
-		metrics['Student acc in SL'].append(acc)
-		del clf, trainer, dm_SL,dm_target
+		adicionalInfo = {}
+		adicionalInfo['class_weight'] = class_weight
+		my_logger.log_hyperparams(adicionalInfo)
+		my_logger.log_hyperparams(stuParams)
 	
-	cm = confusion_matrix(pred['true'], pred['pred'])
+	#for i in range(stuParams['iter']):
+		
+	
+	simplest_SLselec(tsPathFile, studentPathFile, 0.75)
+
+	# TODO: so salvar os pseudo Labels se o treinamento do student tiver sido bom...
+	studentDm = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=studentDataset,
+	                                input_shape=stuParams['input_shape'],
+	                                n_classes=args.n_classes,
+	                                batch_size=stuParams['bs'])
+	studentDm.setup(normalize=True)
+	
+	teacher = ClfModel(lr=stuParams['lr'],
+	                   n_classes=args.n_classes,
+	                   alpha=stuParams['alpha'],
+	                   step_size=stuParams['step_size'],
+	                   model_hyp=stuParams,
+	                   weight_decay=stuParams['weight_decay'],
+	                   class_weight=class_weight,
+	                   input_shape=stuParams['input_shape'])
+	
+	early_stopping = EarlyStopping('val_loss', mode='min', min_delta=0.05, patience=4, verbose=True)
+	trainer = Trainer(gpus=1,
+	                  logger=my_logger,
+	                  check_val_every_n_epoch=1,
+	                  max_epochs=stuParams['clf_epoch'],
+	                  progress_bar_refresh_rate=0,
+	                  callbacks=[early_stopping])
+	
+	trainer.fit(student, datamodule=studentDm)
+	
+	#student.save_params(save_path, file_clf)
+	predSL = student.predict(studentDm.test_dataloader())
+	acc = accuracy_score(predSL['true'], predSL['pred'])
+	print(f'Student acc in SL data: {acc}')
+	metrics['Student acc in SL'].append(acc)
+	
+	if my_logger:
+		my_logger.watch(student, log_graph=False)
+	
+	# if len(new_idx) > stuParams['bs']:
+	# 	softLab = np.argmax(pred['probs'][new_idx], axis=1)
+	# 	pu = accuracy_score(pred['true'][new_idx], softLab)
+	# 	metrics['SL purity by Student'].append(pu)
+	# 	print(f'\n\n Iter {i}: Student added {len(new_idx)} samples in SL dataset \n')
+	# 	print(f'{pu * 100} % of those are correct\n')
+	# 	first_save = False
+	# metrics[f'Num samples selected'].append(len(new_idx))
+	dm_target = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=target,
+	                                input_shape=teacherParams['input_shape'],
+	                                n_classes=args.n_classes,
+	                                batch_size=teacherParams['bs'])
+	
+	dm_target.setup(normalize=True)
+	predStu = student.predict(studentDm.test_dataloader())
+	acc = accuracy_score(predStu['true'], predStu['pred'])
+	print(f'\n Student acc in Target data: {acc}')
+	metrics['Student acc in Target'].append(acc)
+	cm = confusion_matrix(predStu['true'], predStu['pred'])
 	metrics['Final cm Student'] = cm
+	del student, trainer, studentDm,dm_target
 	return metrics
 
 
 if __name__ == '__main__':
-	path_clf_params, path_SL_params,class_weight = None, None,None
-	if args.ClfParamsFile:
-		path_clf_params = os.path.join(params_path, args.ClfParamsFile)
-	if args.SLParamsFile:
-		path_SL_params = os.path.join(params_path, args.SLParamsFile)
-	
-	clfParams = get_Clfparams(path_clf_params)
-	SLparams = get_SLparams(path_SL_params)
-	metrics = runTS(clfParams,SLparams,args.expName)
+	path_Stu_params,class_weight = None, None,None
+	if args.StuParamsFile:
+		path_Stu_params = os.path.join(params_path, args.StuParamsFile)
+	path_teacher_params = os.path.join(params_path, args.teacherParamsFile)
+	teacherParams = get_TLparams(path_teacher_params)
+	stuParams = get_Stuparams(path_Stu_params)
+	metrics = runTS(teacherParams,stuParams,"teacher_student",args.source,args.target)
 	if my_logger:
 		my_logger.log_metrics(metrics)
 	print(metrics)

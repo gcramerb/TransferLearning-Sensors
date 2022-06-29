@@ -10,7 +10,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 sys.path.insert(0, '../')
 from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
-from Utils.myUtils import get_Clfparams, get_TLparams,get_SLparams
+from Utils.myUtils import get_Clfparams, get_TLparams,get_Stuparams
 from dataProcessing.dataModule import SingleDatasetModule,CrossDatasetModule
 from models.pseudoLabSelection import saveSL
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
 		class_weight = None
 	
 	clfParams = get_Clfparams(path_clf_params)
-	SLparams = get_SLparams(path_SL_params)
+	SLparams = get_Stuparams(path_SL_params)
 	if my_logger:
 		my_logger.log_hyperparams(clfParams)
 		my_logger.log_hyperparams(SLparams)

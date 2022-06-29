@@ -4,16 +4,22 @@ from sklearn.neighbors import KernelDensity
 
 
 
-def simplest_SLselec(probs,trh):
+def simplest_SLselec(path_data,studentPathFile,trh):
 	"""
 	Select the samples with the highest probability class are higher than a trashhold
 	:param probs:
 	:param trh:
 	:return:
 	"""
+
+	with np.load(path_file, allow_pickle=True) as tmp:
+		X = tmp['X'].astype('float32')
+		probs = tmp['y']
+
 	idx = np.where(probs.max(axis=1) > trh)[0]
 	softLab = np.argmax(probs, axis=1)
-	return idx,softLab
+	
+	return True
 
 def saveSLdim(path_file,data, probs,first_save,trh = 0.75):
 	"""
@@ -131,6 +137,13 @@ def expandGMM(data,probs):
 	new_idx = list(set(idx_aux).intersection(set(GMMidx)))
 	return new_idx
 
+
+saveAllLabels(path_file, data,yTrue, probs,latent):
+	if data.shape[1] == 2:
+		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
+	with open(path_file, "wb") as f:
+		np.savez(f, X=data, y=yTrue,probs = probs, latent = latent,folds=np.zeros(1))
+	return True
 
 def simpleKernelProcess(latent,probs):
 	"""

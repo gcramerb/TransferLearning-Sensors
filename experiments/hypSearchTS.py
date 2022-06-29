@@ -59,7 +59,7 @@ def objective(trial):
 	# Initialize the best_val_loss value
 	best_metric = float(-1)
 	clfParams, SLparams = suggest_hyperparameters(trial)
-	metrics = runTS(clfParams, SLparams,'hypParam')
+	metrics = runTS(clfParams, SLparams, 'hypParam',,
 	result = np.max(metrics['Student acc in Target'])
 	print('Student acc Target: ',result)
 	if result >= best_metric:

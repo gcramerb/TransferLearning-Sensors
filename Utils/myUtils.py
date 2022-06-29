@@ -27,19 +27,30 @@ def get_TLparams(path_file = None):
 	return TLparams
 
 
-def get_SLparams(path_file=None):
+def get_Stuparams(path_file=None):
+	stuParams = {}
+	stuParams['kernel_dim'] = [(5, 3), (25, 3)]
+	stuParams['n_filters'] = (4, 16, 18, 24)
+	stuParams['enc_dim'] = 64
+	stuParams['input_shape'] = (2, 50, 3)
 	if path_file:
 		with open(path_file) as f:
-			SLparams = json.load(f)
-		return SLparams
-	SLparams = {}
-	SLparams['bs'] = 128
-	SLparams['step_size'] = None
-	SLparams['epoch'] = 60
-	SLparams['iter'] = 10
-	SLparams['trasholdDisc'] = 0.95
-	SLparams['trasholdStu'] = 0.75
-	return SLparams
+			aux = json.load(f)
+		for k,v in aux.keys():
+			stuParams[k] = v
+		return stuParams
+
+	clfParams['alpha'] = None
+	clfParams['step_size'] = None
+	stuParams['epoch'] = 12
+	stuParams["dropout_rate"] = 0.2
+	stuParams['bs'] = 128
+	stuParams['lr'] = 0.0001
+	stuParams['weight_decay'] = 0.2
+	stuParams['iter'] = 10
+	stuParams['trashold'] = 0.75
+	return stuParams
+
 	
 def get_Clfparams(path_file = None):
 	

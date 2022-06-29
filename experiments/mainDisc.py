@@ -90,7 +90,7 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		                save_path=None,
 		                class_weight=class_weight,
 		                model_hyp=clfParams)
-		
+		print(TLparams)
 		# model.load_params(save_path,file)
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
@@ -98,15 +98,15 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		# from torchsummary import summary
 		# summary(model.FE, (2, 50, 3))
 		
-		early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
+		#early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
-		                  #max_epochs=TLparams['epoch'],
-		                  max_epochs = 10,
+		                  max_epochs=TLparams['epoch'],
+		                  #max_epochs = 10,
 		                  logger=my_logger,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
-		                  callbacks=[early_stopping],
+		                  callbacks=[],
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
@@ -123,7 +123,8 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_]/cmT[class_][:].sum())
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
 
-		#model.save_params(save_path, f'Disc_{source}_{target}')
+		if i ==5:
+			model.save_params(save_path, f'Disc_class{source}_{target}')
 		del model, trainer, dm_target, dm_source
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])

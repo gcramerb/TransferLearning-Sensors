@@ -13,7 +13,6 @@ sys.path.insert(0, '../')
 from models.classifier import classifier
 from models.blocks import Encoder, discriminator, domainClf
 from models.customLosses import MMDLoss, OTLoss, CenterLoss, SinkhornDistance, CORAL
-from models.pseudoLabSelection import simplest_SLselec
 
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.callbacks import Callback

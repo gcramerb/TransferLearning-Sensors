@@ -134,22 +134,25 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 	return final_result
 
 if __name__ == '__main__':
-	path_clf_params, path_TL_params = None, None
-	if args.ClfParamsFile:
-		path_clf_params = os.path.join(params_path,args.ClfParamsFile)
+	path_TL_params = None
 	if  args.TLParamsFile:
 		path_TL_params = os.path.join(params_path, args.TLParamsFile)
-	
-	clfParams = get_Clfparams(path_clf_params)
 	TLparams = get_TLparams(path_TL_params)
+	clfParams = {}
+	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
+	clfParams['n_filters'] = (4, 16, 18, 24)
+	clfParams['enc_dim'] = 64
+	clfParams['input_shape'] = (2, 50, 3)
+	clfParams['step_size'] = None
+	clfParams['clf_epoch'] = None
+	clfParams["dropout_rate"] = TLparams['dropout_rate']
+	clfParams['bs'] = 128
 	
-	if 'dropout_rate' in TLparams.keys():
-		clfParams['dropout_rate'] = TLparams['dropout_rate']
-		
-		
 	
-	final_result = runDisc(clfParams,TLparams,args.source,args.target,args.trials,save_path)
+	# if 'dropout_rate' in TLparams.keys():
+	# 	clfParams['dropout_rate'] =
 
+	final_result = runDisc(clfParams,TLparams,args.source,args.target,args.trials,save_path)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

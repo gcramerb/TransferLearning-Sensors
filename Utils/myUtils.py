@@ -36,12 +36,12 @@ def get_Stuparams(path_file=None):
 	if path_file:
 		with open(path_file) as f:
 			aux = json.load(f)
-		for k,v in aux.keys():
+		for k,v in aux.items():
 			stuParams[k] = v
 		return stuParams
 
-	clfParams['alpha'] = None
-	clfParams['step_size'] = None
+	stuParams['alpha'] = None
+	stuParams['step_size'] = None
 	stuParams['epoch'] = 12
 	stuParams["dropout_rate"] = 0.2
 	stuParams['bs'] = 128

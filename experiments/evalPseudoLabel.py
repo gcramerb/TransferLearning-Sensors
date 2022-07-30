@@ -6,7 +6,7 @@ sys.path.insert(0, '../')
 from dataProcessing.dataModule import SingleDatasetModule
 from models.pseudoLabSelection import getPseudoLabel
 from trainers.trainerClf import ClfModel
-from Utils.myUtils import get_Stuparams
+from Utils.myUtils import  MCI,getTeacherParams
 
 """
 The main idea of this experiment is to get the pseudo label of the target by the trained
@@ -20,8 +20,8 @@ parser.add_argument('--expName', type=str, default='Stu_bench')
 parser.add_argument('--TLParamsFile', type=str, default="DiscUscDsa.json")
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Uschad")
-parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--target', type=str, default="Uschad")
 parser.add_argument('--PLmethod', type=str, default="simplest")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--saveModel', type=bool, default=True)
@@ -32,8 +32,8 @@ if args.slurm:
 	verbose = 0
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
-	save_path = '../saved/Disc/'
-	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
+	save_path = '../saved/teacherOficial/'
+	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
 # my_logger = WandbLogger(project='TransferLearning-Soft-Label',
 #                         log_model='all',
 #                         name=args.expName + args.source + '_to_' + args.target)
@@ -69,7 +69,7 @@ def analizePL(teacherParams,source, target):
 	print(f'INIT acc in Target{acc}')
 	print(f"INIT number of samples: {len(pred['true'])}\n")
 	
-	for method in ['simplest','gmm','kernel']:
+	for method in ['cluster','kernel','gmm','simplest']:
 		print(f"METHOD: {method}\n")
 		_,softLabel, trueLabel = getPseudoLabel(pred.copy(),method)
 		print(f"number of samples: {len(trueLabel)}\n")
@@ -85,5 +85,5 @@ if __name__ == '__main__':
 	path_TL_params = None
 	if  args.TLParamsFile:
 		path_TL_params = os.path.join(params_path, args.TLParamsFile)
-	TLparams = get_Stuparams(path_TL_params)
+	TLparams = getTeacherParams(path_TL_params)
 	analizePL(TLparams,args.source, args.target)

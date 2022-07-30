@@ -9,50 +9,31 @@ def MCI(data, confidence=0.95):
     h = se * st.t.ppf((1 + confidence) / 2., n-1)
     return m, h
 
-def get_TLparams(path_file = None):
-	if path_file:
-		with open(path_file) as f:
-			TLparams = json.load(f)
-		return TLparams
-	TLparams = {}
-	TLparams['lr'] =  0.001
-	TLparams['bs'] = 128
-	TLparams['step_size'] = None
-	TLparams['epoch'] = 60
-	TLparams['feat_eng'] = 'sym'
-	TLparams['alpha'] = 0.5
-	TLparams['beta'] = 0.001
-	TLparams['discrepancy'] = 'ot'
-	TLparams['weight_decay'] = 0.1
-	return TLparams
-
-
-def get_Stuparams(path_file=None):
-	stuParams = {}
-	stuParams['kernel_dim'] = [(5, 3), (25, 3)]
-	stuParams['n_filters'] = (4, 16, 18, 24)
-	stuParams['enc_dim'] = 64
-	stuParams['input_shape'] = (2, 50, 3)
+def getTeacherParams(path_file=None):
+	Tparams = {}
+	Tparams['kernel_dim'] = [(5, 3), (25, 3)]
+	Tparams['n_filters'] = (4, 16, 18, 24)
+	Tparams['enc_dim'] = 64
+	Tparams['input_shape'] = (2, 50, 3)
+	Tparams['alpha'] = None
+	Tparams['step_size'] = None
+	Tparams['epoch'] = 32
+	Tparams["dropout_rate"] = 0.2
+	Tparams['bs'] = 128
+	Tparams['lr'] = 0.0001
+	Tparams['weight_decay'] = 0.2
+	Tparams['iter'] = 10
+	Tparams['trashold'] = 0.75
+	Tparams['discrepancy'] = 'ot'
+	
 	if path_file:
 		with open(path_file) as f:
 			aux = json.load(f)
 		for k,v in aux.items():
-			stuParams[k] = v
-		return stuParams
+			Tparams[k] = v
+	return Tparams
 
-	stuParams['alpha'] = None
-	stuParams['step_size'] = None
-	stuParams['epoch'] = 12
-	stuParams["dropout_rate"] = 0.2
-	stuParams['bs'] = 128
-	stuParams['lr'] = 0.0001
-	stuParams['weight_decay'] = 0.2
-	stuParams['iter'] = 10
-	stuParams['trashold'] = 0.75
-	return stuParams
-
-	
-def get_Clfparams(path_file = None):
+def getClfParams(path_file = None):
 	
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
@@ -81,7 +62,3 @@ def get_foldsInfo():
 	folds['Pamap2'] = 8
 	folds['Ucihar'] = 30
 	return folds
-
-
-	
-

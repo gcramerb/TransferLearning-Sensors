@@ -30,7 +30,6 @@ class TLmodel(LightningModule):
 	def __init__(
 			self,
 			trainParams: dict = None,
-			model_hyp: dict = None,
 			lossParams: dict = None,
 			save_path: str = None,
 			penalty:str = 'ot',
@@ -42,20 +41,20 @@ class TLmodel(LightningModule):
 		self.hparams.beta = trainParams['beta']
 		self.hparams.penalty = trainParams['discrepancy']
 		self.hparams.weight_decay = trainParams['weight_decay']
-		self.hparams.dropout_rate = model_hyp['dropout_rate']
+		self.hparams.dropout_rate = trainParams['dropout_rate']
 		self.hparams.lr_fe = trainParams['lr']
 		self.hparams.lr_disc = trainParams['lr']
-		self.hparams.input_shape = model_hyp['input_shape']
+		self.hparams.input_shape = trainParams['input_shape']
 		self.save_hyperparameters()
 		
 	def create_model(self):
 
-		self.FE = Encoder(hyp=self.hparams.model_hyp,
+		self.FE = Encoder(hyp=self.hparams.trainParams,
 			              input_shape=self.hparams.input_shape)
 		self.FE.build()
 		
 		self.Disc  =  discriminator(dropout_rate = self.hparams.dropout_rate,
-		                                 encoded_dim = self.hparams.model_hyp['enc_dim'],
+		                                 encoded_dim = self.hparams.trainParams['enc_dim'],
 		                                 n_classes = self.hparams.n_classes)
 		self.Disc.build()
 		

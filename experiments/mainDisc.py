@@ -11,7 +11,7 @@ from dataProcessing.dataModule import SingleDatasetModule
 
 from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
-from Utils.myUtils import get_Clfparams, get_TLparams, MCI
+from Utils.myUtils import getTeacherParams, MCI
 
 seed = 2804
 print('Seeding with {}'.format(seed))
@@ -39,8 +39,8 @@ if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	verbose = 0
-	save_path = '../saved/Disc/'
-	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
+	save_path = '../saved/teacherOficial/'
+	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
@@ -48,12 +48,11 @@ else:
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\Disc\\'
 if args.log:
-	my_logger = WandbLogger(project='Disc',
+	my_logger = WandbLogger(project='teacherOficial',
 	                        log_model='all',
-	                        name= args.source + '_to_' + args.target + args.expName)
+	                        name= args.source + '_to_' + args.target)
 
-
-def runDisc(clfParams,TLparams,source,target,trials,save_path):
+def runDisc(teacherParams,source,target,trials,save_path, save= True):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["Acc Source"] = []
@@ -65,33 +64,27 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		class_weight = torch.tensor([0.5, 3, 3, 0.5])
 	else:
 		class_weight = None
-	# if my_logger:
-	# 	my_logger.log_hyperparams(clfParams)
-	# 	my_logger.log_hyperparams(TLparams)
-	# 	my_logger.log_hyperparams({'class_weight': class_weight})
 	
 	for i in range(trials):
 		dm_source = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=source,
 		                                n_classes=args.n_classes,
-		                                input_shape=clfParams['input_shape'],
-		                                batch_size=TLparams['bs'])
+		                                input_shape=teacherParams['input_shape'],
+		                                batch_size=teacherParams['bs'])
 		dm_source.setup(normalize=True)
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=target,
-		                                input_shape=clfParams['input_shape'],
+		                                input_shape=teacherParams['input_shape'],
 		                                n_classes=args.n_classes,
-		                                batch_size=TLparams['bs'])
+		                                batch_size=teacherParams['bs'])
 		dm_target.setup(normalize=True)
 
-		model = TLmodel(trainParams=TLparams,
+		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
-		                class_weight=class_weight,
-		                model_hyp=clfParams)
-		print(TLparams)
-		# model.load_params(save_path,file)
+		                class_weight=class_weight)
+		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
 		
@@ -101,8 +94,7 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 		#early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
-		                  max_epochs=TLparams['epoch'],
-		                  #max_epochs = 10,
+		                  max_epochs=teacherParams['epoch'],
 		                  logger=my_logger,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
@@ -123,8 +115,10 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_]/cmT[class_][:].sum())
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
 
-		if i ==5:
+		if save:
+			print(f"saving: {teacherParams}")
 			model.save_params(save_path, f'Disc_class{source}_{target}')
+			save = False
 		del model, trainer, dm_target, dm_source
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])
@@ -134,25 +128,12 @@ def runDisc(clfParams,TLparams,source,target,trials,save_path):
 	return final_result
 
 if __name__ == '__main__':
-	path_TL_params = None
+	paramsPath = None
 	if  args.TLParamsFile:
-		path_TL_params = os.path.join(params_path, args.TLParamsFile)
-	TLparams = get_TLparams(path_TL_params)
-	clfParams = {}
-	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParams['n_filters'] = (4, 16, 18, 24)
-	clfParams['enc_dim'] = 64
-	clfParams['input_shape'] = (2, 50, 3)
-	clfParams['step_size'] = None
-	clfParams['clf_epoch'] = None
-	clfParams["dropout_rate"] = TLparams['dropout_rate']
-	clfParams['bs'] = 128
-	
-	
-	# if 'dropout_rate' in TLparams.keys():
-	# 	clfParams['dropout_rate'] =
+		paramsPath = os.path.join(params_path, args.TLParamsFile)
+	teacherParams = getTeacherParams(paramsPath)
 
-	final_result = runDisc(clfParams,TLparams,args.source,args.target,args.trials,save_path)
+	final_result = runDisc(teacherParams,args.source,args.target,args.trials,save_path)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

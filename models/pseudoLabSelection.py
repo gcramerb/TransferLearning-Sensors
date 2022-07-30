@@ -25,9 +25,13 @@ def getPseudoLabel(prediction, method = 'simplest'):
 		softLabel = simpleKernelProcess(prediction)
 		data = prediction['data']
 		trueLabel = prediction['true']
+		
+	if method =='cluster':
+		data, softLabel, trueLabel = cluster(prediction)
 
 	if data.shape[1] == 2:
 		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
+	
 	return data, softLabel,trueLabel
 
 
@@ -57,7 +61,6 @@ def GMM(prediction, trh=0.75):
 	:return:
 	"""
 	idx = simplest(prediction['probs'], trh)
-	print("old pl len: ", len(idx))
 	gm = GaussianMixture(n_components=4, random_state=0).fit(prediction['latent'])
 	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
 	GMMpl = np.argmax(GMMprobs, axis=1)
@@ -74,6 +77,34 @@ def GMM(prediction, trh=0.75):
 	return data, softLabel, prediction['true'][idx]
 
 
+def cluster(prediction, k=64):
+	"""
+	The same method described before, but use a gaussian mixture model to select the pseudo label
+
+	:param path_file: the path to the pseudo Label file
+	:param data: the data (X) that will be saved after the filtering
+	:param probs: the classification probability of each sample prediction
+	:param first_save: (bool) if is true, the data will be replaced anyway
+	:param trh: the threshhold for filtering.
+	:return:
+	"""
+	softLabelIdx = []
+	softLabelGenerated = []
+	gm = GaussianMixture(n_components=k, random_state=0).fit(prediction['latent'])
+	softLabel = np.argmax(prediction['probs'], axis=1)
+	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
+	GMMpl = np.argmax(GMMprobs, axis=1)
+	for i in range(k):
+		idx = np.where(GMMpl == i)[0]
+		aux = np.histogram(softLabel[idx],bins = 4)[0].max()/np.histogram(softLabel[idx],bins = 4)[0].sum()
+		if aux>0.75:
+			label = np.bincount(softLabel[idx]).argmax()
+			softLabelIdx.append(idx)
+			softLabelGenerated.append(len(idx)*[label])
+	softLabel= np.concatenate(softLabelGenerated)
+	idx = np.concatenate(softLabelIdx)
+	return prediction['data'][idx], softLabel, prediction['true'][idx]
+
 def simpleKernelProcess(prediction):
 	"""
 	Model some distribution based on the initial prob of each point.
@@ -87,14 +118,12 @@ def simpleKernelProcess(prediction):
 	"""
 	dens_score = np.zeros_like(prediction['latent'])
 	for i in range(prediction['probs'].shape[1]):
-		kde = KernelDensity(kernel='gaussian', bandwidth=0.2).fit(prediction['latent'], sample_weight=prediction['probs'][:, i])
+		weights = [x if x > 0 else 0 for x in prediction['probs'][:, i]]
+		kde = KernelDensity(kernel='gaussian', bandwidth=0.2).fit(prediction['latent'], sample_weight=weights)
 		dens_score[:, i] = kde.score_samples(prediction['latent'])
 		del kde
 	softLab = np.argmax(dens_score, axis=1)
 	return softLab
-
-
-
 
 
 def saveAllLabels(path_file, data, trueLabel, softLabel, latent):

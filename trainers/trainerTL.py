@@ -148,6 +148,7 @@ class TLmodel(LightningModule):
 		loss, log = self.compute_loss(batch,optimizer_idx)
 		tqdm_dict = log
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
+		self.log("training_loss", loss,batch_size=self.batch_size)
 		return output
 	
 	def training_epoch_end(self, output):
@@ -161,7 +162,7 @@ class TLmodel(LightningModule):
 			metrics[k] = torch.mean(torch.stack([i[k] for i in opt]))
 		
 		for k, v in metrics.items():
-			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True,batch_size = self.batch_size)
 		return None
 	
 	def validation_step(self, batch, batch_idx):
@@ -178,7 +179,7 @@ class TLmodel(LightningModule):
 			else:
 				metrics[k] = torch.mean(torch.stack(val))
 		for k, v in metrics.items():
-			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True,batch_size = self.batch_size)
 		return None
 	
 	def configure_optimizers(self):

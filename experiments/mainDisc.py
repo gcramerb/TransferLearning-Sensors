@@ -99,6 +99,7 @@ def runDisc(teacherParams,source,target,trials,save_path, save= True):
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
+		                  enable_model_summary=False,
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)
@@ -108,7 +109,7 @@ def runDisc(teacherParams,source,target,trials,save_path, save= True):
 		accT = accuracy_score(predT['trueTarget'], predT['predTarget'])
 		cmS = confusion_matrix(predS['trueSource'], predS['predSource'])
 		cmT = confusion_matrix(predT['trueTarget'], predT['predTarget'])
-		print('Source: ', accS, '  Target: ', accT)
+		#print('Source: ', accS, '  Target: ', accT)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
 		for class_ in range(4):

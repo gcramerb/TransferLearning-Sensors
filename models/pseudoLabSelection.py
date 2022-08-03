@@ -3,7 +3,7 @@ import glob,os
 from sklearn.neighbors import KernelDensity
 from sklearn.mixture import GaussianMixture
 
-def getPseudoLabel(prediction, method = 'simplest'):
+def getPseudoLabel(prediction,param,method = 'simplest'):
 	"""
 	Filter the ps labels and return the indexes, the trueLabels and the Pseudo lables.
 
@@ -12,14 +12,14 @@ def getPseudoLabel(prediction, method = 'simplest'):
 	:return:
 	"""
 	if method == 'simplest':
-		idx = simplest(prediction['probs'], 0.95)
+		idx = simplest(prediction['probs'], param)
 		softLabel = np.argmax(prediction['probs'], axis=1)
 		softLabel = softLabel[idx]
 		data = prediction['data'][idx]
 		trueLabel =  prediction['true'][idx]
 		
 	if method =='gmm':
-		data, softLabel, trueLabel = GMM(prediction, 0.75)
+		data, softLabel, trueLabel = GMM(prediction, param)
 
 	if method =='kernel':
 		softLabel = simpleKernelProcess(prediction)
@@ -27,7 +27,7 @@ def getPseudoLabel(prediction, method = 'simplest'):
 		trueLabel = prediction['true']
 		
 	if method =='cluster':
-		data, softLabel, trueLabel = cluster(prediction)
+		data, softLabel, trueLabel = cluster(prediction,param)
 
 	if data.shape[1] == 2:
 		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
@@ -49,7 +49,7 @@ def simplest(probs, trh):
 	return idx
 
 
-def GMM(prediction, trh=0.75):
+def GMM(prediction, trh):
 	"""
 	The same method described before, but use a gaussian mixture model to select the pseudo label
 
@@ -77,7 +77,7 @@ def GMM(prediction, trh=0.75):
 	return data, softLabel, prediction['true'][idx]
 
 
-def cluster(prediction, k=64):
+def cluster(prediction, k):
 	"""
 	The same method described before, but use a gaussian mixture model to select the pseudo label
 

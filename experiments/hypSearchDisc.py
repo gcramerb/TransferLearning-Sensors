@@ -47,12 +47,27 @@ def suggest_hyperparameters(trial):
 	Tparams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
 	return Tparams
 	
+finalResult = {}
+finalResult['top 1'] = [0,{}]
+finalResult['top 2'] = [0,{}]
+finalResult['top 3'] = [0,{}]
+finalResult['count'] = 0
+
 
 def objective(trial):
 	teacherParams = suggest_hyperparameters(trial)
 	metrics = runDisc(teacherParams,args.source,args.target,1,save_path,False)
 	acc =metrics['Target acc mean'][0]
-	print(f'Result: {args.source} to {args.target}: {acc}')
+	if acc>finalResult['top 1'][0]:
+		finalResult['top 1'] = [acc,teacherParams]
+	elif acc>finalResult['top 2'][0]:
+		finalResult['top 2'] = [acc,teacherParams]
+	elif acc>finalResult['top 3'][0]:
+		finalResult['top 3'] = [acc,teacherParams]
+	if finalResult['count']%25 == 0:
+		print(f'Result: {args.source} to {args.target}: {acc}')
+		print(teacherParams)
+	finalResult['count'] +=1
 	return acc
 
 
@@ -65,10 +80,10 @@ def run(n_trials):
 	print("  Trial number: ", study.best_trial.number)
 	print("  Acc (trial value): ", study.best_trial.value)
 	print("  Params: ")
-	teacherParams = getTeacherParams()
 	for key, value in study.best_trial.params.items():
 		print("    {}: {}".format(key, value))
-		teacherParams[key] = value
-	metrics = runDisc(teacherParams,args.source,args.target,1,save_path,True)
+		
+	metrics = runDisc(finalResult['top 1'][1],args.source,args.target,1,save_path,True)
 if __name__ == '__main__':
-	run(1)
+	run(401)
+	print(finalResult)

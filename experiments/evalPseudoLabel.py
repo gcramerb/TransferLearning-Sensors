@@ -66,19 +66,25 @@ def analizePL(teacherParams,source, target):
 	pred = teacher.predict(dm_target.test_dataloader())
 	
 	acc = accuracy_score(pred['true'], pred['pred'])
+	cm = confusion_matrix(pred['true'], pred['pred'])
+	print(f'Acc: {acc}\n confusionMatrix: {cm}')
 	print(f'INIT acc in Target{acc}')
 	print(f"INIT number of samples: {len(pred['true'])}\n")
 	
-	for method in ['cluster','kernel','gmm','simplest']:
-		print(f"METHOD: {method}\n")
-		_,softLabel, trueLabel = getPseudoLabel(pred.copy(),method)
-		print(f"number of samples: {len(trueLabel)}\n")
-		acc = accuracy_score(trueLabel,softLabel)
-		cm = confusion_matrix(trueLabel, softLabel)
-		print(f'Acc: {acc}\n confusionMatrix: {cm}')
-		del softLabel, trueLabel
-
-
+	methodParams = {}
+	methodParams['cluster'] = [32,64,128,256]
+	methodParams['simplest'] = [0.85,0.90,0.95,0.97]
+	methodParams['kernel'] = [999] #dumb number
+	
+	for method in ['cluster','kernel','simplest']:
+		for param_ in methodParams[method]:
+			print(f"\n\n METHOD: {method}, param: {param_}\n")
+			_,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = method,param = param_)
+			print(f"number of samples: {len(trueLabel)}\n")
+			acc = accuracy_score(trueLabel,softLabel)
+			cm = confusion_matrix(trueLabel, softLabel)
+			print(f'Acc: {acc}\n confusionMatrix: {cm}')
+			del softLabel, trueLabel
 	del teacher, dm_target
 	return True
 if __name__ == '__main__':

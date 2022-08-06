@@ -23,26 +23,26 @@ class classifier(nn.Module):
 		super(classifier, self).__init__()
 		self.n_classes = n_classes
 		self.DropoutRate = hyp['dropout_rate']
-		self.Encoder = Encoder(hyp=hyp, input_shape=input_shape)
-		self.discrimination = discriminator(self.DropoutRate, hyp['enc_dim'], self.n_classes)
+		self.FE = Encoder(hyp=hyp, input_shape=input_shape)
+		self.Disc = discriminator(self.DropoutRate, hyp['enc_dim'], self.n_classes)
 	
 	@property
 	def name(self):
 		return self._name
 	def build(self):
 
-		self.Encoder.build()
-		self.discrimination.build()
+		self.FE.build()
+		self.Disc.build()
 	
 	# from torchsummary import summary
-		# summary(self.Encoder.to('cuda'), (2,50,3))
+		# summary(self.FE.to('cuda'), (2,50,3))
 
 	def forward(self, X):
-		encoded = self.Encoder.forward(X)
-		pred = self.discrimination(encoded)
+		encoded = self.FE.forward(X)
+		pred = self.Disc(encoded)
 		return encoded,pred
 	def forward_from_latent(self,latent):
-		return self.discrimination(latent)
+		return self.Disc(latent)
 	def getLatent(self,X):
-		return self.Encoder.forward(X)
+		return self.FE.forward(X)
 

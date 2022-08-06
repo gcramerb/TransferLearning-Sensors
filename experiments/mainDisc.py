@@ -11,7 +11,7 @@ from dataProcessing.dataModule import SingleDatasetModule
 
 from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
-from Utils.myUtils import getTeacherParams, MCI
+from Utils.myUtils import  MCI,getTeacherParams
 
 seed = 2804
 print('Seeding with {}'.format(seed))
@@ -52,7 +52,7 @@ if args.log:
 	                        log_model='all',
 	                        name= args.source + '_to_' + args.target)
 
-def runDisc(teacherParams,source,target,trials,save_path, save= True):
+def runDisc(teacherParams,source,target,trials,save_path, save= False):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["Acc Source"] = []
@@ -129,12 +129,19 @@ def runDisc(teacherParams,source,target,trials,save_path, save= True):
 	return final_result
 
 if __name__ == '__main__':
-	paramsPath = None
-	if  args.TLParamsFile:
-		paramsPath = os.path.join(params_path, args.TLParamsFile)
-	teacherParams = getTeacherParams(paramsPath)
+	# paramsPath = None
+	# if  args.TLParamsFile:
+	# 	paramsPath = os.path.join(params_path, args.TLParamsFile)
+	# teacherParams = getTeacherParams(paramsPath)
+	Tparams = getTeacherParams()
+	Tparams["dropout_rate"] = 0.30000000000000004
+	Tparams['lr'] = 0.00012064682466615247
+	Tparams['epoch']  = 105
+	Tparams['alpha'] = 0.2
+	Tparams['beta'] = 0.037
+	Tparams['weight_decay'] = 0.5
 
-	final_result = runDisc(teacherParams,args.source,args.target,args.trials,save_path)
+	final_result = runDisc(Tparams,args.source,args.target,args.trials,save_path,False)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

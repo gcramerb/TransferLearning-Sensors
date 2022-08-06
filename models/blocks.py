@@ -5,7 +5,7 @@ import torch.nn.functional as F
 class Encoder(nn.Module):
 	def __init__(self, hyp=None,input_shape = (1,50,6)):
 		super(Encoder, self).__init__()
-		self._name = 'Encoder'
+		self._name = 'FE'
 		self.input_shape = input_shape
 		if hyp:
 			self.kernel_dim = hyp['kernel_dim']

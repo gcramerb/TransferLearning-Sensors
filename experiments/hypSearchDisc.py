@@ -55,18 +55,26 @@ finalResult['count'] = 0
 
 
 def objective(trial):
+	save = False
 	teacherParams = suggest_hyperparameters(trial)
-	metrics = runDisc(teacherParams,args.source,args.target,1,save_path,False)
-	acc =metrics['Target acc mean'][0]
+	
+	if finalResult['count']%25 == 0:
+		metrics = runDisc(teacherParams, args.source, args.target, 1, save_path, True)
+		print(teacherParams)
+		acc = metrics['Target acc mean'][0]
+		print(f'Result: {args.source} to {args.target}: {acc}')
+	else:
+		metrics = runDisc(teacherParams, args.source, args.target, 1, save_path, False)
+		acc = metrics['Target acc mean'][0]
+	
 	if acc>finalResult['top 1'][0]:
 		finalResult['top 1'] = [acc,teacherParams]
 	elif acc>finalResult['top 2'][0]:
 		finalResult['top 2'] = [acc,teacherParams]
 	elif acc>finalResult['top 3'][0]:
 		finalResult['top 3'] = [acc,teacherParams]
-	if finalResult['count']%25 == 0:
-		print(f'Result: {args.source} to {args.target}: {acc}')
-		print(teacherParams)
+
+		
 	finalResult['count'] +=1
 	return acc
 

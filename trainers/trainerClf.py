@@ -44,15 +44,20 @@ class ClfModel(LightningModule):
 	
 	def save_params(self,save_path,file):
 		path = os.path.join(save_path,file + '_feature_extractor')
-		torch.save(self.model.Encoder.state_dict(), path)
+		torch.save(self.model.FE.state_dict(), path)
 		path = os.path.join(save_path,file + '_discriminator')
-		torch.save(self.model.discrimination.state_dict(), path)
+		torch.save(self.model.Disc.state_dict(), path)
 	
 	def load_params(self,save_path,file):
 		path = os.path.join(save_path,file + '_feature_extractor')
-		self.model.Encoder.load_state_dict(torch.load(path))
+		self.model.FE.load_state_dict(torch.load(path))
 		path = os.path.join(save_path,file + '_discriminator')
-		self.model.discrimination.load_state_dict(torch.load(path))
+		self.model.Disc.load_state_dict(torch.load(path))
+		for param in self.FE.parameters():
+			param.requires_grad = False
+		for param in self.Disc.parameters():
+			param.requires_grad = False
+		
 		
 	def load_paramsFL(self,save_path,file):
 		"""
@@ -68,7 +73,7 @@ class ClfModel(LightningModule):
 		#TODO: testar se esta conjelando as camadas corretas.
 		i = 0
 		processed_dict = {}
-		model_dict = self.model.Encoder.state_dict()  # new model keys
+		model_dict = self.model.FE.state_dict()  # new model keys
 		
 		for k in model_dict.keys():
 			
@@ -79,7 +84,7 @@ class ClfModel(LightningModule):
 			i = i +1
 			if i > 1:
 				break
-		self.model.Encoder.load_state_dict(processed_dict, strict=False)
+		self.model.FE.load_state_dict(processed_dict, strict=False)
 
 	def forward(self, X):
 		return self.model(X)

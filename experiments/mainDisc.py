@@ -26,8 +26,8 @@ parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
-parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--target', type=str, default="Pamap2")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--trials', type=int, default=1)
 parser.add_argument('--saveModel', type=bool, default=False)
@@ -99,7 +99,7 @@ def runDisc(teacherParams,source,target,trials,save_path, save= False):
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
-		                  enable_model_summary=False,
+		                  enable_model_summary=True,
 		                  multiple_trainloader_mode='max_size_cycle')
 		
 		trainer.fit(model)

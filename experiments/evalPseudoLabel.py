@@ -55,31 +55,14 @@ def analizePL(teacherParams,source, target):
 	                                batch_size=teacherParams['bs'])
 	
 	dm_target.setup(normalize=True)
-	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=source,
-	                                n_classes=args.n_classes,
-	                                input_shape=teacherParams['input_shape'],
-	                                batch_size=teacherParams['bs'])
-	dm_source.setup(normalize=True)
-
 	model = TLmodel(trainParams=teacherParams,
-	                n_classes=4,
+	                n_classes=args.n_classes,
 	                lossParams=None,
 	                save_path=None,
 	                class_weight=None)
 	
-	model.setDatasets(dm_source, dm_target)
+	model.setDatasets(dm_target = dm_target)
 	model.create_model()
-	trainer = Trainer(gpus=1,
-	                  check_val_every_n_epoch=1,
-	                  max_epochs=teacherParams['epoch'],
-	                  logger=None,
-	                  min_epochs=1,
-	                  progress_bar_refresh_rate=0,
-	                  callbacks=[],
-	                  enable_model_summary=False,
-	                  multiple_trainloader_mode='max_size_cycle')
-	trainer.fit(model)
 	predT = model.getPredict(domain='Target')
 	
 	# from torchsummary import summary

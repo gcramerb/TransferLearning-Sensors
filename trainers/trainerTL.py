@@ -60,7 +60,7 @@ class TLmodel(LightningModule):
 		
 		self.clfLoss = nn.CrossEntropyLoss(weight=self.hparams.class_weight)
 		
-		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=90, use_gpu=True)
+		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=self.hparams.trainParams['enc_dim'], use_gpu=True)
 
 		if self.hparams.penalty == 'mmd':
 			self.discLoss = MMDLoss()
@@ -261,11 +261,15 @@ class TLmodel(LightningModule):
 		combined_loaders = CombinedLoader(loaders, "max_size_cycle")
 		return combined_loaders
 	
-	def setDatasets(self, dm_source, dm_target):
-		self.dm_source = dm_source
-		self.dm_target = dm_target
-		self.n_classes = dm_target.n_classes
-		self.batch_size = dm_target.batch_size
-		if self.batch_size != dm_source.batch_size:
-			raise ValueError("Differents Batch size!")
-		self.datasetTarget = dm_target.datasetName
+	def setDatasets(self, dm_source = None, dm_target = None):
+		if dm_source:
+			self.dm_source = dm_source
+			self.n_classes = dm_source.n_classes
+			self.batch_size = dm_source.batch_size
+		if dm_target:
+			self.dm_target = dm_target
+			self.n_classes = dm_target.n_classes
+			self.batch_size = dm_target.batch_size
+		# if self.batch_size != dm_source.batch_size:
+		# 	raise ValueError("Differents Batch size!")
+

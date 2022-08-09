@@ -29,11 +29,11 @@ class SingleDatasetModule(LightningDataModule):
 			self,
 			data_dir: str = None,
 			datasetName: str = "Dsads",
-			file_name:str = None,
 			n_classes: int = 4,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 1,
+			shuffle: bool = False
 	):
 		super().__init__()
 		self.data_dir = data_dir
@@ -44,6 +44,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.input_shape = input_shape
 		self.type = type
 		self.X_val = None
+		self.shuffle = shuffle
 
 	def normalize(self,X,Y):
 		newX = []
@@ -114,7 +115,7 @@ class SingleDatasetModule(LightningDataModule):
 	def train_dataloader(self):
 		return DataLoader(
 			self.dataTrain,
-			shuffle=True,
+			shuffle=self.shuffle,
 			batch_size=self.batch_size,
 			num_workers=self.num_workers,
 			drop_last=True)
@@ -123,14 +124,14 @@ class SingleDatasetModule(LightningDataModule):
 		return DataLoader(
 			self.dataVal,
 	        batch_size=self.batch_size,
-	        shuffle=True,
+	        shuffle=self.shuffle,
 	        num_workers=self.num_workers,
 	        drop_last=False)
 	
 	def test_dataloader(self):
 		return DataLoader(self.dataTest,
 		                  batch_size=self.batch_size,
-		                  shuffle=True,
+		                  shuffle=self.shuffle,
 		                  num_workers=self.num_workers,
 		                  drop_last=False)
 

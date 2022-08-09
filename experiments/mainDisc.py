@@ -46,13 +46,13 @@ else:
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
 	args.paramsPath = None
-	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\Disc\\'
+	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
 if args.log:
 	my_logger = WandbLogger(project='teacherOficial',
 	                        log_model='all',
 	                        name= args.source + '_to_' + args.target)
 
-def runDisc(teacherParams,source,target,trials,save_path, save= False):
+def runDisc(teacherParams,dm_source,dm_target,trials,save_path, save= False):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["Acc Source"] = []
@@ -60,24 +60,12 @@ def runDisc(teacherParams,source,target,trials,save_path, save= False):
 		final_result[f"Acc Target class {class_}"] = []
 		final_result[f"Acc Source class {class_}"]  = []
 	
-	if source == 'Uschad':
+	if dm_source.datasetName == 'Uschad':
 		class_weight = torch.tensor([0.5, 3, 3, 0.5])
 	else:
 		class_weight = None
-	
 	for i in range(trials):
-		dm_source = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=source,
-		                                n_classes=args.n_classes,
-		                                input_shape=teacherParams['input_shape'],
-		                                batch_size=teacherParams['bs'])
-		dm_source.setup(normalize=True)
-		dm_target = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=target,
-		                                input_shape=teacherParams['input_shape'],
-		                                n_classes=args.n_classes,
-		                                batch_size=teacherParams['bs'])
-		dm_target.setup(normalize=True)
+
 
 		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
@@ -140,8 +128,22 @@ if __name__ == '__main__':
 	Tparams['alpha'] = 0.2
 	Tparams['beta'] = 0.037
 	Tparams['weight_decay'] = 0.5
+	dm_source = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=args.source,
+	                                n_classes=args.n_classes,
+	                                input_shape=(2,50,3),
+	                                batch_size=128,
+	                                shuffle=True)
+	dm_source.setup(normalize=True)
+	dm_target = SingleDatasetModule(data_dir=args.inPath,
+	                                datasetName=args.target,
+	                                input_shape=(2,50,3),
+	                                n_classes=args.n_classes,
+	                                batch_size=128,
+	                                shuffle=True)
+	dm_target.setup(normalize=True)
 
-	final_result = runDisc(Tparams,args.source,args.target,args.trials,save_path,False)
+	final_result = runDisc(Tparams,dm_source,dm_target,args.trials,save_path,True)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

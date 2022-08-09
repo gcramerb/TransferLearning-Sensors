@@ -53,28 +53,40 @@ finalResult['top 2'] = [0,{}]
 finalResult['top 3'] = [0,{}]
 finalResult['count'] = 0
 
+dm_source = SingleDatasetModule(data_dir=args.inPath,
+                                datasetName=args.source,
+                                n_classes=args.n_classes,
+                                input_shape=(2, 50, 3),
+                                batch_size=128,
+                                shuffle=True)
+dm_source.setup(normalize=True)
+dm_target = SingleDatasetModule(data_dir=args.inPath,
+                                datasetName=args.target,
+                                input_shape=(2, 50, 3),
+                                n_classes=args.n_classes,
+                                batch_size=128,
+                                shuffle=True)
+dm_target.setup(normalize=True)
+
 
 def objective(trial):
 	save = False
 	teacherParams = suggest_hyperparameters(trial)
-	
-	if finalResult['count']%25 == 0:
-		metrics = runDisc(teacherParams, args.source, args.target, 1, save_path, True)
-		print(teacherParams)
-		acc = metrics['Target acc mean'][0]
-		print(f'Result: {args.source} to {args.target}: {acc}')
-	else:
-		metrics = runDisc(teacherParams, args.source, args.target, 1, save_path, False)
-		acc = metrics['Target acc mean'][0]
-	
+	metrics = runDisc(teacherParams, dm_source, dm_target, 1, save_path, False)
+	acc = metrics['Target acc mean'][0]
+
 	if acc>finalResult['top 1'][0]:
 		finalResult['top 1'] = [acc,teacherParams]
+		print(f'New Top 1: {acc}\n')
+		metricsNew = runDisc(teacherParams, dm_source, dm_target, 1, save_path, True)
+		accNew = metricsNew['Target acc mean'][0]
+		print(f'Rerun Top 1 (saved): {args.source} to {args.target}: {accNew}\n')
+		print(teacherParams)
 	elif acc>finalResult['top 2'][0]:
 		finalResult['top 2'] = [acc,teacherParams]
 	elif acc>finalResult['top 3'][0]:
 		finalResult['top 3'] = [acc,teacherParams]
 
-		
 	finalResult['count'] +=1
 	return acc
 

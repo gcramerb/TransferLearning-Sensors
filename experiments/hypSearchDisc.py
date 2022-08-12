@@ -40,6 +40,7 @@ else:
 def suggest_hyperparameters(trial):
 	Tparams = getTeacherParams()
 	Tparams["dropout_rate"] = trial.suggest_float("dropout_rate", 0.0, 0.5, step=0.1)
+	Tparams['enc_dim'] =  trial.suggest_categorical("enc_dim", [64,90])
 	Tparams['lr'] = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
 	Tparams['epoch']  = trial.suggest_int("epoch", 15, 120, step=15)
 	Tparams['alpha'] = trial.suggest_float("alpha", 0.0, 1.0, step=0.1)
@@ -77,11 +78,13 @@ def objective(trial):
 
 	if acc>finalResult['top 1'][0]:
 		finalResult['top 1'] = [acc,teacherParams]
+		print('\n------------------------------------------------\n')
 		print(f'New Top 1: {acc}\n')
 		metricsNew = runDisc(teacherParams, dm_source, dm_target, 1, save_path, True)
 		accNew = metricsNew['Target acc mean'][0]
 		print(f'Rerun Top 1 (saved): {args.source} to {args.target}: {accNew}\n')
 		print(teacherParams)
+		print('\n------------------------------------------------\n\n\n')
 	elif acc>finalResult['top 2'][0]:
 		finalResult['top 2'] = [acc,teacherParams]
 	elif acc>finalResult['top 3'][0]:

@@ -1,5 +1,5 @@
 import sys, argparse,os,glob
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 
 sys.path.insert(0, '../')
 
@@ -66,7 +66,6 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path, save= False):
 		class_weight = None
 	for i in range(trials):
 
-
 		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
@@ -95,20 +94,25 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path, save= False):
 		predS = model.getPredict(domain='Source')
 		accS = accuracy_score(predS['trueSource'], predS['predSource'])
 		accT = accuracy_score(predT['trueTarget'], predT['predTarget'])
+		f1S = f1_score(predS['trueSource'], predS['predSource'],average = 'weighted')
+		f1T = f1_score(predT['trueTarget'], predT['predTarget'],average = 'weighted')
 		cmS = confusion_matrix(predS['trueSource'], predS['predSource'])
 		cmT = confusion_matrix(predT['trueTarget'], predT['predTarget'])
 		#print('Source: ', accS, '  Target: ', accT)
 		final_result["Acc Target"].append(accT)
 		final_result["Acc Source"].append(accS)
+		final_result["F1 Target"].append(f1T)
+		final_result["F1 Source"].append(f1S)
+		
 		for class_ in range(4):
 			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_]/cmT[class_][:].sum())
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
 
 		if save:
 			print(f"saving: {teacherParams}")
-			model.save_params(save_path, f'Disc_class{source}_{target}')
+			model.save_params(save_path, f'Disc_class{dm_source.datasetName}_{dm_target.datasetName}')
 			save = False
-		del model, trainer, dm_target, dm_source
+		del model, trainer
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])
 	for class_ in range(4):
@@ -117,17 +121,10 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path, save= False):
 	return final_result
 
 if __name__ == '__main__':
-	# paramsPath = None
-	# if  args.TLParamsFile:
-	# 	paramsPath = os.path.join(params_path, args.TLParamsFile)
-	# teacherParams = getTeacherParams(paramsPath)
-	Tparams = getTeacherParams()
-	Tparams["dropout_rate"] = 0.30000000000000004
-	Tparams['lr'] = 0.00012064682466615247
-	Tparams['epoch']  = 105
-	Tparams['alpha'] = 0.2
-	Tparams['beta'] = 0.037
-	Tparams['weight_decay'] = 0.5
+	paramsPath = None
+	if  args.TLParamsFile:
+		paramsPath = os.path.join(params_path, args.TLParamsFile)
+	teacherParams = getTeacherParams(paramsPath)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
@@ -143,7 +140,7 @@ if __name__ == '__main__':
 	                                shuffle=True)
 	dm_target.setup(normalize=True)
 
-	final_result = runDisc(Tparams,dm_source,dm_target,args.trials,save_path,True)
+	final_result = runDisc(teacherParams,dm_source,dm_target,args.trials,save_path,False)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

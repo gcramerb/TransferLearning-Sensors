@@ -21,16 +21,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--log', action='store_true')
 parser.add_argument('--expName', type=str, default='benchDisc_ntrials')
-parser.add_argument('--trainClf', action='store_true')
 parser.add_argument('--TLParamsFile', type=str, default=None)
-parser.add_argument('--ClfParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Pamap2")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--trials', type=int, default=1)
-parser.add_argument('--saveModel', type=bool, default=False)
+parser.add_argument('--savePath', type=str, default=None)
 args = parser.parse_args()
 
 
@@ -39,23 +37,31 @@ if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	verbose = 0
-	save_path = '../saved/teacherOficial/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
+	paramsPath = None
+	if  args.TLParamsFile:
+		paramsPath = os.path.join(params_path, args.TLParamsFile)
+
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
+	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
 	args.paramsPath = None
-	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
+	#args.savePath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
+	savePath = False
+	paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + ".json")
+	
 if args.log:
 	my_logger = WandbLogger(project='teacherOficial',
 	                        log_model='all',
 	                        name= args.source + '_to_' + args.target)
 
-def runDisc(teacherParams,dm_source,dm_target,trials,save_path, save= False):
+def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["Acc Source"] = []
+	final_result["F1 Source"] = []
+	final_result["F1 Target"] = []
 	for class_ in range(4):
 		final_result[f"Acc Target class {class_}"] = []
 		final_result[f"Acc Source class {class_}"]  = []
@@ -108,22 +114,22 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path, save= False):
 			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_]/cmT[class_][:].sum())
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
 
-		if save:
+		if save_path is not None:
 			print(f"saving: {teacherParams}")
 			model.save_params(save_path, f'Disc_class{dm_source.datasetName}_{dm_target.datasetName}')
-			save = False
+			save_path = None
 		del model, trainer
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])
+	final_result['Target f1 mean'] =  MCI(final_result["F1 Target"])
+	final_result['Source f1 mean'] =  MCI(final_result["F1 Source"])
 	for class_ in range(4):
 		final_result[f"Acc Target class {class_}"] = MCI(final_result[f"Acc Target class {class_}"])
 		final_result[f"Acc Source class {class_}"]= MCI(final_result[f"Acc Source class {class_}"])
 	return final_result
 
 if __name__ == '__main__':
-	paramsPath = None
-	if  args.TLParamsFile:
-		paramsPath = os.path.join(params_path, args.TLParamsFile)
+
 	teacherParams = getTeacherParams(paramsPath)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
@@ -140,7 +146,7 @@ if __name__ == '__main__':
 	                                shuffle=True)
 	dm_target.setup(normalize=True)
 
-	final_result = runDisc(teacherParams,dm_source,dm_target,args.trials,save_path,False)
+	final_result = runDisc(teacherParams,dm_source,dm_target,args.trials,args.savePath)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

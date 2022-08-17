@@ -93,18 +93,17 @@ def analizePL(teacherParams,source, target):
 	methodParams['simplest'] = [0.85,0.90,0.95,0.97]
 	methodParams['kernel'] = [999] #dumb number
 	
-	for method in ['cluster','kernel','simplest']:
+	for method in ['cluster','simplest','kernel']:
 		for param_ in methodParams[method]:
 			print(f"\n\n METHOD: {method}, param: {param_}\n")
 			_,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = method,param = param_)
 			print(f"number of samples: {len(trueLabel)}\n")
-			print(f" %  of samples decrease: {100*len(trueLabel)/dataLen}\n")
+			print(f" %  of samples decrease: {100 - 100*len(trueLabel)/dataLen}\n")
 			acc = accuracy_score(trueLabel,softLabel)
 			cm = confusion_matrix(trueLabel, softLabel)
 			f1 = f1_score(trueLabel, softLabel,average = 'weighted')
-			print(f'Acc: {acc} - ({100*acc/accIni}) \n F1 socre: {f1} - ({100*f1/f1Ini}) \n confusionMatrix: {cm}\n=======================================================\n')
+			print(f'Acc: {acc}; Improovment: (+{(100*acc/accIni)-100}) \n F1 socre: {f1}; Improovment: (+{(100*f1/f1Ini) - 100}) \n confusionMatrix: {cm}\n=======================================================\n')
 			del softLabel, trueLabel
-	del teacher, dm_target
 	return True
 if __name__ == '__main__':
 	path_TL_params = None

@@ -117,34 +117,16 @@ class TLmodel(LightningModule):
 
 		return loss,logs
 	
-	def _shared_eval_step(self, batch,optimizer_idx,stage='val'):
-		source, target = batch[0], batch[1]
-		dataSource, labSource = source['data'], source['label'].long()
-		dataTarget, labTarget = target['data'], target['label'].long()
-
-		latS = self.FE(dataSource)
-		pred_S = self.Disc(latS)
-		
-		latT = self.FE(dataTarget)
-		pred_T = self.Disc(latT)
-		metrics = {}
-		yhat_S = np.argmax(pred_S.detach().cpu().numpy(), axis=1)
-		yhat_T = np.argmax(pred_T.detach().cpu().numpy(), axis=1)
-
-		acc_S = accuracy_score(labSource.cpu().numpy(), yhat_S)
-		acc_T = accuracy_score(labTarget.cpu().numpy(), yhat_T)
-		
-		metrics = {f'{stage}_acc_S': acc_S}
-		metrics[f'{stage}_acc_T'] = acc_T
-
-		if stage == 'val':
-			_, logs = self.compute_loss(batch,optimizer_idx)
-			for k, v in logs.items():
-				metrics[stage + '_' + k] = v.detach()
-		return metrics
+	# def _shared_eval_step(self, batch,optimizer_idx,stage='val'):
+	#
+	#
+	# 	if stage == 'val' and optimizer_idx is not None:
+	# 		_, logs = self.compute_loss(batch,optimizer_idx)
+	# 		for k, v in logs.items():
+	# 			metrics[stage + '_' + k] = v.detach()
+	# 	return metrics
 	
 	def training_step(self, batch, batch_idx,optimizer_idx):
-
 		loss, log = self.compute_loss(batch,optimizer_idx)
 		tqdm_dict = log
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
@@ -166,18 +148,43 @@ class TLmodel(LightningModule):
 		return None
 	
 	def validation_step(self, batch, batch_idx):
-		metrics = self._shared_eval_step(batch, stage='val',optimizer_idx = 0)
-		return metrics
+		return batch
 	
 	def validation_epoch_end(self, out):
-		keys_ = out[0].keys()
+		YsourcePred = []
+		YtargetPred = []
+		YsourceTrue = []
+		YtargetTrue = []
+		for batch in out:
+			source, target = batch[0], batch[1]
+			dataSource, labSource = source['data'], source['label'].long()
+			dataTarget, labTarget = target['data'], target['label'].long()
+			latS = self.FE(dataSource)
+			pred_S = self.Disc(latS)
+			latT = self.FE(dataTarget)
+			pred_T = self.Disc(latT)
+			YsourcePred.append(np.argmax(pred_S.detach().cpu().numpy(), axis=1))
+			YtargetPred.append(np.argmax(pred_T.detach().cpu().numpy(), axis=1))
+			YsourceTrue.append(labSource.cpu().numpy())
+			YtargetTrue.append(labTarget.cpu().numpy())
+		
+		YsourceTrue = np.concatenate(YsourceTrue,axis =0)
+		YtargetTrue = np.concatenate(YtargetTrue, axis=0)
+		YsourcePred = np.concatenate(YsourcePred, axis=0)
+		YtargetPred = np.concatenate(YtargetPred, axis=0)
 		metrics = {}
-		for k in keys_:
-			val = [i[k] for i in out]
-			if 'acc' in k:
-				metrics[k] = np.mean(val)
-			else:
-				metrics[k] = torch.mean(torch.stack(val))
+		metrics['valAccSource'] = accuracy_score(YsourceTrue,YsourcePred)
+		metrics['valAccTarget'] = accuracy_score(YtargetTrue,YtargetPred)
+
+		# return metrics
+		# keys_ = out[0].keys()
+		# for k in keys_:
+		# 	val = [i[k] for i in out]
+		# 	if 'acc' in k:
+		# 		metrics[k] = np.mean(val)
+		# 	else:
+		# 		metrics[k] = torch.mean(torch.stack(val))
+		
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True,batch_size = self.batch_size)
 		return None

@@ -17,22 +17,23 @@ class classifier(nn.Module):
 
 	"""
 	def __init__(self,
-	             n_classes,
-	             hyp=None,
-	             input_shape = (1,50,6)):
+	             n_classes = 4,
+	             trainParams=None,
+	             input_shape = (2,50,3)):
 		super(classifier, self).__init__()
 		self.n_classes = n_classes
-		self.DropoutRate = hyp['dropout_rate']
-		self.FE = Encoder(hyp=hyp, input_shape=input_shape)
-		self.Disc = discriminator(self.DropoutRate, hyp['enc_dim'], self.n_classes)
-	
-	@property
-	def name(self):
-		return self._name
-	def build(self):
+		self.trainParams = trainParams
+		self.input_shape = input_shape
+		
 
+	def create_model(self):
+		self.FE = Encoder(hyp=trainParams, input_shape=input_shape)
 		self.FE.build()
+		self.Disc = discriminator(dropout_rate = trainParams['dropout_rate'],
+		                          encoded_dim = trainParams['enc_dim'],
+		                          n_classes = self.n_classes)
 		self.Disc.build()
+	
 	
 	# from torchsummary import summary
 		# summary(self.FE.to('cuda'), (2,50,3))

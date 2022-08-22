@@ -37,6 +37,7 @@ if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
+
 # my_logger = WandbLogger(project='TransferLearning-Soft-Label',
 #                         log_model='all',
 #                         name=args.expName + args.source + '_to_' + args.target)

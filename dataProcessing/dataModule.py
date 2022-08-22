@@ -59,7 +59,7 @@ class SingleDatasetModule(LightningDataModule):
 		return newX[:,None,:,:],newY
 
 
-	def setup(self,normalize = True, fold_i = None,SL_path_file = None):
+	def setup(self,normalize = True, fold_i = None,SL_path_file = None, fileName = None):
 		"""
 		The data input is going to be always (None,1,50,6) = np(None,dumb,Freq,3*n_sensors)
 		
@@ -68,8 +68,10 @@ class SingleDatasetModule(LightningDataModule):
 		:param SL_path_file:
 		:return:
 		"""
+		if fileName is None:
+			fileName =  f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz'
 		
-		file = os.path.join(self.data_dir, f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz')
+		file = os.path.join(self.data_dir,fileName)
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
 			Y = tmp['y']

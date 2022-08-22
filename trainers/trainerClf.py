@@ -23,24 +23,24 @@ from collections import OrderedDict
 class ClfModel(LightningModule):
 	def __init__(
 			self,
-			lr: float = 0.002,
-			n_classes: int = 6,
-			alpha: float = 1.0,
-			input_shape:tuple = (1,50,6),
-			step_size = 10,
-			model_hyp: dict = None,
-			weight_decay: float = 0.0,
-			class_weight:torch.tensor = None,
+			trainParams: dict = None,
+			class_weight: torch.tensor = None,
 			**kwargs
 	):
 		super().__init__()
-		self.save_hyperparameters()
+		self.hparams.beta = trainParams['beta']
+		self.hparams.weight_decay = trainParams['weight_decay']
+		self.hparams.dropout_rate = trainParams['dropout_rate']
+		self.hparams.lr = trainParams['lr']
+		self.hparams.input_shape = trainParams['input_shape']
+		
+	def create_model(self):
 		self.model = classifier(n_classes,
 		                        hyp = self.hparams.model_hyp,
 		                        input_shape=self.hparams.input_shape)
-		self.model.build()
-		self.m_loss = torch.nn.CrossEntropyLoss(weight = self.hparams.class_weight)
-		# self.p_loss = classDistance()
+		self.model.create_model()
+		self.m_loss = torch.nn.CrossEntropyLoss(weight = None)
+		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=self.hparams.trainParams['enc_dim'], use_gpu=True)
 	
 	def save_params(self,save_path,file):
 		path = os.path.join(save_path,file + '_feature_extractor')
@@ -87,7 +87,7 @@ class ClfModel(LightningModule):
 		self.model.FE.load_state_dict(processed_dict, strict=False)
 
 	def forward(self, X):
-		return self.model(X)
+		return self.model.forward(X)
 
 	def set_requires_grad(model, requires_grad=True):
 		for param in self.model.parameters():
@@ -97,9 +97,8 @@ class ClfModel(LightningModule):
 		# opt = self.optimizers()
 		data,  label = batch['data'], batch['label'].long()
 		latent, pred = self.model(data)
-
-		#loss = self.m_loss(pred, label) + self.hparams.alpha * self.p_loss(latent, label)
-		loss =  self.m_loss(pred, label)
+		classDistence = self.classDist(latent, label)
+		loss = self.clfLoss(pred, label) + self.hparams.beta * classDistence
 		tqdm_dict = {"train_loss": loss.detach()}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		return output
@@ -115,51 +114,24 @@ class ClfModel(LightningModule):
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 	
 	def validation_step(self, batch, batch_idx):
-		res = self._shared_eval_step(batch, batch_idx)
-		metrics = res['log']
-		return metrics
+		return batch
 
 	def validation_epoch_end(self, out):
-		keys_ = out[0].keys()
+		Ypred = []
+		Ytrue = []
+		for batch in out:
+			data, label = batch['data'], batch['label'].long()
+			latent, pred = self.model(data)
+			Ypred.append(np.argmax(pred.detach().cpu().numpy(), axis=1))
+			Ytrue.append(labSource.cpu().numpy())
+
+		Ytrue = np.concatenate(Ytrue, axis=0)
+		Ypred = np.concatenate(Ypred, axis=0)
 		metrics = {}
-		for k in keys_:
-			val = [i[k] for i in out]
-			if k =='acc':
-				metrics['val_'+k] = np.mean(val)
-			else:
-				metrics['val_' + k] = torch.mean(torch.stack(val))
+		metrics['valAcc'] = accuracy_score(Ytrue, Ypred)
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-
-	def test_step(self, batch, batch_idx):
-		res = self._shared_eval_step(batch, batch_idx)
-		metrics = res['log']
-		self.log('test_acc', metrics['acc'], on_step=False, on_epoch=True, prog_bar=True, logger=True)
-		return metrics
-
-	def _shared_eval_step(self, batch, batch_idx):
-		data, label = batch['data'], batch['label'].long()
-		latent, pred = self.model(data)
-
-		m_loss = self.m_loss(pred, label)
-		# p_loss = self.p_loss(latent,label)
-		# loss = m_loss  + self.hparams.alpha * p_loss
-		loss = m_loss
-
-		acc = accuracy_score(label.cpu().numpy(), np.argmax(pred.detach().cpu(), axis=1))
-
-		metrics = {"loss": loss,
-		           'm_loss':m_loss,
-		           #'p_loss': p_loss,
-		           'acc': acc}
-
-		tqdm_dict = metrics
-		result = {
-			'progress_bar': tqdm_dict,
-			'log': tqdm_dict
-		}
-		return result
 
 	def predict(self, dataLoaderTest):
 		with torch.no_grad():

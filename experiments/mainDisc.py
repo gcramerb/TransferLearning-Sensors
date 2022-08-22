@@ -84,14 +84,14 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		# from torchsummary import summary
 		# summary(model.FE, (2, 50, 3))
 		
-		#early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
+		early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
 		                  max_epochs=teacherParams['epoch'],
 		                  logger=my_logger,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
-		                  callbacks=[],
+		                  callbacks=[early_stopping],
 		                  enable_model_summary=True,
 		                  multiple_trainloader_mode='max_size_cycle')
 		

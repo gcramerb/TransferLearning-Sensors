@@ -137,6 +137,7 @@ def saveAllLabels(path_file, data, trueLabel, softLabel, latent):
 	# 	data = np.concatenate([data, Xsl], axis=0)
 	with open(path_file, "wb") as f:
 		np.savez(f, X=data, y=trueLabel, pseudoLabel =softLabel,  folds=np.zeros(1))
+	
 	return True
 
 

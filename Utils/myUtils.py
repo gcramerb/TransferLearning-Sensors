@@ -33,25 +33,18 @@ def getTeacherParams(path_file=None):
 			Tparams[k] = v
 	return Tparams
 
-def getClfParams(path_file = None):
-	
+def getStudentParams():
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
-	clfParams['enc_dim'] = 64
 	clfParams['input_shape'] = (2, 50, 3)
-	clfParams['alpha'] = None
+	clfParams['enc_dim'] = 64
+	clfParams['alpha'] = 0.5
 	clfParams['step_size'] = None
-	clfParams['clf_epoch'] = 12
+	clfParams['epoch'] = 60
 	clfParams["dropout_rate"] = 0.2
-	clfParams['bs'] = 128
-	clfParams['clf_lr'] = 0.0001
+	clfParams['lr'] = 0.0001
 	clfParams['weight_decay'] = 0.2
-	if path_file:
-		with open(path_file) as f:
-			aux = json.load(f)
-		for k,v in aux.items():
-			clfParams[k] = v
 	return clfParams
 
 

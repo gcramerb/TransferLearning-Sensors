@@ -18,19 +18,27 @@ class classifier(nn.Module):
 	"""
 	def __init__(self,
 	             n_classes = 4,
-	             trainParams=None,
-	             input_shape = (2,50,3)):
+	             dropout_rate  = 0.0,
+	             encoded_dim = 64,
+	             input_shape = (2,50,3),
+	             n_filters = None,
+	             kernel_dim = None
+					):
 		super(classifier, self).__init__()
-		self.n_classes = n_classes
-		self.trainParams = trainParams
 		self.input_shape = input_shape
-		
+		self.n_classes = n_classes
+		self.encoded_dim = encoded_dim
+		self.dropout_rate = dropout_rate
+		self.trainParams = {}
+		self.trainParams['kernel_dim'] = kernel_dim
+		self.trainParams['n_filters'] = n_filters
+		self.trainParams['enc_dim'] = encoded_dim
 
 	def create_model(self):
-		self.FE = Encoder(hyp=trainParams, input_shape=input_shape)
+		self.FE = Encoder(hyp=self.trainParams, input_shape=self.input_shape)
 		self.FE.build()
-		self.Disc = discriminator(dropout_rate = trainParams['dropout_rate'],
-		                          encoded_dim = trainParams['enc_dim'],
+		self.Disc = discriminator(dropout_rate = self.dropout_rate,
+		                          encoded_dim = self.encoded_dim,
 		                          n_classes = self.n_classes)
 		self.Disc.build()
 	

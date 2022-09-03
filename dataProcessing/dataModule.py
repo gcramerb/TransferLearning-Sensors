@@ -126,7 +126,7 @@ class SingleDatasetModule(LightningDataModule):
 		return DataLoader(
 			self.dataVal,
 	        batch_size=self.batch_size,
-	        shuffle=False,
+	        shuffle=self.shuffle,
 	        num_workers=self.num_workers,
 	        drop_last=False)
 	
@@ -134,6 +134,6 @@ class SingleDatasetModule(LightningDataModule):
 		return DataLoader(
 			self.dataTest,
           batch_size=self.batch_size,
-          shuffle=False,
+          shuffle=self.shuffle,
           num_workers=self.num_workers,
           drop_last=False)

@@ -20,7 +20,7 @@ torch.manual_seed(seed)
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--log', action='store_true')
-parser.add_argument('--expName', type=str, default='benchDisc_ntrials')
+parser.add_argument('--expName', type=str, default='__')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
@@ -41,6 +41,8 @@ if args.slurm:
 	paramsPath = None
 	if  args.TLParamsFile:
 		paramsPath = os.path.join(params_path, args.TLParamsFile)
+	else:
+		paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + ".json")
 
 else:
 	verbose = 1
@@ -54,7 +56,7 @@ else:
 if args.log:
 	my_logger = WandbLogger(project='teacherOficial',
 	                        log_model='all',
-	                        name= args.source + '_to_' + args.target)
+	                        name= args.expName + args.source + '_to_' + args.target)
 
 def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 	final_result = {}
@@ -84,14 +86,14 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		# from torchsummary import summary
 		# summary(model.FE, (2, 50, 3))
 		
-		early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
+		#early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
 		trainer = Trainer(gpus=1,
 		                  check_val_every_n_epoch=1,
 		                  max_epochs=teacherParams['epoch'],
 		                  logger=my_logger,
 		                  min_epochs=1,
 		                  progress_bar_refresh_rate=verbose,
-		                  callbacks=[early_stopping],
+		                  callbacks=[],
 		                  enable_model_summary=True,
 		                  multiple_trainloader_mode='max_size_cycle')
 		
@@ -115,7 +117,8 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
 
 		if save_path is not None:
-			print(f"saving: {teacherParams}")
+			print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {accT}\n\n")
+			print(teacherParams)
 			model.save_params(save_path, f'Disc_class{dm_source.datasetName}_{dm_target.datasetName}')
 			save_path = None
 		del model, trainer

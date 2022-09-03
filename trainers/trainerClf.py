@@ -29,7 +29,7 @@ class ClfModel(LightningModule):
 			**kwargs
 	):
 		super().__init__()
-		self.hparams.alpha = trainParams['alpha']
+		#self.hparams.alpha = trainParams['alpha']
 		self.hparams.weight_decay = trainParams['weight_decay']
 		self.hparams.encoded_dim = trainParams['enc_dim']
 		self.hparams.dropout_rate = trainParams['dropout_rate']
@@ -107,7 +107,8 @@ class ClfModel(LightningModule):
 		data,  label = batch['data'], batch['label'].long()
 		latent, pred = self.model(data)
 		classDistence = self.classDist(latent, label)
-		loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
+		#loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
+		loss = self.clfLoss(pred, label)
 		tqdm_dict = {"train_loss": loss.detach()}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		self.log("training_loss", loss, batch_size=self.batch_size)
@@ -134,11 +135,12 @@ class ClfModel(LightningModule):
 			latent, pred = self.model(data)
 			Ypred.append(np.argmax(pred.detach().cpu().numpy(), axis=1))
 			Ytrue.append(label.cpu().numpy())
-
+		
 		Ytrue = np.concatenate(Ytrue, axis=0)
 		Ypred = np.concatenate(Ypred, axis=0)
 		metrics = {}
-		metrics['valAcc'] = accuracy_score(Ytrue, Ypred)
+		metrics['valAcc (ps)'] = accuracy_score(Ytrue, Ypred)
+		metrics['len ps'] = len(Ytrue)
 		Ypred = []
 		Ytrue = []
 		for batch in out[1]:
@@ -148,8 +150,9 @@ class ClfModel(LightningModule):
 			Ytrue.append(label.cpu().numpy())
 		Ytrue = np.concatenate(Ytrue, axis=0)
 		Ypred = np.concatenate(Ypred, axis=0)
-		metrics['valAcc_target'] = accuracy_score(Ytrue, Ypred)
 
+		metrics['valAcc (target)'] = accuracy_score(Ytrue, Ypred)
+		metrics['len target'] = len(Ytrue)
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
@@ -163,11 +166,11 @@ class ClfModel(LightningModule):
 		for batch in dataloader:
 			data, label = batch['data'], batch['label']
 			l, pdS = self.model(data)
-			latent.append(l.cpu().numpy())
-			probs.append(pdS.cpu().numpy())
-			pred.append(np.argmax(pdS.cpu().numpy(), axis=1))
+			latent.append(l.detach().cpu().numpy())
+			probs.append(pdS.detach().cpu().numpy())
+			pred.append(np.argmax(pdS.detach().cpu().numpy(), axis=1))
 			true.append(label.cpu().numpy())
-			X.append(data.cpu().numpy())
+			X.append(data.detach().cpu().numpy())
 		predictions = {}
 		predictions['latent'] = np.concatenate(latent, axis=0)
 		predictions['pred'] = np.concatenate(pred, axis=0)

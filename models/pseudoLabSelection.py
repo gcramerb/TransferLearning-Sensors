@@ -90,6 +90,9 @@ def cluster(prediction, k):
 	"""
 	softLabelIdx = []
 	softLabelGenerated = []
+	X= []
+	Ytrue = []
+	
 	gm = GaussianMixture(n_components=k, random_state=0).fit(prediction['latent'])
 	softLabel = np.argmax(prediction['probs'], axis=1)
 	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
@@ -101,9 +104,13 @@ def cluster(prediction, k):
 			label = np.bincount(softLabel[idx]).argmax()
 			softLabelIdx.append(idx)
 			softLabelGenerated.append(len(idx)*[label])
+			X.append(prediction['data'][idx])
+			Ytrue.append(prediction['true'][idx])
+			
 	softLabel= np.concatenate(softLabelGenerated)
-	idx = np.concatenate(softLabelIdx)
-	return prediction['data'][idx], softLabel, prediction['true'][idx]
+	X = np.concatenate(X)
+	Ytrue = np.concatenate(Ytrue)
+	return X, softLabel, Ytrue
 
 def simpleKernelProcess(prediction):
 	"""

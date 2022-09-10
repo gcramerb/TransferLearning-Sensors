@@ -85,10 +85,10 @@ def analizePL(teacherParams,selectionParams,source, target, savePseudoLabel = Fa
 	print(f"INIT number of samples: {dataLen}")
 	print("\n====================================================\n")
 	
-
-	
+	best = 0
 	for method in selectionParams['method']:
 		for param_ in selectionParams['params']:
+			result = 0
 			print(f"\n\n METHOD: {method}, param: {param_}\n")
 			Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = method,param = param_)
 			print(f"number of samples: {len(trueLabel)}\n")
@@ -97,13 +97,15 @@ def analizePL(teacherParams,selectionParams,source, target, savePseudoLabel = Fa
 			cm = confusion_matrix(trueLabel, softLabel)
 			f1 = f1_score(trueLabel, softLabel,average = 'weighted')
 			print(f'Acc: {acc}; Improovment: (+{(100*acc/accIni)-100}) \n F1 socre: {f1}; Improovment: (+{(100*f1/f1Ini) - 100}) \n confusionMatrix: {cm}\n=======================================================\n')
-
-	if savePseudoLabel:
-		print(f'saving methdod {method} with param {param_}')
-		fileName = f"{source}_{target}pseudoLabel.npz"
-		path_file = os.path.join(args.inPath, fileName)
-		with open(path_file, "wb") as f:
-			np.savez(f, X=Xpl, y=softLabel, folds=np.zeros(1))
+			for class_ in range(4):
+				result += cm[class_][class_] / cm[class_][:].sum()
+			if result>best:
+				best = result
+				print(f'saving methdod {method} with param {param_}')
+				fileName = f"{source}_{target}pseudoLabel.npz"
+				path_file = os.path.join(args.inPath, fileName)
+				with open(path_file, "wb") as f:
+					np.savez(f, X=Xpl, y=softLabel, folds=np.zeros(1))
 		
 	return True
 if __name__ == '__main__':
@@ -112,8 +114,9 @@ if __name__ == '__main__':
 	
 	selectionParams = {}
 	selectionParams['method'] = ['cluster']
-	selectionParams['params'] = [64]
-	# methodParams['cluster'] = [32,64,128,256]
-	# methodParams['simplest'] = [0.85,0.90,0.95,0.97]
-	# methodParams['kernel'] = [999] #dumb number
+	selectionParams['params'] = []
+	for k in [128,64,32]:
+		for l in [0.75,0.85,0.9]:
+			for n in [50,100,150]:
+				selectionParams['params'].append([k,l,n])
 	analizePL(teacherParams,selectionParams,args.source, args.target, True)

@@ -60,3 +60,4 @@ def get_foldsInfo():
 	folds['Pamap2'] = 8
 	folds['Ucihar'] = 30
 	return folds
+

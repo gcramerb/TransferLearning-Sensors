@@ -111,7 +111,7 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		final_result["Acc Source"].append(accS)
 		final_result["F1 Target"].append(f1T)
 		final_result["F1 Source"].append(f1S)
-		
+		print(f'\n Acc target in trial {i}: {accT}\n')
 		for class_ in range(4):
 			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_]/cmT[class_][:].sum())
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())

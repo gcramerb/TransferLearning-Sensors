@@ -93,20 +93,21 @@ def cluster(prediction, k):
 	X= []
 	Ytrue = []
 	
-	gm = GaussianMixture(n_components=k, random_state=0).fit(prediction['latent'])
+	gm = GaussianMixture(n_components=k[0], random_state=0).fit(prediction['latent'])
 	softLabel = np.argmax(prediction['probs'], axis=1)
 	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
 	GMMpl = np.argmax(GMMprobs, axis=1)
-	for i in range(k):
+	for i in range(k[0]):
 		idx = np.where(GMMpl == i)[0]
 		aux = np.histogram(softLabel[idx],bins = 4)[0].max()/np.histogram(softLabel[idx],bins = 4)[0].sum()
-		if aux>0.75:
+		if aux>k[1] and len(idx)>k[2]:
 			label = np.bincount(softLabel[idx]).argmax()
+			selected = np.where(softLabel[idx] == label)[0]
+			idx = idx[selected]
 			softLabelIdx.append(idx)
 			softLabelGenerated.append(len(idx)*[label])
 			X.append(prediction['data'][idx])
 			Ytrue.append(prediction['true'][idx])
-			
 	softLabel= np.concatenate(softLabelGenerated)
 	X = np.concatenate(X)
 	Ytrue = np.concatenate(Ytrue)

@@ -50,7 +50,7 @@ if args.log:
 	                        name=args.expName + args.source + '_to_' + args.target)
 
 
-def runStudent(source,target,class_weight = None,my_logger = None):
+def runStudent(studentParams,source,target,class_weight = None,my_logger = None):
 	batchSize = 64
 	dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=f"pseudoLabel_{source}_{target}",
@@ -109,8 +109,8 @@ if __name__ == '__main__':
 		class_weight = torch.tensor([0.5, 5, 5, 0.5])
 	else:
 		class_weight = None
-	teacherParams['class_weight'] = class_weight
-	metrics = runStudent(args.source,args.target,class_weight = class_weight,my_logger = my_logger)
+	studentParams['class_weight'] = class_weight
+	metrics = runStudent(studentParams,args.source,args.target,class_weight = class_weight,my_logger = my_logger)
 
 	print(metrics)
 	if my_logger:

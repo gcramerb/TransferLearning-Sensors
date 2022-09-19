@@ -11,23 +11,23 @@ def getPseudoLabel(prediction,param,method = 'simplest'):
 	:param trh: the threshhold for filtering, just for simplest method
 	:return:
 	"""
-	if method == 'simplest':
-		idx = simplest(prediction['probs'], param)
-		softLabel = np.argmax(prediction['probs'], axis=1)
-		softLabel = softLabel[idx]
-		data = prediction['data'][idx]
-		trueLabel =  prediction['true'][idx]
+	# if method == 'simplest':
+	# 	idx = simplest(prediction['probs'], param)
+	# 	softLabel = np.argmax(prediction['probs'], axis=1)
+	# 	softLabel = softLabel[idx]
+	# 	data = prediction['data'][idx]
+	# 	trueLabel =  prediction['true'][idx]
 		
-	if method =='gmm':
-		data, softLabel, trueLabel = GMM(prediction, param)
-
-	if method =='kernel':
-		softLabel = simpleKernelProcess(prediction)
-		data = prediction['data']
-		trueLabel = prediction['true']
-		
+	# if method =='gmm':
+	# 	data, softLabel, trueLabel = GMM(prediction, param)
+	#
+	# if method =='kernel':
+	# 	softLabel = simpleKernelProcess(prediction)
+	# 	data = prediction['data']
+	# 	trueLabel = prediction['true']
+	#
 	if method =='cluster':
-		data, softLabel, trueLabel = cluster(prediction,param)
+		data, softLabel, trueLabel = cluster(prediction, param)
 
 	if data.shape[1] == 2:
 		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
@@ -77,7 +77,7 @@ def GMM(prediction, trh):
 	return data, softLabel, prediction['true'][idx]
 
 
-def cluster(prediction, k):
+def cluster(prediction, params):
 	"""
 	The same method described before, but use a gaussian mixture model to select the pseudo label
 
@@ -88,30 +88,61 @@ def cluster(prediction, k):
 	:param trh: the threshhold for filtering.
 	:return:
 	"""
+	
+	X, softLabel, Ytrue, selectedIdx = runGMM(params, prediction['latent'], prediction['probs'],
+	                                          prediction['true'], prediction['data'])
+	n_classes = 4
+	# second step:
+	idx = np.where(softLabel == 3)[0]
+	if len(idx)>1500:
+		newIdx = list(set(range(len(X))) - set(idx))
+		newSelectedIdx = selectedIdx[newIdx]
+		newX = prediction['data'][newSelectedIdx]
+		newLatent = prediction['latent'][newSelectedIdx]
+		newProbs = prediction['probs'][newSelectedIdx]
+		newYtrue = prediction['true'][newSelectedIdx]
+		params['minSamples'] = params['minSamplesStep2']
+		X2, softLabel2, Ytrue2, _ = runGMM(params, newLatent, newProbs, newYtrue, newX, 3)
+		X = np.concatenate([X,X2])
+		softLabel = np.concatenate([softLabel, softLabel2])
+		Ytrue = np.concatenate([Ytrue, Ytrue2])
+	return X, softLabel, Ytrue
+	
+def runGMM(params,latent,probs,true,data,n_classes = 4):
 	softLabelIdx = []
 	softLabelGenerated = []
-	X= []
+	X = []
 	Ytrue = []
+	selectedIdx = []
 	
-	gm = GaussianMixture(n_components=k[0], random_state=0).fit(prediction['latent'])
-	softLabel = np.argmax(prediction['probs'], axis=1)
-	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
+	gm = GaussianMixture(n_components=params['nClusters'], random_state=0).fit(latent)
+	softLabel = np.argmax(probs, axis=1)
+	GMMprobs = gm.predict_proba(latent)  # (n_samples, n_components)
 	GMMpl = np.argmax(GMMprobs, axis=1)
-	for i in range(k[0]):
+	
+	for i in range(params['nClusters']):
 		idx = np.where(GMMpl == i)[0]
-		aux = np.histogram(softLabel[idx],bins = 4)[0].max()/np.histogram(softLabel[idx],bins = 4)[0].sum()
-		if aux>k[1] and len(idx)>k[2]:
+		aux = np.histogram(softLabel[idx], bins=n_classes)[0].max()
+		aux_b = np.histogram(softLabel[idx], bins=n_classes)[0].sum()
+		if aux_b > 0.000001:
+			aux = aux / aux_b
+		else:
+			aux = 1000
+		if aux > params['labelConvergence'] and len(idx) > params['minSamples']:
 			label = np.bincount(softLabel[idx]).argmax()
 			selected = np.where(softLabel[idx] == label)[0]
 			idx = idx[selected]
 			softLabelIdx.append(idx)
-			softLabelGenerated.append(len(idx)*[label])
-			X.append(prediction['data'][idx])
-			Ytrue.append(prediction['true'][idx])
-	softLabel= np.concatenate(softLabelGenerated)
+			softLabelGenerated.append(len(idx) * [label])
+			X.append(data[idx])
+			Ytrue.append(true[idx])
+			selectedIdx.append(idx)
+	softLabel = np.concatenate(softLabelGenerated)
 	X = np.concatenate(X)
 	Ytrue = np.concatenate(Ytrue)
-	return X, softLabel, Ytrue
+	selectedIdx = np.concatenate(selectedIdx)
+	return X, softLabel, Ytrue, selectedIdx
+
 
 def simpleKernelProcess(prediction):
 	"""

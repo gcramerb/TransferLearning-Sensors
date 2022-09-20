@@ -90,32 +90,37 @@ def analizePL(teacherParams,selectionParams,source, target, savePseudoLabel = Fa
 		result = 0
 		print(f"\n\n METHOD: {selectionParams['method']}, param: {param_}\n")
 		Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = selectionParams['method'],param = param_)
-		acc = accuracy_score(trueLabel,softLabel)
-		cm = confusion_matrix(trueLabel, softLabel)
-		f1 = f1_score(trueLabel, softLabel,average = 'weighted')
+		if len(Xpl)>0:
+			acc = accuracy_score(trueLabel,softLabel)
+			cm = confusion_matrix(trueLabel, softLabel)
+			f1 = f1_score(trueLabel, softLabel,average = 'weighted')
+			for class_ in range(3):
+				if cm[class_][:].sum() > 0:
+					result += cm[class_][class_] / cm[class_][:].sum()
+		else:
+			acc, cm, f1 = 0, 0,0
 		print(f"number of samples: {len(trueLabel)}\n")
 		print(f" %  of samples decrease: {100 - 100*len(trueLabel)/dataLen}\n")
 		print(f'Acc: {acc}; Improovment: (+{(100*acc/accIni)-100}) \n F1 socre: {f1}; Improovment: (+{(100*f1/f1Ini) - 100}) \n confusionMatrix: {cm}\n=======================================================\n')
 		
-		for class_ in range(cm.shape[0]):
-			result += cm[class_][class_] / cm[class_][:].sum()
 		if result>best:
 			best = result
-			finalAcc = acc
-			finalCM = cm
-			finalF1 = f1
+			finalAcc, finalCM,finalF1  = acc,cm,f1
 			finalNSamples = len(trueLabel)
-			if savePseudoLabel:
-				print(f'saving methdod ' ,selectionParams['method'], f'with param {param_}')
-				fileName = f"{source}_{target}pseudoLabel.npz"
-				path_file = os.path.join(args.inPath, fileName)
-				with open(path_file, "wb") as f:
-					np.savez(f, X=Xpl, y=softLabel, folds=np.zeros(1))
+			Xfinal, slFinal, trueFinal=  Xpl,softLabel, trueLabel
+			paramFinal = param_
+
 	print("\n========================================= BEST RESULT ==========================================\n")
 	print(f"number of samples: {finalNSamples}\n")
 	print(f" %  of samples decrease: {100 - 100 * finalNSamples/ dataLen}\n")
 	print(
 		f'Acc: {finalAcc}; Improovment: (+{(100 * finalAcc / accIni) - 100}) \n F1 socre: {finalF1}; Improovment: (+{(100 * finalF1 / f1Ini) - 100}) \n confusionMatrix: {finalCM}\n=======================================================\n')
+	if savePseudoLabel:
+		print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
+		fileName = f"{source}_{target}pseudoLabel2steps.npz"
+		path_file = os.path.join(args.inPath, fileName)
+		with open(path_file, "wb") as f:
+			np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))
 	
 	return True
 if __name__ == '__main__':
@@ -125,14 +130,14 @@ if __name__ == '__main__':
 	selectionParams = {}
 	selectionParams['method'] = 'cluster'
 	selectionParams['params'] = []
-	for k in [128,64,32]:
-		for l in [0.85,0.9]:
+	for k in [256,128,64,32,16]:
+		for l in [0.6,0.7,0.85,0.9]:
 			for n in [50,100,150]:
-				for n2 in [15, 30, 60,100]:
+				for n2 in [15, 30, 60]:
 					param_i = {}
 					param_i['nClusters'] = k
 					param_i['labelConvergence'] = l
 					param_i['minSamples'] = n
 					param_i['minSamplesStep2'] = n2
 					selectionParams['params'].append(param_i)
-	analizePL(teacherParams,selectionParams,args.source, args.target, False)
+	analizePL(teacherParams,selectionParams,args.source, args.target, True)

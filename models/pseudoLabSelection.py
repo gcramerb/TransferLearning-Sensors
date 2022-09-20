@@ -137,10 +137,12 @@ def runGMM(params,latent,probs,true,data,n_classes = 4):
 			X.append(data[idx])
 			Ytrue.append(true[idx])
 			selectedIdx.append(idx)
-	softLabel = np.concatenate(softLabelGenerated)
-	X = np.concatenate(X)
-	Ytrue = np.concatenate(Ytrue)
-	selectedIdx = np.concatenate(selectedIdx)
+	
+	if len(softLabelGenerated)>0:
+		softLabel = np.concatenate(softLabelGenerated)
+		X = np.concatenate(X)
+		Ytrue = np.concatenate(Ytrue)
+		selectedIdx = np.concatenate(selectedIdx)
 	return X, softLabel, Ytrue, selectedIdx
 
 

@@ -53,7 +53,7 @@ if args.log:
 def runStudent(studentParams,source,target,class_weight = None,my_logger = None):
 	batchSize = 64
 	dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=f"pseudoLabel_{source}_{target}",
+	                                datasetName=f"pseudoLabel_{source}_{target}2steps",
 	                                input_shape=(2, 50, 3),
 	                                n_classes=args.n_classes,
 	                                batch_size=batchSize,

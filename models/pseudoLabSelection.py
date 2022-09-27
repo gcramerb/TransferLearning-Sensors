@@ -29,9 +29,9 @@ def getPseudoLabel(prediction,param,method = 'simplest'):
 	if method =='cluster':
 		data, softLabel, trueLabel = cluster(prediction, param)
 
-	if data.shape[1] == 2:
-		data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
-	
+	# if data.shape[1] == 2:
+	# 	data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
+	#
 	return data, softLabel,trueLabel
 
 
@@ -88,24 +88,36 @@ def cluster(prediction, params):
 	:param trh: the threshhold for filtering.
 	:return:
 	"""
+	params1 = {}
+	params1['nClusters'] = 64
+	params1['labelConvergence'] = 0.85
+	params1['minSamples'] = 100
 	
-	X, softLabel, Ytrue, selectedIdx = runGMM(params, prediction['latent'], prediction['probs'],
+	X, softLabel, Ytrue, selectedIdx = runGMM(params1, prediction['latent'], prediction['probs'],
 	                                          prediction['true'], prediction['data'])
 	n_classes = 4
 	# second step:
 	idx = np.where(softLabel == 3)[0]
+	X2 = []
 	if len(idx)>1500:
-		newIdx = list(set(range(len(X))) - set(idx))
+
+		newIdx = list(set(range(len(softLabel))) - set(idx))
 		newSelectedIdx = selectedIdx[newIdx]
 		newX = prediction['data'][newSelectedIdx]
 		newLatent = prediction['latent'][newSelectedIdx]
 		newProbs = prediction['probs'][newSelectedIdx]
 		newYtrue = prediction['true'][newSelectedIdx]
-		params['minSamples'] = params['minSamplesStep2']
-		X2, softLabel2, Ytrue2, _ = runGMM(params, newLatent, newProbs, newYtrue, newX, 3)
-		X = np.concatenate([X,X2])
-		softLabel = np.concatenate([softLabel, softLabel2])
-		Ytrue = np.concatenate([Ytrue, Ytrue2])
+		if (len(newX) > 0):
+			X2, softLabel2, Ytrue2, _ = runGMM(params, newLatent, newProbs, newYtrue, newX, 3)
+
+		if(len(X2)>0):
+			X = X[idx]
+			softLabel = softLabel[idx]
+			Ytrue = Ytrue[idx]
+			selectedIdx = selectedIdx[idx]
+			X = np.concatenate([X,X2],axis = 0)
+			softLabel = np.concatenate([softLabel, softLabel2])
+			Ytrue = np.concatenate([Ytrue, Ytrue2])
 	return X, softLabel, Ytrue
 	
 def runGMM(params,latent,probs,true,data,n_classes = 4):
@@ -114,6 +126,8 @@ def runGMM(params,latent,probs,true,data,n_classes = 4):
 	X = []
 	Ytrue = []
 	selectedIdx = []
+	if params['nClusters'] > len(latent):
+		return X, softLabelGenerated, Ytrue, selectedIdx
 	
 	gm = GaussianMixture(n_components=params['nClusters'], random_state=0).fit(latent)
 	softLabel = np.argmax(probs, axis=1)
@@ -139,11 +153,11 @@ def runGMM(params,latent,probs,true,data,n_classes = 4):
 			selectedIdx.append(idx)
 	
 	if len(softLabelGenerated)>0:
-		softLabel = np.concatenate(softLabelGenerated)
+		softLabelGenerated = np.concatenate(softLabelGenerated)
 		X = np.concatenate(X)
 		Ytrue = np.concatenate(Ytrue)
 		selectedIdx = np.concatenate(selectedIdx)
-	return X, softLabel, Ytrue, selectedIdx
+	return X, softLabelGenerated, Ytrue, selectedIdx
 
 
 def simpleKernelProcess(prediction):

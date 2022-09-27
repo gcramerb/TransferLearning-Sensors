@@ -86,16 +86,16 @@ def analizePL(teacherParams,selectionParams,source, target, savePseudoLabel = Fa
 	print("\n====================================================\n")
 	
 	best = 0
-	for param_ in selectionParams['params']:
-		result = 0
-		print(f"\n\n METHOD: {selectionParams['method']}, param: {param_}\n")
-		Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = selectionParams['method'],param = param_)
+	result = 0
+	for param_i in selectionParams['params']:
+		print(f"\n\n METHOD: {selectionParams['method']}, param: {param_i}\n")
+		Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = selectionParams['method'],param = param_i)
 		if len(Xpl)>0:
 			acc = accuracy_score(trueLabel,softLabel)
 			cm = confusion_matrix(trueLabel, softLabel)
 			f1 = f1_score(trueLabel, softLabel,average = 'weighted')
-			for class_ in range(3):
-				if cm[class_][:].sum() > 0:
+			for class_ in range(cm.shape[0]):
+				if cm[class_][:].sum() > 0 and class_ != 3:
 					result += cm[class_][class_] / cm[class_][:].sum()
 		else:
 			acc, cm, f1 = 0, 0,0
@@ -108,7 +108,7 @@ def analizePL(teacherParams,selectionParams,source, target, savePseudoLabel = Fa
 			finalAcc, finalCM,finalF1  = acc,cm,f1
 			finalNSamples = len(trueLabel)
 			Xfinal, slFinal, trueFinal=  Xpl,softLabel, trueLabel
-			paramFinal = param_
+			paramFinal = param_i
 
 	print("\n========================================= BEST RESULT ==========================================\n")
 	print(f"number of samples: {finalNSamples}\n")
@@ -130,14 +130,29 @@ if __name__ == '__main__':
 	selectionParams = {}
 	selectionParams['method'] = 'cluster'
 	selectionParams['params'] = []
-	for k in [256,128,64,32,16]:
-		for l in [0.6,0.7,0.85,0.9]:
-			for n in [50,100,150]:
-				for n2 in [15, 30, 60]:
+	for k in [8,64,128,256,512]:
+		for l in [0.5,0.6]:
+				for n in [10, 30]:
 					param_i = {}
 					param_i['nClusters'] = k
 					param_i['labelConvergence'] = l
 					param_i['minSamples'] = n
-					param_i['minSamplesStep2'] = n2
 					selectionParams['params'].append(param_i)
+	# selectionParams['params'] ={'nClusters':64 , 'labelConvergence':0.9 , 'minSamples':100 , 'minSamplesStep2':60}
+	# bestParms = {}
+	# bestParms['Ucihar_Pamap2'] = selectionParams
+	# selectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.9, 'minSamples': 50, 'minSamplesStep2': 60}
+	# bestParms['Ucihar_Dsads'] =selectionParams
+	# selectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.6, 'minSamples': 100, 'minSamplesStep2': 60}
+	# bestParms['Dsads_Pamap2'] =selectionParams
+	# selectionParams['params'] = {'nClusters': 32, 'labelConvergence':0.85, 'minSamples': 150, 'minSamplesStep2': 30}
+	# bestParms['Dsads_Uschad'] =selectionParams
+	# selectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.6, 'minSamples': 100, 'minSamplesStep2': 30}
+	# bestParms['Uschad_Dsads'] =selectionParams
+	# selectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.9, 'minSamples': 50, 'minSamplesStep2': 15}
+	# bestParms['Uschad_Ucihar'] =selectionParams
+	# selectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.9, 'minSamples': 50, 'minSamplesStep2': 60}
+	# bestParms['Pamap2_Dsads'] =selectionParams
+	# selectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.9, 'minSamples': 100, 'minSamplesStep2': 15}
+	# bestParms['Pamap2_Ucihar'] =selectionParams
 	analizePL(teacherParams,selectionParams,args.source, args.target, True)

@@ -33,6 +33,7 @@ class SingleDatasetModule(LightningDataModule):
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 4,
+			oneHotLabel: bool = False,
 			shuffle: bool = False
 	):
 		super().__init__()
@@ -42,7 +43,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.num_workers = num_workers
 		self.n_classes = n_classes
 		self.input_shape = input_shape
-		self.type = type
+		self.oneHotLabel = oneHotLabel
 		self.X_val = None
 		self.shuffle = shuffle
 
@@ -58,7 +59,10 @@ class SingleDatasetModule(LightningDataModule):
 		newX, newY = np.array(newX), np.array(newY)
 		return newX[:,None,:,:],newY
 
-
+	def oneHotEncoding(self,label):
+		labelOH = np.zeros((label.size, label.max() + 1))
+		labelOH[np.arange(label.size), label] = 1
+		return labelOH
 	def setup(self,normalize = True, fold_i = None,SL_path_file = None, fileName = None):
 		"""
 		The data input is going to be always (None,1,50,6) = np(None,dumb,Freq,3*n_sensors)
@@ -80,7 +84,8 @@ class SingleDatasetModule(LightningDataModule):
 		if Y.dtype.type is np.str_:
 			y = categorical_to_int(Y).astype('int')
 			Y = np.argmax(y, axis=1).astype('long')
-		
+		if self.oneHotLabel:
+			Y = self.oneHotEncoding(Y)
 		if fold_i is not None:
 			self.X_val = X[self.folds[fold_i][1]]
 			self.X_train = X[self.folds[fold_i][0]]

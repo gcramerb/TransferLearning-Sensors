@@ -12,7 +12,7 @@ sys.path.insert(0, '../')
 
 from models.classifier import classifier
 from models.customLosses import CenterLoss
-#import geomloss
+# import geomloss
 
 
 from pytorch_lightning import LightningDataModule, LightningModule
@@ -29,7 +29,7 @@ class ClfModel(LightningModule):
 			**kwargs
 	):
 		super().__init__()
-		#self.hparams.alpha = trainParams['alpha']
+		# self.hparams.alpha = trainParams['alpha']
 		self.hparams.weight_decay = trainParams['weight_decay']
 		self.hparams.encoded_dim = trainParams['enc_dim']
 		self.hparams.dropout_rate = trainParams['dropout_rate']
@@ -38,48 +38,47 @@ class ClfModel(LightningModule):
 		self.hparams.n_filters = trainParams['n_filters']
 		self.hparams.kernel_dim = trainParams['kernel_dim']
 		self.save_hyperparameters()
-		
+	
 	def create_model(self):
-		self.model = classifier(n_classes = self.hparams.n_classes,
-		             dropout_rate  = self.hparams.dropout_rate,
-		             encoded_dim = self.hparams.encoded_dim,
-		             input_shape = self.hparams.input_shape,
-		                    n_filters = self.hparams.n_filters,
-		                    kernel_dim = self.hparams.kernel_dim
+		self.model = classifier(n_classes=self.hparams.n_classes,
+		                        dropout_rate=self.hparams.dropout_rate,
+		                        encoded_dim=self.hparams.encoded_dim,
+		                        input_shape=self.hparams.input_shape,
+		                        n_filters=self.hparams.n_filters,
+		                        kernel_dim=self.hparams.kernel_dim
 		                        )
 		self.model.create_model()
-		self.clfLoss = torch.nn.CrossEntropyLoss(weight = self.hparams.class_weight )
-		self.classDist = CenterLoss( num_classes=self.hparams.n_classes, feat_dim=self.hparams.encoded_dim, use_gpu=True)
+		self.clfLoss = torch.nn.CrossEntropyLoss(weight=self.hparams.class_weight)
+		self.classDist = CenterLoss(num_classes=self.hparams.n_classes, feat_dim=self.hparams.encoded_dim, use_gpu=True)
 	
-	def save_params(self,save_path,file):
-		path = os.path.join(save_path,file + '_feature_extractor')
+	def save_params(self, save_path, file):
+		path = os.path.join(save_path, file + '_feature_extractor')
 		torch.save(self.model.FE.state_dict(), path)
-		path = os.path.join(save_path,file + '_discriminator')
+		path = os.path.join(save_path, file + '_discriminator')
 		torch.save(self.model.Disc.state_dict(), path)
 	
-	def load_params(self,save_path,file):
-		path = os.path.join(save_path,file + '_feature_extractor')
+	def load_params(self, save_path, file):
+		path = os.path.join(save_path, file + '_feature_extractor')
 		self.model.FE.load_state_dict(torch.load(path))
-		path = os.path.join(save_path,file + '_discriminator')
+		path = os.path.join(save_path, file + '_discriminator')
 		self.model.Disc.load_state_dict(torch.load(path))
 		for param in self.FE.parameters():
 			param.requires_grad = False
 		for param in self.Disc.parameters():
 			param.requires_grad = False
-		
-		
-	def load_paramsFL(self,save_path,file):
+	
+	def load_paramsFL(self, save_path, file):
 		"""
 		Just load the first layer. if the weights were loaded, we freezes these initial layers
-		
+
 		:param save_path:
 		:param file:
 		:return:
 		"""
-		path = os.path.join(save_path,file + '_feature_extractor')
-		pretrained_dict =torch.load(path)
-
-		#TODO: testar se esta conjelando as camadas corretas.
+		path = os.path.join(save_path, file + '_feature_extractor')
+		pretrained_dict = torch.load(path)
+		
+		# TODO: testar se esta conjelando as camadas corretas.
 		i = 0
 		processed_dict = {}
 		model_dict = self.model.FE.state_dict()  # new model keys
@@ -89,25 +88,38 @@ class ClfModel(LightningModule):
 			decomposed_key = k.split(".")
 			if ("model" in decomposed_key):
 				pretrained_key = ".".join(decomposed_key[1:])
-				processed_dict[k] = pretrained_dict[pretrained_key]  # Here we are creating the new state dict to make our new model able to load the pretrained parameters without the head.
-			i = i +1
+				processed_dict[k] = pretrained_dict[
+					pretrained_key]  # Here we are creating the new state dict to make our new model able to load the pretrained parameters without the head.
+			i = i + 1
 			if i > 1:
 				break
 		self.model.FE.load_state_dict(processed_dict, strict=False)
-
+	
 	def forward(self, X):
 		return self.model.forward(X)
-
+	
 	def set_requires_grad(model, requires_grad=True):
 		for param in self.model.parameters():
 			param.requires_grad = requires_grad
 	
+	def mixup(self, latent, label, weight):
+		indices = torch.randperm(latent.size(0), device=latent.device, dtype=torch.long)
+		perm_latent = latent[indices]
+		perm_label = label[indices]
+		return latent.mul(weight).add(perm_latent, alpha=1 - weight), label.mul(weight).add(perm_label,
+		                                                                                    alpha=1 - weight)
+	
 	def training_step(self, batch, batch_idx):
 		# opt = self.optimizers()
-		data,  label = batch['data'], batch['label'].long()
-		latent, pred = self.model(data)
-		classDistence = self.classDist(latent, label)
-		#loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
+		data, label = batch['data'], batch['label'].long()
+		latent = self.model.getLatent(data)
+		# classDistence = self.classDist(latent, label)
+		
+		latentMixup, labelMixup = self.mixup(latent, label, np.random.beta(0.5, 0.5))
+		latent = torch.cat((latent, latentMixup), 0)
+		label = torch.cat((label, labelMixup), 0)
+		# loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
+		pred = self.model.forward_from_latent(latent)
 		loss = self.clfLoss(pred, label)
 		tqdm_dict = {"train_loss": loss.detach()}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
@@ -120,13 +132,13 @@ class ClfModel(LightningModule):
 		
 		keys_ = opt[0].keys()
 		for k in keys_:
-			metrics[k] = torch.mean(torch.stack([i[k] for i in opt] ))
+			metrics[k] = torch.mean(torch.stack([i[k] for i in opt]))
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 	
 	def validation_step(self, batch, batch_idx, dataloader_idx):
 		return batch
-
+	
 	def validation_epoch_end(self, out):
 		Ypred = []
 		Ytrue = []
@@ -139,8 +151,8 @@ class ClfModel(LightningModule):
 		Ytrue = np.concatenate(Ytrue, axis=0)
 		Ypred = np.concatenate(Ypred, axis=0)
 		metrics = {}
-		metrics['valAcc (ps)'] = accuracy_score(Ytrue, Ypred)
-		metrics['len ps'] = len(Ytrue)
+		metrics['valAcc (ps)'] = accuracy_score(np.argmax(Ytrue, axis=1), Ypred)
+		# metrics['len ps'] = len(Ytrue)
 		Ypred = []
 		Ytrue = []
 		for batch in out[1]:
@@ -150,14 +162,13 @@ class ClfModel(LightningModule):
 			Ytrue.append(label.cpu().numpy())
 		Ytrue = np.concatenate(Ytrue, axis=0)
 		Ypred = np.concatenate(Ypred, axis=0)
-
-		metrics['valAcc (target)'] = accuracy_score(Ytrue, Ypred)
-		metrics['len target'] = len(Ytrue)
+		
+		metrics['valAcc (target)'] = accuracy_score(np.argmax(Ytrue, axis=1), Ypred)
+		# metrics['len target'] = len(Ytrue)
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-
-
-	def predict(self,dataloader):
+	
+	def predict(self, dataloader):
 		latent = []
 		pred = []
 		true = []
@@ -169,18 +180,18 @@ class ClfModel(LightningModule):
 			latent.append(l.detach().cpu().numpy())
 			probs.append(pdS.detach().cpu().numpy())
 			pred.append(np.argmax(pdS.detach().cpu().numpy(), axis=1))
-			true.append(label.cpu().numpy())
+			true.append(np.argmax(label.cpu().numpy(), axis=1))
 			X.append(data.detach().cpu().numpy())
 		predictions = {}
 		predictions['latent'] = np.concatenate(latent, axis=0)
 		predictions['pred'] = np.concatenate(pred, axis=0)
-		predictions['probs'] = np.concatenate(probs,axis =0)
+		predictions['probs'] = np.concatenate(probs, axis=0)
 		predictions['true'] = np.concatenate(true, axis=0)
-		predictions['data'] = np.concatenate(X,axis =0)
+		predictions['data'] = np.concatenate(X, axis=0)
 		return predictions
-
+	
 	def configure_optimizers(self):
-		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr,weight_decay=self.hparams.weight_decay)
+		opt = optim.Adam(self.model.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay)
 		# if self.hparams.step_size:
 		# 	lr_scheduler = StepLR(opt, step_size=self.hparams.step_size, gamma=0.5)
 		# 	return [opt], [lr_scheduler]
@@ -195,14 +206,14 @@ class ClfModel(LightningModule):
 			return [self.dm.test_dataloader(), self.scnd_dm.test_dataloader()]
 		else:
 			return dm.test_dataloader()
-
+	
 	def val_dataloader(self):
 		if self.scnd_dm is not None:
 			return [self.dm.val_dataloader(), self.scnd_dm.val_dataloader()]
 		else:
 			return dm.val_dataloader()
 	
-	def setDatasets(self, dm, secondDataModule = None):
+	def setDatasets(self, dm, secondDataModule=None):
 		self.dm = dm
 		self.n_classes = dm.n_classes
 		self.batch_size = dm.batch_size

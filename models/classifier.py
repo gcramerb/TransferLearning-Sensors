@@ -45,7 +45,6 @@ class classifier(nn.Module):
 	
 	# from torchsummary import summary
 		# summary(self.FE.to('cuda'), (2,50,3))
-
 	def forward(self, X):
 		encoded = self.FE.forward(X)
 		pred = self.Disc(encoded)

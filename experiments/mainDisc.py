@@ -68,17 +68,14 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		final_result[f"Acc Target class {class_}"] = []
 		final_result[f"Acc Source class {class_}"]  = []
 	
-	if dm_source.datasetName == 'Uschad':
-		class_weight = torch.tensor([0.5, 3, 3, 0.5])
-	else:
-		class_weight = None
+
 	for i in range(trials):
 
 		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
-		                class_weight=class_weight)
+		                class_weight=teacherParams['class_weight'])
 		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
@@ -87,12 +84,13 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		# summary(model.FE, (2, 50, 3))
 		
 		#early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
-		trainer = Trainer(gpus=1,
+		trainer = Trainer(devices=1,
+			accelerator="gpu",
 		                  check_val_every_n_epoch=1,
 		                  max_epochs=teacherParams['epoch'],
 		                  logger=my_logger,
+		                  enable_progress_bar = False,
 		                  min_epochs=1,
-		                  progress_bar_refresh_rate=verbose,
 		                  callbacks=[],
 		                  enable_model_summary=True,
 		                  multiple_trainloader_mode='max_size_cycle')
@@ -134,11 +132,13 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 if __name__ == '__main__':
 
 	teacherParams = getTeacherParams(paramsPath)
+	teacherParams['class_weight'] = torch.tensor([0.5, 2, 2, 0.5])
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
 	                                input_shape=(2,50,3),
 	                                batch_size=128,
+	                                oneHotLabel=True,
 	                                shuffle=True)
 	dm_source.setup(normalize=True)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -146,6 +146,7 @@ if __name__ == '__main__':
 	                                input_shape=(2,50,3),
 	                                n_classes=args.n_classes,
 	                                batch_size=128,
+	                                oneHotLabel=True,
 	                                shuffle=True)
 	dm_target.setup(normalize=True)
 

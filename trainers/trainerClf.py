@@ -29,7 +29,7 @@ class ClfModel(LightningModule):
 			**kwargs
 	):
 		super().__init__()
-		# self.hparams.alpha = trainParams['alpha']
+		self.hparams.alpha = trainParams['alpha']
 		self.hparams.weight_decay = trainParams['weight_decay']
 		self.hparams.encoded_dim = trainParams['enc_dim']
 		self.hparams.dropout_rate = trainParams['dropout_rate']
@@ -113,14 +113,12 @@ class ClfModel(LightningModule):
 		# opt = self.optimizers()
 		data, label = batch['data'], batch['label'].long()
 		latent = self.model.getLatent(data)
-		# classDistence = self.classDist(latent, label)
-		
+		classDistence = self.classDist(latent, label.argmax(axis=1))
 		latentMixup, labelMixup = self.mixup(latent, label, np.random.beta(0.5, 0.5))
 		latent = torch.cat((latent, latentMixup), 0)
 		label = torch.cat((label, labelMixup), 0)
-		# loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
 		pred = self.model.forward_from_latent(latent)
-		loss = self.clfLoss(pred, label)
+		loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
 		tqdm_dict = {"train_loss": loss.detach()}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		self.log("training_loss", loss, batch_size=self.batch_size)

@@ -91,25 +91,33 @@ class TLmodel(LightningModule):
 		torch.save(self.FE.state_dict(), path)
 		path = os.path.join(save_path,file + '_discriminator')
 		torch.save(self.Disc.state_dict(), path)
-
-
+	
+	def mixup(self, latent, label, weight):
+		indices = torch.randperm(latent.size(0), device=latent.device, dtype=torch.long)
+		perm_latent = latent[indices]
+		perm_label = label[indices]
+		return latent.mul(weight).add(perm_latent, alpha=1 - weight), label.mul(weight).add(perm_label,
+		                                                                                    alpha=1 - weight)
+	
 	def compute_loss(self, batch,optimizer_idx):
 		logs = {}
 		source, target = batch[0], batch[1]
 		dataSource, labSource = source['data'], source['label'].long()
 		
 		latentS= self.FE(dataSource)
-		predS = self.Disc(latentS)
+		latentSMixup, labelSMixup = self.mixup(latentS, labSource, np.random.beta(0.5, 0.5))
+		#latentSMixup = torch.cat((latentS, latentSMixup), 0)
+		#labelSMixup = torch.cat((labSource, labelSMixup), 0)
 		
-		classDistence = self.classDist(latentS,labSource)
-		loss = self.clfLoss(predS, labSource) + self.hparams.beta * classDistence
+		predS = self.Disc(latentSMixup)
+		classDistence = self.classDist(latentS,labSource.argmax(axis=1))
+		loss = self.clfLoss(predS, labelSMixup) + self.hparams.beta * classDistence
 		logs['clf loss'] = loss.detach()
 		logs['classDistence'] = classDistence.detach()
 		if optimizer_idx ==0: # updating FE
 			dataTarget = target['data']
 			latentT = self.FE(dataTarget)
 			discrepancy = self.discLoss(latentT, latentS)
-			
 			loss = loss + self.hparams.alpha * discrepancy
 			logs['discrepancy'] = discrepancy.detach()
 
@@ -139,12 +147,16 @@ class TLmodel(LightningModule):
 			opt = [i['log'] for i in output[0]]
 		else:
 			opt = [i['log'] for i in output]
-		
-		for k in opt[0].keys():
-			metrics[k] = torch.mean(torch.stack([i[k] for i in opt]))
-		
+
+		metrics['clf loss']= []
+		metrics['loss'] = []
+		metrics['discrepancy'] = []
+		metrics['classDistence'] = []
+		for i in opt:
+			for k in i.keys():
+				metrics[k].append(i[k].cpu().data.numpy().item())
 		for k, v in metrics.items():
-			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True,batch_size = self.batch_size)
+			self.log(k, np.mean(v), on_step=False, on_epoch=True, prog_bar=True, logger=True,batch_size = self.batch_size)
 		return None
 	
 	def validation_step(self, batch, batch_idx):
@@ -173,8 +185,8 @@ class TLmodel(LightningModule):
 		YsourcePred = np.concatenate(YsourcePred, axis=0)
 		YtargetPred = np.concatenate(YtargetPred, axis=0)
 		metrics = {}
-		metrics['valAccSource'] = accuracy_score(YsourceTrue,YsourcePred)
-		metrics['valAccTarget'] = accuracy_score(YtargetTrue,YtargetPred)
+		metrics['valAccSource'] = accuracy_score(np.argmax(YsourceTrue, axis=1),YsourcePred)
+		metrics['valAccTarget'] = accuracy_score(np.argmax(YtargetTrue, axis=1),YtargetPred)
 
 		# return metrics
 		# keys_ = out[0].keys()
@@ -240,7 +252,7 @@ class TLmodel(LightningModule):
 				y_hat.append(np.argmax(p, axis=1))
 				latent.append(lat.cpu().numpy())
 				probs.append(p)
-				true.append(y.cpu().numpy())
+				true.append(np.argmax(y.cpu().numpy(), axis=1))
 				data_ori.append(X)
 			predictions = {}
 			predictions['latent' +domain ] = np.concatenate(latent, axis=0)

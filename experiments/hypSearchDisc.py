@@ -40,12 +40,16 @@ else:
 def suggest_hyperparameters(trial):
 	Tparams = getTeacherParams()
 	Tparams["dropout_rate"] = trial.suggest_float("dropout_rate", 0.0, 0.5, step=0.1)
-	Tparams['enc_dim'] =  trial.suggest_categorical("enc_dim", [64,90])
-	Tparams['lr'] = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
-	Tparams['epoch']  = trial.suggest_int("epoch", 15, 120, step=15)
-	Tparams['alpha'] = trial.suggest_float("alpha", 0.0, 1.0, step=0.1)
+	Tparams['enc_dim'] =  trial.suggest_categorical("enc_dim",[90,128])
+	Tparams['lr'] = 0.0005
+	Tparams['epoch']  = 75
+	Tparams['alpha'] = trial.suggest_float("alpha", 0.01, 2.0, step=0.05)
 	Tparams['beta'] = trial.suggest_float("beta", 0.005, 0.05, step=0.0005)
 	Tparams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
+	f1 = trial.suggest_int("f1",4,8,step = 2)
+	f2= trial.suggest_int("f2",12,24,step = 2)
+	f3= trial.suggest_int("f3",24,32,step = 2)
+	Tparams['n_filters'] = (f1, f2, f3)
 	return Tparams
 	
 finalResult = {}
@@ -59,6 +63,7 @@ dm_source = SingleDatasetModule(data_dir=args.inPath,
                                 n_classes=args.n_classes,
                                 input_shape=(2, 50, 3),
                                 batch_size=128,
+                                oneHotLabel=True,
                                 shuffle=True)
 dm_source.setup(normalize=True)
 dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -66,6 +71,7 @@ dm_target = SingleDatasetModule(data_dir=args.inPath,
                                 input_shape=(2, 50, 3),
                                 n_classes=args.n_classes,
                                 batch_size=128,
+							    oneHotLabel=True,
                                 shuffle=True)
 dm_target.setup(normalize=True)
 
@@ -73,14 +79,14 @@ dm_target.setup(normalize=True)
 def objective(trial):
 	save = False
 	teacherParams = suggest_hyperparameters(trial)
-	metrics = runDisc(teacherParams, dm_source, dm_target, 1, save_path, False)
+	metrics = runDisc(teacherParams, dm_source, dm_target, 1)
 	acc = metrics['Target acc mean'][0]
 
 	if acc>finalResult['top 1'][0]:
 		finalResult['top 1'] = [acc,teacherParams]
 		print('\n------------------------------------------------\n')
 		print(f'New Top 1: {acc}\n')
-		metricsNew = runDisc(teacherParams, dm_source, dm_target, 1, save_path, True)
+		metricsNew = runDisc(teacherParams, dm_source, dm_target, 1, save_path)
 		accNew = metricsNew['Target acc mean'][0]
 		print(f'Rerun Top 1 (saved): {args.source} to {args.target}: {accNew}\n')
 		print(teacherParams)
@@ -89,7 +95,6 @@ def objective(trial):
 		finalResult['top 2'] = [acc,teacherParams]
 	elif acc>finalResult['top 3'][0]:
 		finalResult['top 3'] = [acc,teacherParams]
-
 	finalResult['count'] +=1
 	return acc
 
@@ -105,8 +110,7 @@ def run(n_trials):
 	print("  Params: ")
 	for key, value in study.best_trial.params.items():
 		print("    {}: {}".format(key, value))
-		
-	metrics = runDisc(finalResult['top 1'][1],args.source,args.target,1,save_path,True)
+	return
 if __name__ == '__main__':
-	run(401)
+	run(301)
 	print(finalResult)

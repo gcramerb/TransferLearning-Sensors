@@ -22,6 +22,7 @@ class Encoder(nn.Module):
 		
 		fcl1 = self.n_filters[2] * int(self.input_shape[1] / 10) * int(self.input_shape[-1] / 3)
 		fcl2 = int(self.n_filters[2] / 2) * int(self.input_shape[1] / 10) * int(self.input_shape[-1] / 3)
+		finalDim = self.n_filters[2]*5
 		for i in range(self.n_win):
 			self.CNN1.append(
 				nn.Sequential(
@@ -43,7 +44,7 @@ class Encoder(nn.Module):
 			nn.LeakyReLU(),
 			nn.MaxPool2d(self.pooling_2),
 			nn.Flatten(),
-			nn.Linear(90, self.encoded_dim),
+			nn.Linear(finalDim, self.encoded_dim),
 			nn.BatchNorm1d(self.encoded_dim)
 		)
 	

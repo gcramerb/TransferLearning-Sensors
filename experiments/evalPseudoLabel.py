@@ -50,6 +50,7 @@ def analizePL(teacherParams,selectionParams,source, target, savePseudoLabel = Fa
 	                                input_shape=(2,50,3),
 	                                n_classes=args.n_classes,
 	                                batch_size=128,
+	                                oneHotLabel=True,
 	                                shuffle=True)
 	
 	dm_target.setup(normalize=True)

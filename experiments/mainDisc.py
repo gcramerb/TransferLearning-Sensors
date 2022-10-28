@@ -13,9 +13,9 @@ from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
 from Utils.myUtils import  MCI,getTeacherParams
 
-seed = 2804
-print('Seeding with {}'.format(seed))
-torch.manual_seed(seed)
+# seed = 2804
+# print('Seeding with {}'.format(seed))
+# torch.manual_seed(seed)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
@@ -54,7 +54,7 @@ else:
 	paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + ".json")
 	
 if args.log:
-	my_logger = WandbLogger(project='teacherOficial',
+	my_logger = WandbLogger(project='Disc',
 	                        log_model='all',
 	                        name= args.expName + args.source + '_to_' + args.target)
 
@@ -75,15 +75,15 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                save_path=None,
-		                class_weight=teacherParams['class_weight'])
+		                class_weight=torch.tensor([0.5, 2, 2, 0.5]))
 		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
-		
+		#
 		# from torchsummary import summary
-		# summary(model.FE, (2, 50, 3))
+		# summary(model.to("cuda").FE, (2, 50, 3))
 		
-		#early_stopping = EarlyStopping('loss', mode='min', patience=10, verbose=True)
+		early_stopping = EarlyStopping('valAccTarget', mode='max', patience=10, verbose=True)
 		trainer = Trainer(devices=1,
 			accelerator="gpu",
 		                  check_val_every_n_epoch=1,
@@ -91,7 +91,7 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		                  logger=my_logger,
 		                  enable_progress_bar = False,
 		                  min_epochs=1,
-		                  callbacks=[],
+		                  callbacks=[early_stopping],
 		                  enable_model_summary=True,
 		                  multiple_trainloader_mode='max_size_cycle')
 		
@@ -117,7 +117,7 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		if save_path is not None:
 			print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {accT}\n\n")
 			print(teacherParams)
-			model.save_params(save_path, f'Disc_class{dm_source.datasetName}_{dm_target.datasetName}')
+			model.save_params(save_path, f'Teacher_{dm_source.datasetName}_{dm_target.datasetName}')
 			save_path = None
 		del model, trainer
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])

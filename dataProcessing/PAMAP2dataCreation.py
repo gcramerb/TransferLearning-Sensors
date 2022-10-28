@@ -18,7 +18,7 @@ for s in subjs:
 	final_folds[s] = []
 
 
-def process(my_act,overlap = 0.5,new_freq =25,ts = 2 ):
+def process(my_act,overlap = 0.5,new_freq =50,ts = 2 ):
 	x  = []
 	y = []
 	folds = {}
@@ -83,6 +83,6 @@ if __name__ == '__main__':
 			folds.append((train,test))
 			train =[]
 
-	outFile = os.path.join(DATA_DIR,'myPamap2_f25_t2')
+	outFile = os.path.join(DATA_DIR,'myPamap2_f50_t2')
 	np.savez(outFile,X = data,y=labels,folds = np.array(folds))
 	

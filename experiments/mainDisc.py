@@ -27,6 +27,7 @@ parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Pamap2")
 parser.add_argument('--n_classes', type=int, default=4)
+parser.add_argument('--freq', type=int, default=25)
 parser.add_argument('--trials', type=int, default=1)
 parser.add_argument('--savePath', type=str, default=None)
 args = parser.parse_args()
@@ -58,7 +59,7 @@ if args.log:
 	                        log_model='all',
 	                        name= args.expName + args.source + '_to_' + args.target)
 
-def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
+def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None,useMixup = True):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["Acc Source"] = []
@@ -74,6 +75,7 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
+		                useMixup = useMixup,
 		                save_path=None,
 		                class_weight=torch.tensor([0.5, 2, 2, 0.5]))
 		
@@ -132,25 +134,29 @@ def runDisc(teacherParams,dm_source,dm_target,trials,save_path = None):
 if __name__ == '__main__':
 
 	teacherParams = getTeacherParams(paramsPath)
+	teacherParams['enc_dim'] = 64
+	teacherParams['input_shape'] = (2,args.freq*2,3)
 	teacherParams['class_weight'] = torch.tensor([0.5, 2, 2, 0.5])
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.source,
 	                                n_classes=args.n_classes,
-	                                input_shape=(2,50,3),
+	                                freq = args.freq,
+	                                input_shape=(2,args.freq*2,3),
 	                                batch_size=128,
-	                                oneHotLabel=True,
+	                                oneHotLabel=False,
 	                                shuffle=True)
 	dm_source.setup(normalize=True)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
 	                                datasetName=args.target,
-	                                input_shape=(2,50,3),
+	                                input_shape=(2,args.freq*2,3),
+	                                freq=args.freq,
 	                                n_classes=args.n_classes,
 	                                batch_size=128,
-	                                oneHotLabel=True,
+	                                oneHotLabel=False,
 	                                shuffle=True)
 	dm_target.setup(normalize=True)
 
-	final_result = runDisc(teacherParams,dm_source,dm_target,args.trials,args.savePath)
+	final_result = runDisc(teacherParams,dm_source,dm_target,args.trials,args.savePath,useMixup = False)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

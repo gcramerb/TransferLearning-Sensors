@@ -30,6 +30,7 @@ class SingleDatasetModule(LightningDataModule):
 			data_dir: str = None,
 			datasetName: str = "Dsads",
 			n_classes: int = 4,
+			freq: int = 25,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
 			num_workers: int = 2,
@@ -42,6 +43,7 @@ class SingleDatasetModule(LightningDataModule):
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.n_classes = n_classes
+		self.freq = freq
 		self.input_shape = input_shape
 		self.oneHotLabel = oneHotLabel
 		self.X_val = None
@@ -73,7 +75,7 @@ class SingleDatasetModule(LightningDataModule):
 		:return:
 		"""
 		if fileName is None:
-			fileName =  f'{self.datasetName}_f25_t2_{self.n_classes}actv.npz'
+			fileName =  f'{self.datasetName}_f{self.freq}_t2_{self.n_classes}actv.npz'
 		
 		file = os.path.join(self.data_dir,fileName)
 		with np.load(file, allow_pickle=True) as tmp:

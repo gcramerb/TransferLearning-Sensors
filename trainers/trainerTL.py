@@ -30,6 +30,7 @@ class TLmodel(LightningModule):
 	def __init__(
 			self,
 			trainParams: dict = None,
+			useMixup: bool =True,
 			lossParams: dict = None,
 			save_path: str = None,
 			penalty:str = 'ot',
@@ -105,12 +106,18 @@ class TLmodel(LightningModule):
 		dataSource, labSource = source['data'], source['label'].long()
 		
 		latentS= self.FE(dataSource)
-		latentSMixup, labelSMixup = self.mixup(latentS, labSource, np.random.beta(0.5, 0.5))
-		#latentSMixup = torch.cat((latentS, latentSMixup), 0)
-		#labelSMixup = torch.cat((labSource, labelSMixup), 0)
-		
+		if(self.hparams.useMixup):
+			latentSMixup, labelSMixup = self.mixup(latentS, labSource, np.random.beta(0.5, 0.5))
+			# latentSMixup = torch.cat((latentS, latentSMixup), 0)
+			# labelSMixup = torch.cat((labSource, labelSMixup), 0)
+			classDistence = self.classDist(latentS, labSource.argmax(axis=1))
+		else:
+			latentSMixup = latentS
+			labelSMixup = labSource
+			classDistence = self.classDist(latentS, labSource)
+
 		predS = self.Disc(latentSMixup)
-		classDistence = self.classDist(latentS,labSource.argmax(axis=1))
+		
 		loss = self.clfLoss(predS, labelSMixup) + self.hparams.beta * classDistence
 		logs['clf loss'] = loss.detach()
 		logs['classDistence'] = classDistence.detach()
@@ -185,8 +192,13 @@ class TLmodel(LightningModule):
 		YsourcePred = np.concatenate(YsourcePred, axis=0)
 		YtargetPred = np.concatenate(YtargetPred, axis=0)
 		metrics = {}
-		metrics['valAccSource'] = accuracy_score(np.argmax(YsourceTrue, axis=1),YsourcePred)
-		metrics['valAccTarget'] = accuracy_score(np.argmax(YtargetTrue, axis=1),YtargetPred)
+		if(len(YsourceTrue.shape)>1):
+			metrics['valAccSource'] = accuracy_score(np.argmax(YsourceTrue, axis=1),YsourcePred)
+			metrics['valAccTarget'] = accuracy_score(np.argmax(YtargetTrue, axis=1),YtargetPred)
+		else:
+			metrics['valAccSource'] = accuracy_score(YsourceTrue,YsourcePred)
+			metrics['valAccTarget'] = accuracy_score(YtargetTrue,YtargetPred)
+			
 
 		# return metrics
 		# keys_ = out[0].keys()
@@ -252,12 +264,14 @@ class TLmodel(LightningModule):
 				y_hat.append(np.argmax(p, axis=1))
 				latent.append(lat.cpu().numpy())
 				probs.append(p)
-				true.append(np.argmax(y.cpu().numpy(), axis=1))
+				true.append(y.cpu().numpy())
 				data_ori.append(X)
 			predictions = {}
 			predictions['latent' +domain ] = np.concatenate(latent, axis=0)
 			predictions['pred' + domain] = np.concatenate(y_hat, axis=0)
 			predictions['true' + domain] = np.concatenate(true, axis=0)
+			if(len(predictions['true' + domain].shape)>1):
+				predictions['true' + domain] = np.argmax(predictions['true' + domain],axis =1)
 			predictions['prob'  + domain] = np.concatenate(probs, axis=0)
 			predictions['data' + domain] = np.concatenate(data_ori, axis=0)
 			return predictions

@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
-from torchsampler import ImbalancedDatasetSampler
+
 
 import os
 import numpy as np
@@ -34,7 +34,7 @@ class SingleDatasetModule(LightningDataModule):
 			freq: int = 25,
 			input_shape: tuple = (1,50,6),
 			batch_size: int = 128,
-			num_workers: int = 1,
+			num_workers: int = 0,
 			oneHotLabel: bool = False,
 			shuffle: bool = False
 	):
@@ -83,7 +83,8 @@ class SingleDatasetModule(LightningDataModule):
 			X = tmp['X'].astype('float32')
 			Y = tmp['y']
 			self.folds = tmp['folds']
-		
+		if len(X.shape) == 3:
+			X = X[:, None, :, :]
 		if Y.dtype.type is np.str_:
 			y = categorical_to_int(Y).astype('int')
 			Y = np.argmax(y, axis=1).astype('long')
@@ -125,7 +126,6 @@ class SingleDatasetModule(LightningDataModule):
 	def train_dataloader(self):
 		return DataLoader(
 			self.dataTrain,
-			sampler=ImbalancedDatasetSampler(train_dataset),
 			shuffle=self.shuffle,
 			batch_size=self.batch_size,
 			num_workers=self.num_workers,
@@ -157,7 +157,7 @@ class MultiDatasetModule(LightningDataModule):
 			freq: int = 50,
 			input_shape: tuple = (2, 100, 3),
 			batch_size: int = 128,
-			num_workers: int = 1,
+			num_workers: int = 0,
 			oneHotLabel: bool = False,
 			shuffle: bool = False
 	):
@@ -208,7 +208,9 @@ class MultiDatasetModule(LightningDataModule):
 			with np.load(file, allow_pickle=True) as tmp:
 				X = tmp['X'].astype('float32')
 				Y = tmp['y']
-			
+			if len(X.shape) ==3:
+				X = X[:,None,:,:]
+				
 			if Y.dtype.type is np.str_:
 				y = categorical_to_int(Y).astype('int')
 				Y = np.argmax(y, axis=1).astype('long')

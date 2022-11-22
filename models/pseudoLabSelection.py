@@ -49,32 +49,32 @@ def simplest(probs, trh):
 	return idx
 
 
-def GMM(prediction, trh):
-	"""
-	The same method described before, but use a gaussian mixture model to select the pseudo label
-
-	:param path_file: the path to the pseudo Label file
-	:param data: the data (X) that will be saved after the filtering
-	:param probs: the classification probability of each sample prediction
-	:param first_save: (bool) if is true, the data will be replaced anyway
-	:param trh: the threshhold for filtering.
-	:return:
-	"""
-	idx = simplest(prediction['probs'], trh)
-	gm = GaussianMixture(n_components=4, random_state=0).fit(prediction['latent'])
-	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
-	GMMpl = np.argmax(GMMprobs, axis=1)
-	
-	GMMidx = np.where(GMMprobs.max(axis=1) > 0.5)[0]
-	idx_aux = np.where(prediction['probs'].max(axis=1) > 0.5)[0]
-	new_idx = list(set(idx_aux).intersection(set(GMMidx)))
-	
-	print(" new: ", len(new_idx))
-	idx = list(set(idx).union(set(new_idx)))
-	data = prediction['data'][idx]
-	softLabel = np.argmax(prediction['probs'], axis=1)
-	softLabel = softLabel[idx]
-	return data, softLabel, prediction['true'][idx]
+# def GMM(prediction, trh):
+# 	"""
+# 	The same method described before, but use a gaussian mixture model to select the pseudo label
+#
+# 	:param path_file: the path to the pseudo Label file
+# 	:param data: the data (X) that will be saved after the filtering
+# 	:param probs: the classification probability of each sample prediction
+# 	:param first_save: (bool) if is true, the data will be replaced anyway
+# 	:param trh: the threshhold for filtering.
+# 	:return:
+# 	"""
+# 	idx = simplest(prediction['probs'], trh)
+# 	gm = GaussianMixture(n_components=4, random_state=0).fit(prediction['latent'])
+# 	GMMprobs = gm.predict_proba(prediction['latent'])  # (n_samples, n_components)
+# 	GMMpl = np.argmax(GMMprobs, axis=1)
+#
+# 	GMMidx = np.where(GMMprobs.max(axis=1) > 0.5)[0]
+# 	idx_aux = np.where(prediction['probs'].max(axis=1) > 0.5)[0]
+# 	new_idx = list(set(idx_aux).intersection(set(GMMidx)))
+#
+# 	print(" new: ", len(new_idx))
+# 	idx = list(set(idx).union(set(new_idx)))
+# 	data = prediction['data'][idx]
+# 	softLabel = np.argmax(prediction['probs'], axis=1)
+# 	softLabel = softLabel[idx]
+# 	return data, softLabel, prediction['true'][idx]
 
 
 def cluster(prediction, params):
@@ -100,7 +100,7 @@ def cluster(prediction, params):
 	idx = np.where(softLabel == 3)[0]
 	X2 = []
 	if len(idx)>1500:
-
+		print(f'selected {len(idx)} samples from class 3')
 		newIdx = list(set(range(len(softLabel))) - set(idx))
 		newSelectedIdx = selectedIdx[newIdx]
 		newX = prediction['data'][newSelectedIdx]
@@ -138,7 +138,7 @@ def runGMM(params,latent,probs,true,data,n_classes = 4):
 		idx = np.where(GMMpl == i)[0]
 		aux = np.histogram(softLabel[idx], bins=n_classes)[0].max()
 		aux_b = np.histogram(softLabel[idx], bins=n_classes)[0].sum()
-		if aux_b > 0.000001:
+		if aux_b > 0.00001:
 			aux = aux / aux_b
 		else:
 			aux = 1000

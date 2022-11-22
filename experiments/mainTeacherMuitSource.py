@@ -21,8 +21,8 @@ parser.add_argument('--expName', type=str, default='__')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--target', type=str, default="Pamap2")
-parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--freq', type=int, default=25)
+parser.add_argument('--n_classes', type=int, default=6)
+parser.add_argument('--freq', type=int, default=50)
 parser.add_argument('--trials', type=int, default=1)
 parser.add_argument('--savePath', type=str, default=None)
 args = parser.parse_args()
@@ -59,18 +59,21 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 	final_result["Acc Source"] = []
 	final_result["F1 Source"] = []
 	final_result["F1 Target"] = []
-	for class_ in range(4):
+	for class_ in range(args.n_classes):
 		final_result[f"Acc Target class {class_}"] = []
 		final_result[f"Acc Source class {class_}"] = []
 	
 	for i in range(trials):
-		
+		class_weight = None
+		if(args.n_classes == 4):
+			class_weight = torch.tensor([0.5, 2, 2, 0.5])
+
 		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
 		                useMixup=useMixup,
 		                save_path=None,
-		                class_weight=torch.tensor([0.5, 2, 2, 0.5]))
+		                class_weight=class_weight)
 		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
@@ -133,7 +136,9 @@ if __name__ == '__main__':
 	teacherParams = getTeacherParams()
 	teacherParams['enc_dim'] = 128
 	teacherParams['input_shape'] = (2, args.freq * 2, 3)
-	teacherParams['class_weight'] = torch.tensor([0.5, 2, 2, 0.5])
+	teacherParams['class_weight'] = None
+	if (args.n_classes == 4):
+		teacherParams['class_weight'] = torch.tensor([0.5, 2, 2, 0.5])
 	dm_source = MultiDatasetModule(data_dir=args.inPath,
 	                                datasetList=datasetList,
 	                                n_classes=args.n_classes,

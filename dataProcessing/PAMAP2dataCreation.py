@@ -4,21 +4,24 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 DATA_ORI = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\originals\\PAMAP2\\Protocol\\*.dat'
-DATA_DIR = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
+DATA_DIR = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset4actv\\'
 init_freq = 100
 n_classes = 4
 act_translate = {}
 act_translate[1] ='Pamap2-lying'
+act_translate[2] ='Pamap2-sitting'
+act_translate[3] ='Pamap2-standing'
 act_translate[4] ='Pamap2-walking'
 act_translate[12] ='Pamap2-ascending stairs'
 act_translate[13] ='Pamap2-descending stairs'
+
 subjs = ['101','102','103','104','105','106','107','108','109']
 final_folds = {}
 for s in subjs:
 	final_folds[s] = []
 
 
-def process(my_act,overlap = 0.5,new_freq =50,ts = 2 ):
+def process(my_act,overlap = 0.5,new_freq =100,ts = 2 ):
 	x  = []
 	y = []
 	folds = {}
@@ -58,12 +61,11 @@ if __name__ == '__main__':
 
 	x = []
 	y = []
+	ini = 0
 	for i in [1,4,12,13]:
 		aux,folds = process(my_act = i)
 		x.append(aux)
 		y.append(np.array([act_translate[i]]*len(aux)))
-		if i == 1:
-			ini = 0
 		ini_f = 0
 		for k,v in folds.items():
 			folds_idx = list(range(ini + ini_f,ini + v))
@@ -83,6 +85,6 @@ if __name__ == '__main__':
 			folds.append((train,test))
 			train =[]
 
-	outFile = os.path.join(DATA_DIR,'myPamap2_f50_t2')
+	outFile = os.path.join(DATA_DIR,f'Pamap2_f100_t2_{n_classes}actv')
 	np.savez(outFile,X = data,y=labels,folds = np.array(folds))
 	

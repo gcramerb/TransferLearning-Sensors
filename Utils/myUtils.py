@@ -64,21 +64,23 @@ def get_foldsInfo():
 	folds['Ucihar'] = 30
 	return folds
 
-def getPLS_params()
-	# for k in [8,64,128,256,512]:
-	# 	for l in [0.5,0.6]:
-	# 			for n in [10, 30]:
-	# 				param_i = {}
-	# 				param_i['nClusters'] = k
-	# 				param_i['labelConvergence'] = l
-	# 				param_i['minSamples'] = n
-	# 				selectionParams['params'].append(param_i)
+def getPLS_params():
+	selectionParams = []
+	for k in [8,64,128,256,512]:
+		for l in [0.5,0.6]:
+				for n in [10, 30]:
+					param_i = {}
+					param_i['nClusters'] = k
+					param_i['labelConvergence'] = l
+					param_i['minSamples'] = n
+					selectionParams.append(param_i)
+	return selectionParams
 	# auxSelectionParams['params'] ={'nClusters':64 , 'labelConvergence':0.9 , 'minSamples':100}
 	# bestParms = {}
 	# bestParms['Ucihar_Pamap2'] = selectionParams
 	# auxSelectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.9, 'minSamples': 50}
 	# bestParms['Ucihar_Dsads'] =selectionParams
-	#Uci_usc: ok
+	# Uci_usc: ok
 	# auxSelectionParams['params'] = {'nClusters': 64, 'labelConvergence':0.6, 'minSamples': 100}
 	# bestParms['Dsads_Pamap2'] =selectionParams
 	# auxSelectionParams['params'] = {'nClusters': 32, 'labelConvergence':0.85, 'minSamples': 150}

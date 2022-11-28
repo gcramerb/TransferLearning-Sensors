@@ -108,7 +108,7 @@ def cluster(prediction, params):
 		newProbs = prediction['probs'][newSelectedIdx]
 		newYtrue = prediction['true'][newSelectedIdx]
 		if (len(newX) > 0):
-			X2, softLabel2, Ytrue2, _ = runGMM(params, newLatent, newProbs, newYtrue, newX, 3)
+			X2, softLabel2, Ytrue2, _ = runGMM(params['params'], newLatent, newProbs, newYtrue, newX, 3)
 
 		if(len(X2)>0):
 			X = X[idx]

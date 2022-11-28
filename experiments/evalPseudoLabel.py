@@ -41,8 +41,8 @@ if args.slurm:
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
-	args.savePath  = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
+	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\V4\\'
+	args.savePath  = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV4\\'
 
 paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
 
@@ -75,10 +75,10 @@ def analizePL(predictions,selectionParam):
 			else:
 				result += cm[class_][class_] / cm[class_][:].sum()
 	else:
-		acc, cm, f1 = 0, 0,0
+		acc, cm, result = 0, 0,0
 	print(f"number of samples: {len(trueLabel)}\n")
 	print(f" %  of samples decrease: {100 - 100*len(trueLabel)/dataLen}\n")
-	print(f'Acc: {acc}; Improovment: (+{(100*acc/accIni)-100}) \n F1 socre: {f1}; Improovment: (+{(100*f1/f1Ini) - 100}) \n confusionMatrix: {cm}\n=======================================================\n')
+	print(f'Acc: {acc}; Improovment: (+{(100*acc/accIni)-100}); \n confusionMatrix: {cm}\n=======================================================\n')
 	return result, acc,cm, (Xpl,softLabel, trueLabel)
 
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
 	selectionParams = {}
 	selectionParams['method'] = 'cluster'
 
-		selectionParamList  = getPLS_params()
+	selectionParamList  = getPLS_params()
 		#{'nClusters': 128, 'labelConvergence':0.6, 'minSamples': 10}
 
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -112,25 +112,26 @@ if __name__ == '__main__':
 	model.create_model()
 	model.load_params(args.savePath, f'Teacher{args.model}_{args.source}_{args.target}')
 	predictions = model.getPredict(domain='Target')
+	accIni = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
+	dataLen = len(predictions['trueTarget'])
 	Predictionsfinal = []
 	best = 0
 	for param in selectionParamList:
 		selectionParams['params'] = param
-		result, acc, cm, data = analizePL(predictions,selectionParam)
+		result, acc, cm, data = analizePL(predictions,selectionParams)
 		if result > best:
 			best = result
-			finalAcc, finalCM, finalF1 = acc, cm, f1
-			finalNSamples = len(trueLabel)
+			finalAcc, finalCM = acc, cm
 			Xfinal,slFinal,trueFinal= data
+			finalNSamples = len(trueFinal)
 			paramFinal = param
-		if savePseudoLabel:
-			print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
-			fileName = f"{source}_{target}pseudoLabel{args.model}.npz"
-			path_file = os.path.join(args.inPath, fileName)
-			with open(path_file, "wb") as f:
-				np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))
-		print("\n========================================= BEST RESULT ==========================================\n")
-		print(f"number of samples: {finalNSamples}\n")
-		print(f" %  of samples decrease: {100 - 100 * finalNSamples / dataLen}\n")
-		print(
-			f'Acc: {finalAcc}; Improovment: (+{(100 * finalAcc / accIni) - 100}) \n F1 socre: {finalF1}; Improovment: (+{(100 * finalF1 / f1Ini) - 100}) \n confusionMatrix: {finalCM}\n=======================================================\n')
+	print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
+	fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+	path_file = os.path.join(args.inPath, fileName)
+	with open(path_file, "wb") as f:
+		np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))
+	print("\n========================================= BEST RESULT ==========================================\n")
+	print(f"number of samples: {finalNSamples}\n")
+	print(f" %  of samples decrease: {100 - 100 * finalNSamples / dataLen}\n")
+	print(
+		f'Acc: {finalAcc}; Improovment: (+{(100 * finalAcc / accIni) - 100});\n confusionMatrix: {finalCM}\n=======================================================\n')

@@ -40,13 +40,13 @@ def getStudentParams(path_file=None):
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
-	clfParams['input_shape'] = (2, 50, 3)
+	#clfParams['input_shape'] = (2, 50, 3)
 	clfParams['enc_dim'] = 64
 	clfParams['alpha'] = 0.5
 	clfParams['step_size'] = None
-	clfParams['epoch'] = 60
+	clfParams['epoch'] = 70
 	clfParams["dropout_rate"] = 0.2
-	clfParams['lr'] = 0.0001
+	clfParams['lr'] = 0.001
 	clfParams['weight_decay'] = 0.2
 	if path_file is not None:
 		with open(path_file) as f:

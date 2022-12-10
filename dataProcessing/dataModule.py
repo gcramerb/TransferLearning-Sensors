@@ -83,8 +83,10 @@ class SingleDatasetModule(LightningDataModule):
 			X = tmp['X'].astype('float32')
 			Y = tmp['y']
 			self.folds = tmp['folds']
-		if len(X.shape) == 3:
+		if len(X.shape) == 3 and X.shape[1] != 2:
 			X = X[:, None, :, :]
+		if X.shape[1] == 2:
+			X = np.concatenate([X[:,[0],:,:],X[:,[1],:,:]],axis =-1)
 		if Y.dtype.type is np.str_:
 			y = categorical_to_int(Y).astype('int')
 			Y = np.argmax(y, axis=1).astype('long')
@@ -109,7 +111,6 @@ class SingleDatasetModule(LightningDataModule):
 			else:
 				self.X_train = X
 				self.Y_train = Y
-
 		if normalize:
 			#TODO: normalizar os dados source e target juntos (no soft Labelling technique) ?
 			self.X_train,self.Y_train = self.normalize(self.X_train,self.Y_train)
@@ -152,7 +153,7 @@ class MultiDatasetModule(LightningDataModule):
 	def __init__(
 			self,
 			data_dir: str = None,
-			datasetList: list = ["Dsads","Uschad","Pamap2"],
+			datasetList: list = [],
 			n_classes: int = 6,
 			freq: int = 50,
 			input_shape: tuple = (2, 100, 3),

@@ -80,8 +80,8 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
 		#
-		from torchsummary import summary
-		summary(model.to("cuda").FE, (2, 100, 3))
+		# from torchsummary import summary
+		# summary(model.to("cuda").FE, (2, 100, 3))
 		
 		early_stopping = EarlyStopping('valAccTarget', mode='max', patience=10, verbose=True)
 		trainer = Trainer(devices=1,
@@ -113,13 +113,16 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		for class_ in range(4):
 			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_] / cmT[class_][:].sum())
 			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
-		
-		if save_path is not None and accT > best_acc :
-			print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {accT}\n\n")
-			print(teacherParams)
-			model.save_params(save_path, f'TeacherV4_{dm_source.datasetName}_{dm_target.datasetName}')
+		if accT > best_acc:
 			best_acc = accT
+			if save_path is not None   :
+				print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {accT}\n\n")
+				print(teacherParams)
+				model.save_params(save_path, f'TeacherV4_{dm_source.datasetName}_{dm_target.datasetName}')
+				
 		del model, trainer
+	print(f'\n-------------------------------------------------------\n BEST Acc target {best_acc}\n')
+	print('-----------------------------------------------------------')
 	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
 	final_result['Source acc mean'] = MCI(final_result["Acc Source"])
 	final_result['Target f1 mean'] = MCI(final_result["F1 Target"])
@@ -132,6 +135,7 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 
 if __name__ == '__main__':
 	print(f"params loaded from: {paramsPath}")
+	useMixup = False
 	teacherParams = getTeacherParams(paramsPath)
 	teacherParams['input_shape'] = (2, args.freq * 2, 3)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
@@ -140,7 +144,7 @@ if __name__ == '__main__':
 	                                freq=args.freq,
 	                                input_shape=(2, args.freq * 2, 3),
 	                                batch_size=128,
-	                                oneHotLabel=True,
+	                                oneHotLabel=useMixup,
 	                                shuffle=True)
 	dm_source.setup(normalize=True)
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
@@ -149,11 +153,11 @@ if __name__ == '__main__':
 	                                freq=args.freq,
 	                                n_classes=args.n_classes,
 	                                batch_size=128,
-	                                oneHotLabel=True,
+	                                oneHotLabel=useMixup,
 	                                shuffle=True)
 	dm_target.setup(normalize=True)
 	
-	final_result = runDisc(teacherParams, dm_source, dm_target, args.trials, args.savePath, useMixup=True)
+	final_result = runDisc(teacherParams, dm_source, dm_target, args.trials, args.savePath, useMixup=useMixup)
 	print(final_result)
 	if my_logger:
 		my_logger.log_metrics(final_result)

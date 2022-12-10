@@ -26,6 +26,8 @@ class ClfModel(LightningModule):
 			trainParams: dict = None,
 			n_classes: int = 4,
 			class_weight: torch.tensor = None,
+			oneHotLabel: bool = False,
+			mixup: bool = False,
 			**kwargs
 	):
 		super().__init__()
@@ -37,6 +39,8 @@ class ClfModel(LightningModule):
 		self.hparams.input_shape = trainParams['input_shape']
 		self.hparams.n_filters = trainParams['n_filters']
 		self.hparams.kernel_dim = trainParams['kernel_dim']
+		self.hparams.oneHotLabel = oneHotLabel
+		self.hparams.mixup = mixup
 		self.save_hyperparameters()
 	
 	def create_model(self):
@@ -113,10 +117,14 @@ class ClfModel(LightningModule):
 		# opt = self.optimizers()
 		data, label = batch['data'], batch['label'].long()
 		latent = self.model.getLatent(data)
-		classDistence = self.classDist(latent, label.argmax(axis=1))
-		latentMixup, labelMixup = self.mixup(latent, label, np.random.beta(0.5, 0.5))
-		latent = torch.cat((latent, latentMixup), 0)
-		label = torch.cat((label, labelMixup), 0)
+		if self.hparams.oneHotLabel:
+			classDistence = self.classDist(latent, label.argmax(axis=1))
+		else:
+			classDistence = self.classDist(latent, label)
+		if self.hparams.mixup:
+			latentMixup, labelMixup = self.mixup(latent, label, np.random.beta(0.5, 0.5))
+			latent = torch.cat((latent, latentMixup), 0)
+			label = torch.cat((label, labelMixup), 0)
 		pred = self.model.forward_from_latent(latent)
 		loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
 		tqdm_dict = {"train_loss": loss.detach()}
@@ -149,7 +157,9 @@ class ClfModel(LightningModule):
 		Ytrue = np.concatenate(Ytrue, axis=0)
 		Ypred = np.concatenate(Ypred, axis=0)
 		metrics = {}
-		metrics['valAcc (ps)'] = accuracy_score(np.argmax(Ytrue, axis=1), Ypred)
+		if len(Ytrue.shape)>1:
+			Ytrue = np.argmax(Ytrue, axis=1)
+		metrics['valAcc (ps)'] = accuracy_score(Ytrue, Ypred)
 		# metrics['len ps'] = len(Ytrue)
 		Ypred = []
 		Ytrue = []
@@ -160,8 +170,9 @@ class ClfModel(LightningModule):
 			Ytrue.append(label.cpu().numpy())
 		Ytrue = np.concatenate(Ytrue, axis=0)
 		Ypred = np.concatenate(Ypred, axis=0)
-		
-		metrics['valAcc (target)'] = accuracy_score(np.argmax(Ytrue, axis=1), Ypred)
+		if len(Ytrue.shape)>1:
+			Ytrue = np.argmax(Ytrue, axis=1)
+		metrics['valAcc (target)'] = accuracy_score(Ytrue, Ypred)
 		# metrics['len target'] = len(Ytrue)
 		for k, v in metrics.items():
 			self.log(k, v, on_step=False, on_epoch=True, prog_bar=True, logger=True)

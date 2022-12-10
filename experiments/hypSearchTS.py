@@ -1,13 +1,13 @@
 import sys, argparse, os, glob
 import numpy as np
+from sklearn.metrics import accuracy_score
 
 sys.path.insert(0, '../')
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
-from mainTS import runTS
-from trainers.trainerTL import TLmodel
+from trainers.trainerClf import ClfModel
 import optuna
 
 parser = argparse.ArgumentParser()
@@ -15,10 +15,13 @@ parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Pamap2")
-parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--n_classes', type=int, default=4)
+parser.add_argument('--freq', type=int, default=50)
+parser.add_argument('--model', type=str, default="V4")
 args = parser.parse_args()
-
+finalResult = {}
+finalResult['top 1'] = [0, {}]
 if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
@@ -36,38 +39,75 @@ else:
 def suggest_hyperparameters(trial):
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParams['n_filters'] = (4, 16, 18, 24)
-	clfParams['enc_dim'] = 64
-	clfParams['input_shape'] = (2, 50, 3)
-	clfParams['alpha'] = None
+	f1 = trial.suggest_int("f1", 4, 12, step=2)
+	f2 = trial.suggest_int("f2", 12, 24, step=2)
+	f3= trial.suggest_int("f3", 24, 32, step=2)
+	clfParams['n_filters'] = (f1,f2,f3)
+	clfParams['enc_dim'] = trial.suggest_categorical("enc_dim", [64,90, 128])
+	clfParams['input_shape'] = (2, args.freq * 2, 3)
+	clfParams['alpha'] = trial.suggest_float("alpha", 0.01, 2.0, step=0.05)
 	clfParams['step_size'] = None
-	clfParams['clf_epoch'] = trial.suggest_int("epoch", 3, 18, step=3)
+	clfParams['epoch'] = trial.suggest_int("epoch", 5, 81, step=25)
 	clfParams["dropout_rate"] =  trial.suggest_float("dropout_rate", 0.0, 0.5, step=0.1)
 	clfParams['bs'] = 128
-	clfParams['clf_lr'] =  trial.suggest_float("clf_lr", 1e-5, 1e-3, log=True)
-	clfParams['weight_decay'] = trial.suggest_float("Clfweight_decay", 0.0, 0.9, step=0.1)
-	
-	SLparams = {}
-	SLparams['bs'] = 128
-	SLparams['step_size'] = None
-	SLparams['iter'] =  10
-	SLparams['trasholdStu'] = trial.suggest_float("trasholdStu", 0.5, 0.95, step=0.05)
-	return clfParams, SLparams
+	clfParams['lr'] =  trial.suggest_float("lr", 1e-5, 1e-3, log=True)
+	clfParams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
+	return clfParams
 
+
+dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
+                                     datasetName=f"",
+                                     input_shape=(2, args.freq * 2, 3),
+                                     freq=args.freq,
+                                     n_classes=args.n_classes,
+                                     batch_size=64,
+                                     oneHotLabel=True,
+                                     shuffle=True)
+
+fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+dm_pseudoLabel.setup(normalize=True, fileName=fileName)
+dm_target = SingleDatasetModule(data_dir=args.inPath,
+                                datasetName=args.target,
+                                input_shape=(2, args.freq * 2, 3),
+                                freq=args.freq,
+                                n_classes=args.n_classes,
+                                batch_size=64,
+                                oneHotLabel=True,
+                                shuffle=True)
+dm_target.setup(normalize=True)
+def runStudent(studentParams, source, target, class_weight=None):
+	batchSize = 64
+	model = ClfModel(trainParams=studentParams,
+	                 class_weight=class_weight)
+	model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
+	model.create_model()
+	# early_stopping = EarlyStopping('training_loss', mode='min', patience=10, verbose=True)
+	early_stopping = []
+	log = int(dm_target.X_train.__len__() / batchSize)
+	trainer = Trainer(devices=1,
+	                  accelerator="gpu",
+	                  check_val_every_n_epoch=1,
+	                  max_epochs=studentParams['epoch'],
+	                  logger=None,
+	                  enable_progress_bar=False,
+	                  min_epochs=1,
+	                  log_every_n_steps=log,
+	                  callbacks=early_stopping,
+	                  enable_model_summary=True)
+	trainer.fit(model)
+	pred = model.predict(dm_target.test_dataloader())
+	return accuracy_score(pred['true'], pred['pred'])
 
 def objective(trial):
 	# Initialize the best_val_loss value
-	best_metric = float(-1)
-	clfParams, SLparams = suggest_hyperparameters(trial)
-	metrics = runTS(clfParams, SLparams, 'hypParam',,
-	result = np.max(metrics['Student acc in Target'])
+	clfParams= suggest_hyperparameters(trial)
+	result = runStudent(clfParams, args.source, args.target)
 	print('Student acc Target: ',result)
-	if result >= best_metric:
-		best_metric = result
-		print(f'Result: {args.source} to {args.target}')
+	if result >= finalResult['top 1'][0]:
+		finalResult['top 1'] = [result, clfParams]
+		print(f'Result: {args.source} to {args.target} --- {result}')
 		print('clfParams: ', clfParams, '\n')
-		print('SLparams: ', SLparams, '\n\n\n')
-	return best_metric
+	return result
 
 
 def run(n_trials):
@@ -83,4 +123,4 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 
 if __name__ == '__main__':
-	run(300)
+	run(100)

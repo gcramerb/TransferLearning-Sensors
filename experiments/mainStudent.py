@@ -6,7 +6,7 @@ from pytorch_lightning.loggers import WandbLogger
 sys.path.insert(0, '../')
 import torch
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.callbacks import EarlyStopping,ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
 from models.pseudoLabSelection import getPseudoLabel
 from trainers.trainerClf import ClfModel
@@ -16,14 +16,16 @@ from Utils.myUtils import MCI, getTeacherParams, getStudentParams
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--log', action='store_true')
-parser.add_argument('--expName', type=str, default='mainStudent')
+parser.add_argument('--expName', type=str, default='student')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--savePath', type=str, default='../saved/hypDisc/')
 parser.add_argument('--studentPath', action='store_true')
-parser.add_argument('--source', type=str, default="Ucihar")
-parser.add_argument('--target', type=str, default="Pamap2")
+parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--model', type=str, default="V4")
 parser.add_argument('--trials', type=int, default=1)
+parser.add_argument('--n_classes', type=int, default=4)
+parser.add_argument('--freq', type=int, default=50)
 parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
@@ -33,25 +35,20 @@ if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
-	paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + ".json")
 
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
-	args.savePath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
-	paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + ".json")
-if args.studentPath:
-	studentPath = os.path.join(params_path, "student.json")
-else:
-	studentPath = None
+teacherParamsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
+
 if args.log:
 	my_logger = WandbLogger(project='studentOficial',
 	                        log_model='all',
-	                        name=args.expName + args.source + '_to_' + args.target)
+	                        name=args.expName + f'{args.model}' + args.source + '_to_' + args.target)
 
 
-def runStudent(studentParams, source, target, class_weight=None, my_logger=None,trials = 1):
+def runStudent(studentParams, source, target, class_weight=None, my_logger=None,trials = 1, pre_train = False):
 	final_result = {}
 	final_result["Acc Target"] = []
 	final_result["F1 Target"] = []
@@ -59,47 +56,62 @@ def runStudent(studentParams, source, target, class_weight=None, my_logger=None,
 		final_result[f"Acc Target class {class_}"] = []
 	for i in range(trials):
 		batchSize = 64
-		dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
-		                                     datasetName=f"pseudoLabel_{source}_{target}2steps",
-		                                     input_shape=(2, 50, 3),
-		                                     n_classes=4,
-		                                     batch_size=batchSize,
-		                                     oneHotLabel=True,
-		                                     shuffle=True)
-		
-		fileName = f"{source}_{target}pseudoLabel.npz"
-		path_file = os.path.join(args.inPath, fileName)
-		dm_pseudoLabel.setup(normalize=True, fileName=fileName)
+
 		model = ClfModel(trainParams=studentParams,
-		                 class_weight=class_weight)
-		
+		                 class_weight=class_weight,
+		                 oneHotLabel=False,
+		                 mixup = False)
+		model.create_model()
 		dm_target = SingleDatasetModule(data_dir=args.inPath,
 		                                datasetName=target,
-		                                input_shape=(2, 50, 3),
-		                                n_classes=4,
+		                                input_shape=(2, args.freq * 2, 3),
+		                                freq=args.freq,
+		                                n_classes=args.n_classes,
 		                                batch_size=batchSize,
 		                                oneHotLabel=True,
 		                                shuffle=True)
 		
 		dm_target.setup(normalize=True)
-		model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
-		model.create_model()
-		early_stopping = EarlyStopping('training_loss', mode='min', patience=10, verbose=True)
-		log = int(dm_target.X_train.__len__() / batchSize)
-		
-		trainer = Trainer(gpus=1,
+		#early_stopping = EarlyStopping('training_loss', mode='min', patience=10, verbose=True)
+		early_stopping = []
+
+		checkpoint_callback = ModelCheckpoint(dirpath = "",filename = 'teste.ckpt')
+		trainer = Trainer(devices=1,
+		                  accelerator="gpu",
 		                  check_val_every_n_epoch=1,
-		                  max_epochs=studentParams['epoch'],
+		                  max_epochs=15,
 		                  logger=my_logger,
 		                  enable_progress_bar=False,
 		                  min_epochs=1,
-		                  log_every_n_steps=log,
-		                  callbacks=[early_stopping],
+		                  callbacks=[checkpoint_callback],
 		                  enable_model_summary=True)
-		trainer.fit(model)
+		if pre_train:
+			dm_source = SingleDatasetModule(data_dir=args.inPath,
+			                                datasetName=source,
+			                                input_shape=(2, args.freq * 2, 3),
+			                                freq=args.freq,
+			                                n_classes=args.n_classes,
+			                                batch_size=batchSize,
+			                                oneHotLabel=False,
+			                                shuffle=True)
+			
+			dm_source.setup(normalize=True)
+			model.setDatasets(dm=dm_source,secondDataModule=dm_target)
+			trainer.fit(model)
+		dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
+		                                     datasetName=f"",
+		                                     input_shape=(2, args.freq * 2, 3),
+		                                     freq=args.freq,
+		                                     n_classes=args.n_classes,
+		                                     batch_size=batchSize,
+		                                     oneHotLabel=False,
+		                                     shuffle=True)
 		
+		fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+		dm_pseudoLabel.setup(normalize=True, fileName=fileName)
+		model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
+		trainer.fit(model,ckpt_path='/teste.ckpt')
 		pred = model.predict(dm_target.test_dataloader())
-
 		final_result["Acc Target"].append(accuracy_score(pred['true'], pred['pred']))
 		cm = confusion_matrix(pred['true'], pred['pred'])
 		final_result['F1 Target'].append(f1_score(pred['true'], pred['pred'], average='weighted'))
@@ -114,14 +126,12 @@ def runStudent(studentParams, source, target, class_weight=None, my_logger=None,
 
 
 if __name__ == '__main__':
-	studentParams = getStudentParams(studentPath)
-	class_weight = torch.tensor([0.5, 5, 5, 0.5])
-	if args.source == 'Uschad':
-		class_weight = torch.tensor([0.5, 10, 10, 0.5])
-	
+	studentParams = getStudentParams()
+	studentParams['input_shape'] = (2, args.freq * 2, 3)
+	class_weight = torch.tensor([0.5, 2, 2, 0.5])
 	studentParams['class_weight'] = class_weight
-	metrics = runStudent(studentParams, args.source, args.target, class_weight=class_weight, my_logger=my_logger,trials = args.trials)
-	
+	pre_train = True
+	metrics = runStudent(studentParams, args.source, args.target, class_weight=class_weight, my_logger=my_logger,trials = args.trials,pre_train = pre_train)
 	print(metrics)
 	if my_logger:
 		my_logger.log_hyperparams(studentParams)

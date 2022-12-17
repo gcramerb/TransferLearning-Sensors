@@ -1,0 +1,93 @@
+import numpy as np
+import pandas as pd
+import glob, os, time
+from enum import Enum
+from scipy.io import loadmat
+
+
+actNameUschad = {
+    1:  'Walking Forward',
+    2:  'Walking Left',
+    3:  'Walking Right',
+    4:  'Walking Up',
+    5:  'Walking Down',
+    6:  'Running',
+    7:  'Jumping',
+    8:  'Sitting',
+    9:  'Standing',
+    10: 'Sleeping',
+    11: 'Elevator Up',
+    12: 'Elevator Down',
+}
+
+
+class SignalsUschad(Enum):
+    acc_front_right_hip_X = 0
+    acc_front_right_hip_Y = 1
+    acc_front_right_hip_Z = 2
+    gyr_front_right_hip_X = 3
+    gyr_front_right_hip_Y = 4
+    gyr_front_right_hip_Z = 5
+
+
+init_freq = 100
+
+
+class USCHAD():
+	def __init__(self,  overlap, new_freq, ts):
+		self.overlap = overlap
+		self.new_freq = new_freq
+		self.windowSize = ts
+		self.sample_len = new_freq* ts
+		self.initialFreq = 100
+		self.dir_dataset = "C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\originals\\USC-HAD\\"
+		self.dir_save_file = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
+		sig_usc = [SignalsUschad.acc_front_right_hip_X, SignalsUschad.acc_front_right_hip_Y,
+		           SignalsUschad.acc_front_right_hip_Z]
+		sig_usc += [SignalsUschad.gyr_front_right_hip_X, SignalsUschad.gyr_front_right_hip_Y,
+		            SignalsUschad.gyr_front_right_hip_Z]
+		self.signals_use = sig_usc
+		self.desired_act = ['walking-forward', 'walking-up', 'walking-down', 'sleeping']
+		self.dataX = []
+		self.dataY = []
+	
+
+	def preprocess(self):
+		mat_files = []
+		for root, dirs, files in os.walk(self.dir_dataset):
+			if len(dirs) == 0:
+				mat_files.extend([os.path.join(root, f) for f in files])
+		
+		for filepath in mat_files:
+			mat_file = loadmat(filepath)
+			act = mat_file['activity'][0]
+			subject = int(mat_file['subject'][0])
+			trial_id = int(mat_file['trial'][0])
+			trial_data = mat_file['sensor_readings'].astype('float64')
+			if act.lower() in self.desired_act:
+				for s_i in list(range(int(len(trial_data)/self.sample_len))):
+					ini = s_i * self.sample_len
+					end = (s_i+1) * self.sample_len
+					self.dataX.append(trial_data[ini:end,:])
+					self.dataY.append("Uschad-" + act)
+
+		self.dataX = np.array(self.dataX, dtype=float)
+		self.dataY = np.array(self.dataY)
+		np.savez_compressed(os.path.join(self.dir_save_file, "UciharAllOriginal"),
+		                    X=self.dataX,
+		                    y=self.dataY)
+
+
+if __name__ == '__main__':
+	windowSize = 5
+	newFreq = 100
+	overlapping = 0
+	x = []
+	y = []
+	dat = USCHAD( overlapping, newFreq, windowSize)
+	dat.preprocess()
+# data = np.concatenate(x, axis=0)[:, None, :, :]
+# labels = np.concatenate(y, axis=0)
+# outFile = os.path.join(DATA_DIR, f'Ucihar_f{newFreq}_t{windowSize}_over{overlapping}_{n_classes}actv')
+# np.savez(outFile, X=data, y=labels, folds=np.array(folds))
+

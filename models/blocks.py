@@ -22,7 +22,7 @@ class Encoder(nn.Module):
 		
 		fcl1 = self.n_filters[2] * int(self.input_shape[1] / 10) * int(self.input_shape[-1] / 3)
 		fcl2 = int(self.n_filters[2] / 2) * int(self.input_shape[1] / 10) * int(self.input_shape[-1] / 3)
-		finalDim = int(self.n_filters[2]*self.input_shape[1]/10)
+		finalDim = int(self.n_filters[2]) * int(self.input_shape[1]/10)
 		for i in range(self.n_win):
 			self.CNN1.append(
 				nn.Sequential(

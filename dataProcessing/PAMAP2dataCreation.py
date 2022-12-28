@@ -1,4 +1,5 @@
 import os,random,glob,sys
+from scipy import stats as st
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -13,7 +14,7 @@ act_translate[2] ='Pamap2-sitting'
 act_translate[3] ='Pamap2-standing'
 act_translate[4] ='Pamap2-walking'
 act_translate[5] ='Pamap2-running'
-act_translate[7] ='Pamap2-walking'
+act_translate[7] ='Pamap2-nordic walking'
 act_translate[12] ='Pamap2-ascending stairs'
 act_translate[13] ='Pamap2-descending stairs'
 act_translate[0] = 'dumb'
@@ -44,7 +45,7 @@ act_count['Pamap2-descending stairs']= 0
 act_count['dumb']= 0
 act_count['Pamap2-sitting']= 0
 act_count['Pamap2-standing']= 0
-subjs = ['101','102','103','104','105','106','107','108','109']
+subjs = ['101','102','103','104','105','106','107','108','109_op']
 final_folds = {}
 for s in subjs:
 	final_folds[s] = []
@@ -53,46 +54,34 @@ for s in subjs:
 def process(desired_act,overlap = 0.5,new_freq =100,ts = 2 ):
 	x  = []
 	y = []
-	folds = {}
-	step = int(init_freq/new_freq)
-	sample_len = new_freq*ts
-	
-	ovs = sample_len - int(overlap*sample_len)
 	sub_s = []
+	semple_len = 250
 
 	for file in glob.glob(DATA_ORI):
-		subject = file.split('\\')[-1].split('.')[0][-3:]
+		subject = file.split('\\')[-1].split('.')[0]
+		print("\n" + subject)
 		sub_s = []
-		with open(file) as f:
-			lines = f.readlines()
-		i = 0
+		data = pd.read_table(file, header=None, sep='\s+')
+		data = data.iloc[:, 1:13]
+		data = data.drop([2,3,4, 5,6], axis=1)
+		lines = data.to_numpy(dtype='float')
 		curr_act = None
-		for line in lines:
-			
-			#if i%step ==0:
-			#get the x axis of the second Acc
-			l = line.split(' ')
-			act =int(l[1])
-			if(curr_act != act):
-				sub_s = []
-				curr_act = act
-			#if act in desired_act:
-			s = np.array(l[7:13]).astype('float')
-			sub_s.append(s)
-			my_act = act_translate[act]
-			#act_count[my_act] +=1
-				# if not np.isnan(s).any():
-				# 	sub_s.append(s)
-				# else:
-				# 	i = i-1
-			#i = i + 1
-			if len(sub_s) == sample_len and act in desired_act:
-				x.append(sub_s)
-				y.append(my_act)
-				sub_s = sub_s[ovs:]
-
-		
-		# folds[subject] = len(x)
+		for l in lines:
+			act =int(l[0])
+			if(curr_act != act and len(sub_s)>1) :
+				if act in desired_act:
+					for i in range(int(len(sub_s)/semple_len)):
+						ini = i*semple_len
+						end = (i+1)*semple_len
+						x.append(sub_s[ini:end])
+					if (len(sub_s)%semple_len) !=0:
+						x.append(sub_s[0:semple_len])
+					sub_s = []
+					my_act = act_translate[act]
+					y.append(my_act)
+			if act in desired_act:
+				sub_s.append(l[1:])
+			curr_act = act
 	dataX = np.array(x, dtype=float)
 	dataY = np.array(y)
 	return dataX,dataY
@@ -107,7 +96,7 @@ if __name__ == '__main__':
 	ini = 0
 	# for i in [1,4,12,13]:
 	desired_act = ['Walking', 'Ascending stairs', 'Descending stairs', 'Laying']
-	x,y = process([1,4,7,12,13],overlap = overlapping, new_freq = newFreq,ts = windowSize)
+	x,y = process([1,4,12,13],overlap = overlapping, new_freq = newFreq,ts = windowSize)
 		# x.append(aux)
 		# y.append(np.array([act_translate[i]]*len(aux)))
 		# ini_f = 0
@@ -128,6 +117,6 @@ if __name__ == '__main__':
 	# 		train =[]
 
 	#outFile = os.path.join(SAVE_DIR,f'Pamap2_f{newFreq}_t{windowSize}_over{overlapping}_{n_classes}actv')
-	outFile = os.path.join(SAVE_DIR, f'Pamap2AllOriginal')
+	outFile = os.path.join(SAVE_DIR, f'Pamap2AllOriginal_test')
 	np.savez(outFile,X = data,y=labels)
 	

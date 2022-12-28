@@ -19,7 +19,23 @@ actNameUschad = {
     11: 'Elevator Up',
     12: 'Elevator Down',
 }
-
+fixUSCHADNames = {
+	'walking-left':'walking',
+	'walking-right':'walking',
+	'walking-forward':'walking',
+	'walking-up':'ascending stairs',
+	'walking-down':'descending stairs',
+	'sleeping':'lying',
+	'walking-downstairs':'descending stairs',
+	'walking-upstairs':'ascending stairs',
+	'walk-forward':'walking',
+	'walk-left':'walking',
+	'walk-right':'walking',
+	'walk-up':'ascending stairs',
+	'walk-down':'descending stairs',
+	'walk-upstairs':'ascending stairs',
+	'walk-downstairs':'descending stairs',
+}
 
 class SignalsUschad(Enum):
     acc_front_right_hip_X = 0
@@ -35,11 +51,12 @@ init_freq = 100
 
 class USCHAD():
 	def __init__(self,  overlap, new_freq, ts):
-		self.overlap = overlap
+		
 		self.new_freq = new_freq
 		self.windowSize = ts
 		self.sample_len = new_freq* ts
 		self.initialFreq = 100
+		self.overlappingSize = self.sample_len - int(overlap*self.sample_len)
 		self.dir_dataset = "C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\originals\\USC-HAD\\"
 		self.dir_save_file = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
 		sig_usc = [SignalsUschad.acc_front_right_hip_X, SignalsUschad.acc_front_right_hip_Y,
@@ -47,9 +64,10 @@ class USCHAD():
 		sig_usc += [SignalsUschad.gyr_front_right_hip_X, SignalsUschad.gyr_front_right_hip_Y,
 		            SignalsUschad.gyr_front_right_hip_Z]
 		self.signals_use = sig_usc
-		self.desired_act = ['walking-forward', 'walking-up', 'walking-down', 'sleeping']
+		self.desired_act = ['walking-left','walking-right','walking-forward', 'walking-up', 'walking-down', 'sleeping','walking-downstairs','walking-upstairs','walk-forward', 'walk-left', 'walk-right', 'walk-up','walk-down','walk-upstairs', 'walk-downstairs']
 		self.dataX = []
 		self.dataY = []
+		self.allActvities = []
 	
 
 	def preprocess(self):
@@ -64,16 +82,19 @@ class USCHAD():
 			subject = int(mat_file['subject'][0])
 			trial_id = int(mat_file['trial'][0])
 			trial_data = mat_file['sensor_readings'].astype('float64')
+			self.allActvities.append(act)
 			if act.lower() in self.desired_act:
-				for s_i in list(range(int(len(trial_data)/self.sample_len))):
-					ini = s_i * self.sample_len
-					end = (s_i+1) * self.sample_len
+				end = self.sample_len
+				ini = 0
+				while end <= len(trial_data):
 					self.dataX.append(trial_data[ini:end,:])
-					self.dataY.append("Uschad-" + act)
+					self.dataY.append("Uschad-" + fixUSCHADNames[act])
+					ini = ini + self.overlappingSize
+					end = end + + self.overlappingSize
 
 		self.dataX = np.array(self.dataX, dtype=float)
 		self.dataY = np.array(self.dataY)
-		np.savez_compressed(os.path.join(self.dir_save_file, "UciharAllOriginal"),
+		np.savez_compressed(os.path.join(self.dir_save_file, "UschadAllOriginal_ovr"),
 		                    X=self.dataX,
 		                    y=self.dataY)
 
@@ -81,7 +102,7 @@ class USCHAD():
 if __name__ == '__main__':
 	windowSize = 5
 	newFreq = 100
-	overlapping = 0
+	overlapping = 0.5
 	x = []
 	y = []
 	dat = USCHAD( overlapping, newFreq, windowSize)

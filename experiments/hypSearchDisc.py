@@ -17,10 +17,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
-parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--source', type=str, default="Uschad")
+parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--freq', type=int, default=50)
+parser.add_argument('--freq', type=int, default=-1)
 args = parser.parse_args()
 
 my_logger = None
@@ -33,7 +33,7 @@ if args.slurm:
 
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
+	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
 	args.paramsPath = None
 	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
@@ -62,29 +62,29 @@ finalResult['top 2'] = [0, {}]
 finalResult['top 3'] = [0, {}]
 finalResult['count'] = 0
 dm_source = SingleDatasetModule(data_dir=args.inPath,
-                                datasetName=args.source,
+                                datasetName="",
                                 n_classes=args.n_classes,
-                                input_shape=(2, args.freq * 2, 3),
-                                batch_size=128,
                                 freq=args.freq,
-                                oneHotLabel=True,
+                                input_shape=2,
+                                batch_size=128,
+                                oneHotLabel=False,
                                 shuffle=True)
-dm_source.setup(normalize=True)
+dm_source.setup(normalize=False, fileName=f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz")
 dm_target = SingleDatasetModule(data_dir=args.inPath,
-                                datasetName=args.target,
-                                input_shape=(2, args.freq * 2, 3),
+                                datasetName="",
+                                input_shape=2,
+                                freq=args.freq,
                                 n_classes=args.n_classes,
                                 batch_size=128,
-                                freq=args.freq,
-                                oneHotLabel=True,
+                                oneHotLabel=False,
                                 shuffle=True)
-dm_target.setup(normalize=True)
+dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
 
 
 def objective(trial):
 	save = False
 	teacherParams = suggest_hyperparameters(trial)
-	metrics = runDisc(teacherParams, dm_source, dm_target, 1)
+	metrics = runDisc(teacherParams, dm_source, dm_target, 1, useMixup=False)
 	acc = metrics['Target acc mean'][0]
 	
 	if acc > finalResult['top 1'][0]:
@@ -117,5 +117,5 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 	return
 if __name__ == '__main__':
-	run(401)
+	run(1)
 	print(finalResult)

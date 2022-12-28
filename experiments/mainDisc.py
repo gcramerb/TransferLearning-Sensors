@@ -24,7 +24,7 @@ parser.add_argument('--expName', type=str, default='__')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--freq', type=int, default=100)
@@ -43,7 +43,7 @@ if args.slurm:
 
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
+	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
 	params_path = 'C:\\Users\\gcram\\Google Drive\\Mestrado\\Transfer Learning\\Best Results\\V4'
 	# args.savePath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
 	savePath = False
@@ -69,7 +69,7 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		final_result[f"Acc Source class {class_}"] = []
 	best_acc = 0
 	for i in range(trials):
-		
+		teacherParams['input_shape'] = dm_source.dataTrain.X.shape[1:]
 		model = TLmodel(trainParams=teacherParams,
 		                n_classes=args.n_classes,
 		                lossParams=None,
@@ -139,23 +139,23 @@ if __name__ == '__main__':
 	teacherParams = getTeacherParams(paramsPath)
 	teacherParams['input_shape'] = (2, args.freq * 2, 3)
 	dm_source = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.source,
+	                                datasetName="",
 	                                n_classes=args.n_classes,
 	                                freq=args.freq,
-	                                input_shape=(2, args.freq * 2, 3),
+	                                input_shape=2,
 	                                batch_size=128,
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
-	dm_source.setup(normalize=True)
+	dm_source.setup(normalize=False,fileName =f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz" )
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.target,
-	                                input_shape=(2, args.freq * 2, 3),
+	                                datasetName="",
+	                                input_shape=2,
 	                                freq=args.freq,
 	                                n_classes=args.n_classes,
 	                                batch_size=128,
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
-	dm_target.setup(normalize=True)
+	dm_target.setup(normalize=False,fileName = f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
 	
 	final_result = runDisc(teacherParams, dm_source, dm_target, args.trials, args.savePath, useMixup=useMixup)
 	print(final_result)

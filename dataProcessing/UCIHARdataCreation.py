@@ -105,7 +105,7 @@ class UCIHAR():
 if __name__ == '__main__':
 	windowSize = 5
 	newFreq = 50
-	overlapping = 0
+	overlapping = 0.5
 	x = []
 	y = []
 	ini = 0

@@ -31,8 +31,8 @@ class SingleDatasetModule(LightningDataModule):
 			data_dir: str = None,
 			datasetName: str = "Dsads",
 			n_classes: int = 4,
-			freq: int = 25,
-			input_shape: tuple = (1,50,6),
+			freq: int = 0,
+			input_shape: int = 2,
 			batch_size: int = 128,
 			num_workers: int = 0,
 			oneHotLabel: bool = False,
@@ -82,7 +82,7 @@ class SingleDatasetModule(LightningDataModule):
 		with np.load(file, allow_pickle=True) as tmp:
 			X = tmp['X'].astype('float32')
 			Y = tmp['y']
-			self.folds = tmp['folds']
+			#self.folds = tmp['folds']
 		if len(X.shape) == 3 and X.shape[1] != 2:
 			X = X[:, None, :, :]
 		if X.shape[1] == 2:
@@ -116,7 +116,7 @@ class SingleDatasetModule(LightningDataModule):
 			self.X_train,self.Y_train = self.normalize(self.X_train,self.Y_train)
 			self.X_val, self.Y_val = self.normalize(self.X_val, self.Y_val)
 		
-		if self.input_shape[0] == 2:
+		if self.input_shape == 2:
 			self.X_train = np.concatenate([self.X_train[:,:,:,0:3],self.X_train[:,:,:,3:6]],axis =1)
 			self.X_val = np.concatenate([self.X_val[:, :, :, 0:3], self.X_val[:, :, :, 3:6]], axis=1)
 			

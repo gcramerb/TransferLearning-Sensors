@@ -90,7 +90,7 @@ class USCHAD():
 					self.dataX.append(trial_data[ini:end,:])
 					self.dataY.append("Uschad-" + fixUSCHADNames[act])
 					ini = ini + self.overlappingSize
-					end = end + + self.overlappingSize
+					end = end + self.overlappingSize
 
 		self.dataX = np.array(self.dataX, dtype=float)
 		self.dataY = np.array(self.dataY)

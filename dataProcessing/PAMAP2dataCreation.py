@@ -45,17 +45,19 @@ act_count['Pamap2-descending stairs']= 0
 act_count['dumb']= 0
 act_count['Pamap2-sitting']= 0
 act_count['Pamap2-standing']= 0
-subjs = ['101','102','103','104','105','106','107','108','109_op']
+subjs = ['101','102','103','104','105','106','107','108']
 final_folds = {}
 for s in subjs:
 	final_folds[s] = []
 
-
+## IT IS WRONG SOMEHOW##
 def process(desired_act,overlap = 0.5,new_freq =100,ts = 2 ):
 	x  = []
 	y = []
 	sub_s = []
-	semple_len = 250
+	allActivities = []
+	sample_len = int(new_freq*ts)
+	overlappingSize = sample_len - int(overlap * sample_len)
 
 	for file in glob.glob(DATA_ORI):
 		subject = file.split('\\')[-1].split('.')[0]
@@ -70,15 +72,18 @@ def process(desired_act,overlap = 0.5,new_freq =100,ts = 2 ):
 			act =int(l[0])
 			if(curr_act != act and len(sub_s)>1) :
 				if act in desired_act:
-					for i in range(int(len(sub_s)/semple_len)):
-						ini = i*semple_len
-						end = (i+1)*semple_len
-						x.append(sub_s[ini:end])
-					if (len(sub_s)%semple_len) !=0:
-						x.append(sub_s[0:semple_len])
-					sub_s = []
 					my_act = act_translate[act]
-					y.append(my_act)
+					end = sample_len
+					ini = 0
+					while end <= len(sub_s):
+						x.append(sub_s[ini:end])
+						y.append(my_act)
+						ini = ini + overlappingSize
+						end = end +  overlappingSize
+					# if (len(sub_s)%semple_len) !=0:
+					# 	x.append(sub_s[0:semple_len])
+					# 	y.append(my_act)
+					sub_s = []
 			if act in desired_act:
 				sub_s.append(l[1:])
 			curr_act = act
@@ -88,9 +93,9 @@ def process(desired_act,overlap = 0.5,new_freq =100,ts = 2 ):
 
 
 if __name__ == '__main__':
-	windowSize = 5
+	windowSize = 2
 	newFreq = 100
-	overlapping = 0
+	overlapping = 0.5
 	x = []
 	y = []
 	ini = 0
@@ -117,6 +122,7 @@ if __name__ == '__main__':
 	# 		train =[]
 
 	#outFile = os.path.join(SAVE_DIR,f'Pamap2_f{newFreq}_t{windowSize}_over{overlapping}_{n_classes}actv')
-	outFile = os.path.join(SAVE_DIR, f'Pamap2AllOriginal_test')
-	np.savez(outFile,X = data,y=labels)
+	outFile = os.path.join(SAVE_DIR, f'Pamap2AllOriginal_ovr')
+	np.savez(outFile,X = x,y=y)
+	print(x.shape)
 	

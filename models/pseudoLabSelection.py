@@ -28,7 +28,8 @@ def getPseudoLabel(prediction,param,method = 'simplest'):
 	#
 	if method =='cluster':
 		data, softLabel, trueLabel = cluster(prediction, param)
-
+	if method =='DoubleCluster':
+		data, softLabel, trueLabel = DoubleCluster(prediction, param)
 	# if data.shape[1] == 2:
 	# 	data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
 	#
@@ -77,7 +78,7 @@ def simplest(probs, trh):
 # 	return data, softLabel, prediction['true'][idx]
 
 
-def cluster(prediction, params):
+def DoubleCluster(prediction, params):
 	"""
 	The same method described before, but use a gaussian mixture model to select the pseudo label
 
@@ -99,7 +100,7 @@ def cluster(prediction, params):
 	# second step:
 	idx = np.where(softLabel == 3)[0]
 	X2 = []
-	if len(idx)>1500:
+	if len(idx)>400:
 		print(f'selected {len(idx)} samples from class 3')
 		newIdx = list(set(range(len(softLabel))) - set(idx))
 		newSelectedIdx = selectedIdx[newIdx]
@@ -108,7 +109,7 @@ def cluster(prediction, params):
 		newProbs = prediction['probs'][newSelectedIdx]
 		newYtrue = prediction['true'][newSelectedIdx]
 		if (len(newX) > 0):
-			X2, softLabel2, Ytrue2, _ = runGMM(params['params'], newLatent, newProbs, newYtrue, newX, 3)
+			X2, softLabel2, Ytrue2, _ = runGMM(params['params'], newLatent, newProbs, newYtrue, newX, 4)
 
 		if(len(X2)>0):
 			X = X[idx]
@@ -119,7 +120,23 @@ def cluster(prediction, params):
 			softLabel = np.concatenate([softLabel, softLabel2])
 			Ytrue = np.concatenate([Ytrue, Ytrue2])
 	return X, softLabel, Ytrue
-	
+
+
+def cluster(prediction, params):
+	"""
+	The same method described before, but use a gaussian mixture model to select the pseudo label
+
+	:param path_file: the path to the pseudo Label file
+	:param data: the data (X) that will be saved after the filtering
+	:param probs: the classification probability of each sample prediction
+	:param first_save: (bool) if is true, the data will be replaced anyway
+	:param trh: the threshhold for filtering.
+	:return:
+	"""
+
+	X, softLabel, Ytrue, selectedIdx = runGMM(params['params'], prediction['latent'], prediction['probs'],
+	                                          prediction['true'], prediction['data'])
+	return X, softLabel, Ytrue
 def runGMM(params,latent,probs,true,data,n_classes = 4):
 	softLabelIdx = []
 	softLabelGenerated = []

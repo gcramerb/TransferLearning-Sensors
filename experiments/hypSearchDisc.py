@@ -69,7 +69,10 @@ dm_source = SingleDatasetModule(data_dir=args.inPath,
                                 batch_size=128,
                                 oneHotLabel=False,
                                 shuffle=True)
-dm_source.setup(normalize=False, fileName=f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz")
+if args.source =="Uschad":
+	dm_source.setup(normalize=False, fileName=f"UschadAllOriginal_ovr.npz")
+else:
+	dm_source.setup(normalize=False, fileName=f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz")
 dm_target = SingleDatasetModule(data_dir=args.inPath,
                                 datasetName="",
                                 input_shape=2,

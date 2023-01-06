@@ -66,9 +66,9 @@ def get_foldsInfo():
 
 def getPLS_params():
 	selectionParams = []
-	for k in [8,64,128,256,512]:
-		for l in [0.5,0.6]:
-				for n in [10, 30]:
+	for k in [8,64,128,256,512,1024,2056]:
+		for l in [0.5,0.6,0.7,0.8,0.85]:
+				for n in [10,20, 30,40,50,100,200]:
 					param_i = {}
 					param_i['nClusters'] = k
 					param_i['labelConvergence'] = l

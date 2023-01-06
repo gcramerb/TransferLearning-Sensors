@@ -35,14 +35,14 @@ else:
 	
 
 if __name__ == '__main__':
-	folds = get_foldsInfo()
+	# folds = get_foldsInfo()
 	result = []
 	result_train = []
 	if args.ClfParamsFile:
 		path_clf_params = os.path.join(params_path, args.ClfParamsFile)
-		clfParams = get_Clfparams(path_clf_params)
+		clfParams = getStudentParams(path_clf_params)
 	else:
-		clfParams = get_Clfparams()
+		clfParams = getStudentParams()
 	my_logger.log_hyperparams(clfParams)
 	for fold_i in range(folds[args.source]):
 	#fold_i = 1

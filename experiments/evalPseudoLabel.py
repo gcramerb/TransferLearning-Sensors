@@ -25,8 +25,8 @@ parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--savePath', type=str, default='../saved/teacherOficial_v2/')
 parser.add_argument('--source', type=str, default="Ucihar")
-parser.add_argument('--target', type=str, default="Pamap2")
-parser.add_argument('--model', type=str, default="V4")
+parser.add_argument('--target', type=str, default="Dsads")
+parser.add_argument('--model', type=str, default="V5")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--freq', type=int, default=50)
 args = parser.parse_args()
@@ -40,9 +40,9 @@ if args.slurm:
 
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\V4\\'
-	args.savePath  = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV4\\'
+	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
+	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\{args.model}\\'
+	args.savePath  = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficial{args.model}\\'
 
 paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
 
@@ -86,23 +86,21 @@ if __name__ == '__main__':
 
 	print(f"params loaded from: {paramsPath}")
 	teacherParams = getTeacherParams(paramsPath)
-	teacherParams['input_shape'] = (2, args.freq * 2, 3)
 	selectionParams = {}
 	selectionParams['method'] = 'cluster'
-
+	useMixup = False
 	selectionParamList  = getPLS_params()
-		#{'nClusters': 128, 'labelConvergence':0.6, 'minSamples': 10}
-
 	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.target,
-	                                input_shape=(2, args.freq * 2, 3),
+	                                datasetName="",
+	                                input_shape=2,
 	                                n_classes=args.n_classes,
 	                                batch_size=128,
 	                                freq=args.freq,
-	                                oneHotLabel=True,
+	                                oneHotLabel=useMixup,
 	                                shuffle=True)
-	
-	dm_target.setup(normalize=True)
+	dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
+	# dm_target.setup(normalize=True, fileName=f"{args.target}AllOriginal.npz")
+	teacherParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
 	model = TLmodel(trainParams=teacherParams,
 	                n_classes=args.n_classes,
 	                lossParams=None,
@@ -116,6 +114,7 @@ if __name__ == '__main__':
 	dataLen = len(predictions['trueTarget'])
 	Predictionsfinal = []
 	best = 0
+	paramFinal,finalAcc,finalCM= {},0,0
 	for param in selectionParamList:
 		selectionParams['params'] = param
 		result, acc, cm, data = analizePL(predictions,selectionParams)
@@ -125,13 +124,16 @@ if __name__ == '__main__':
 			Xfinal,slFinal,trueFinal= data
 			finalNSamples = len(trueFinal)
 			paramFinal = param
-	print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
-	fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
-	path_file = os.path.join(args.inPath, fileName)
-	with open(path_file, "wb") as f:
-		np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))
-	print("\n========================================= BEST RESULT ==========================================\n")
-	print(f"number of samples: {finalNSamples}\n")
-	print(f" %  of samples decrease: {100 - 100 * finalNSamples / dataLen}\n")
-	print(
-		f'Acc: {finalAcc}; Improovment: (+{(100 * finalAcc / accIni) - 100});\n confusionMatrix: {finalCM}\n=======================================================\n')
+	if best>0:
+		print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
+		fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+		path_file = os.path.join(args.inPath, fileName)
+		with open(path_file, "wb") as f:
+			np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))
+		print("\n========================================= BEST RESULT ==========================================\n")
+		print(f"number of samples: {finalNSamples}\n")
+		print(f" %  of samples decrease: {100 - 100 * finalNSamples / dataLen}\n")
+		print(
+			f'Acc: {finalAcc}; Improovment: (+{(100 * finalAcc / accIni) - 100});\n confusionMatrix: {finalCM}\n=======================================================\n')
+	else:
+		print('deu errado')

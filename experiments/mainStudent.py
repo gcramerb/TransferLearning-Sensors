@@ -75,7 +75,6 @@ def runStudent(studentParams, source, target, class_weight=None, my_logger=None,
 		#early_stopping = EarlyStopping('training_loss', mode='min', patience=10, verbose=True)
 		early_stopping = []
 
-		checkpoint_callback = ModelCheckpoint(dirpath = "",filename = 'teste.ckpt')
 		trainer = Trainer(devices=1,
 		                  accelerator="gpu",
 		                  check_val_every_n_epoch=1,

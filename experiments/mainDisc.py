@@ -24,7 +24,7 @@ parser.add_argument('--expName', type=str, default='__')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Uschad")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--freq', type=int, default=100)
@@ -43,30 +43,36 @@ if args.slurm:
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
-	params_path = 'C:\\Users\\gcram\\Google Drive\\Mestrado\\Transfer Learning\\Best Results\\V4'
-	# args.savePath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\testsTeacher\\'
-	savePath = False
+	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\{args.model}\\'
+	savedPath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV5\\'
+	args.log = False
 
 if args.TLParamsFile:
 	paramsPath = os.path.join(params_path, args.TLParamsFile)
 else:
 	paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
 if args.log:
-	my_logger = WandbLogger(project='Disc',
+	my_logger = WandbLogger(project='TransferLearning-Soft-Label',
 	                        log_model='all',
 	                        name=args.expName + args.source + '_to_' + args.target)
 
-
-def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixup=True):
+def calculateMetrics(pred,true):
 	final_result = {}
-	final_result["Acc Target"] = []
-	final_result["Acc Source"] = []
-	final_result["F1 Source"] = []
-	final_result["F1 Target"] = []
+	final_result["Acc"] = []
+	final_result["F1"] = []
 	for class_ in range(4):
-		final_result[f"Acc Target class {class_}"] = []
-		final_result[f"Acc Source class {class_}"] = []
+		final_result[f"Acc class {class_}"] = []
+	acc = accuracy_score(pred,true)
+	f1 = f1_score(true, pred, average='weighted')
+	cm = confusion_matrix(true, pred)
+	# for class_ in range(4):
+	#
+	# 	final_result[f"Acc class {class_}"] = cm[class_][class_] / cm[class_][:].sum()
+	return acc,final_result
+	
+def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixup=True):
 	best_acc = 0
+	dictMetricsAll = []
 	for i in range(trials):
 		teacherParams['input_shape'] = dm_source.dataTrain.X.shape[1:]
 		model = TLmodel(trainParams=teacherParams,
@@ -78,11 +84,12 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
+		model.load_params(savedPath, f'Teacher{args.model}_{args.source}_{args.target}')
 		#
 		# from torchsummary import summary
 		# summary(model.to("cuda").FE, (2, 100, 3))
 		
-		early_stopping = EarlyStopping('valAccTarget', mode='max', patience=10, verbose=True)
+		#early_stopping = EarlyStopping('valAccTarget', mode='max', patience=10, verbose=True)
 		trainer = Trainer(devices=1,
 		                  accelerator="gpu",
 		                  check_val_every_n_epoch=1,
@@ -90,28 +97,17 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		                  logger=my_logger,
 		                  enable_progress_bar=False,
 		                  min_epochs=1,
-		                  callbacks=[early_stopping],
+		                  callbacks=[],
 		                  enable_model_summary=True,
 		                  multiple_trainloader_mode='max_size_cycle')
 		
+		if my_logger:
+			my_logger.watch(model, log_graph=False)
 		trainer.fit(model)
 		predT = model.getPredict(domain='Target')
 		predS = model.getPredict(domain='Source')
-		accS = accuracy_score(predS['trueSource'], predS['predSource'])
-		accT = accuracy_score(predT['trueTarget'], predT['predTarget'])
-		f1S = f1_score(predS['trueSource'], predS['predSource'], average='weighted')
-		f1T = f1_score(predT['trueTarget'], predT['predTarget'], average='weighted')
-		cmS = confusion_matrix(predS['trueSource'], predS['predSource'])
-		cmT = confusion_matrix(predT['trueTarget'], predT['predTarget'])
-		# print('Source: ', accS, '  Target: ', accT)
-		final_result["Acc Target"].append(accT)
-		final_result["Acc Source"].append(accS)
-		final_result["F1 Target"].append(f1T)
-		final_result["F1 Source"].append(f1S)
-		print(f'\n Acc target in trial {i}: {accT}\n')
-		for class_ in range(4):
-			final_result[f"Acc Target class {class_}"].append(cmT[class_][class_] / cmT[class_][:].sum())
-			final_result[f"Acc Source class {class_}"].append(cmS[class_][class_] / cmS[class_][:].sum())
+		accT,dictMetricsT = calculateMetrics(predS['trueSource'], predS['predSource'])
+		dictMetricsAll.append(dictMetricsT)
 		if accT > best_acc:
 			best_acc = accT
 			if save_path is not None   :
@@ -122,14 +118,7 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		del model, trainer
 	print(f'\n-------------------------------------------------------\n BEST Acc target {best_acc}\n')
 	print('-----------------------------------------------------------')
-	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
-	final_result['Source acc mean'] = MCI(final_result["Acc Source"])
-	final_result['Target f1 mean'] = MCI(final_result["F1 Target"])
-	final_result['Source f1 mean'] = MCI(final_result["F1 Source"])
-	for class_ in range(4):
-		final_result[f"Acc Target class {class_}"] = MCI(final_result[f"Acc Target class {class_}"])
-		final_result[f"Acc Source class {class_}"] = MCI(final_result[f"Acc Source class {class_}"])
-	return final_result
+	return best_acc, dictMetricsAll
 
 
 if __name__ == '__main__':
@@ -145,7 +134,9 @@ if __name__ == '__main__':
 	                                batch_size=128,
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
-	dm_source.setup(normalize=False,fileName =f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz" )
+
+	filename = f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz"
+	dm_source.setup(normalize=False,fileName =filename )
 	#dm_source.setup(normalize=True, fileName=f"{args.source}AllOriginal.npz")
 
 	dm_target = SingleDatasetModule(data_dir=args.inPath,

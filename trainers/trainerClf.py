@@ -189,7 +189,7 @@ class ClfModel(LightningModule):
 			latent.append(l.detach().cpu().numpy())
 			probs.append(pdS.detach().cpu().numpy())
 			pred.append(np.argmax(pdS.detach().cpu().numpy(), axis=1))
-			true.append(np.argmax(label.cpu().numpy(), axis=1))
+			true.append(label.cpu().numpy())
 			X.append(data.detach().cpu().numpy())
 		predictions = {}
 		predictions['latent'] = np.concatenate(latent, axis=0)

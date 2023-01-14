@@ -20,6 +20,7 @@ parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Uschad")
 parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--n_classes', type=int, default=4)
+parser.add_argument('--trasholdToSave', type=float, default=0)
 parser.add_argument('--freq', type=int, default=-1)
 args = parser.parse_args()
 
@@ -41,17 +42,17 @@ else:
 def suggest_hyperparameters(trial):
 
 	Tparams = getTeacherParams()
-	Tparams["dropout_rate"] = trial.suggest_float("dropout_rate", 0.0, 0.5, step=0.1)
-	Tparams['enc_dim'] = trial.suggest_categorical("enc_dim", [90, 128])
-	Tparams['lr'] = 0.0007
-	Tparams['epoch'] = 75
-	Tparams['input_shape'] = (2, args.freq*2, 3)
-	Tparams['alpha'] = trial.suggest_float("alpha", 0.01, 2.0, step=0.05)
-	Tparams['beta'] = trial.suggest_float("beta", 0.005, 0.05, step=0.0005)
+	Tparams["dropout_rate"] = trial.suggest_float("dropout_rate", 0.0, 0.7, step=0.1)
+	Tparams['enc_dim'] = trial.suggest_categorical("enc_dim", [32,64, 128,256])
+	Tparams['lr'] = 0.001
+	Tparams['epoch'] = trial.suggest_int("epoch", 10, 80, step=10)
+	#Tparams['input_shape'] = (2, args.freq*2, 3)
+	Tparams['alpha'] = trial.suggest_float("alpha", 0.01, 3.0, step=0.05)
+	Tparams['beta'] = trial.suggest_float("beta", 0.005, 0.5, step=0.0005)
 	Tparams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
-	f1 = trial.suggest_int("f1", 4, 12, step=2)
-	f2 = trial.suggest_int("f2", 12, 24, step=2)
-	f3 = trial.suggest_int("f3", 24, 32, step=2)
+	f1 = trial.suggest_int("f1", 2, 16, step=2)
+	f2 = trial.suggest_int("f2", 16, 24, step=2)
+	f3 = trial.suggest_int("f3", 24, 36, step=2)
 	Tparams['n_filters'] = (f1, f2, f3)
 	return Tparams
 
@@ -120,5 +121,5 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 	return
 if __name__ == '__main__':
-	run(1)
+	run(1000)
 	print(finalResult)

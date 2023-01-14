@@ -17,7 +17,6 @@ def getTeacherParams(path_file=None):
 	Tparams['input_shape'] = (2, 50, 3)
 	Tparams['alpha'] = 0.5
 	Tparams['beta'] = 0.05
-	Tparams['step_size'] = None
 	Tparams['epoch'] = 32
 	Tparams["dropout_rate"] = 0.2
 	Tparams['bs'] = 128

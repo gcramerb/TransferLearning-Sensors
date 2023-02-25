@@ -74,8 +74,6 @@ class TLmodel(LightningModule):
 			self.discLoss = CORAL()
 		else:
 			raise ValueError('specify a valid discrepancy loss!')
-		
-
 
 	def load_params(self, save_path, file):
 		PATH = os.path.join(save_path, file + '_feature_extractor')

@@ -93,9 +93,9 @@ def process(desired_act,overlap = 0.5,new_freq =100,ts = 2 ):
 
 
 if __name__ == '__main__':
-	windowSize = 2
+	windowSize = 5
 	newFreq = 100
-	overlapping = 0.5
+	overlapping = 0.0
 	x = []
 	y = []
 	ini = 0

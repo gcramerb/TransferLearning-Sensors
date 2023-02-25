@@ -84,19 +84,7 @@ def runStudent(studentParams, source, target, class_weight=None, my_logger=None,
 		                  min_epochs=1,
 		                  callbacks=[checkpoint_callback],
 		                  enable_model_summary=True)
-		if pre_train:
-			dm_source = SingleDatasetModule(data_dir=args.inPath,
-			                                datasetName=source,
-			                                input_shape=(2, args.freq * 2, 3),
-			                                freq=args.freq,
-			                                n_classes=args.n_classes,
-			                                batch_size=batchSize,
-			                                oneHotLabel=False,
-			                                shuffle=True)
-			
-			dm_source.setup(normalize=True)
-			model.setDatasets(dm=dm_source,secondDataModule=dm_target)
-			trainer.fit(model)
+
 		dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
 		                                     datasetName=f"",
 		                                     input_shape=(2, args.freq * 2, 3),

@@ -10,6 +10,7 @@ from dataProcessing.dataModule import SingleDatasetModule
 
 from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
+from trainers.trainerClf import ClfModel
 from Utils.myUtils import MCI, getTeacherParams
 from mainDisc import runDisc
 import optuna
@@ -45,15 +46,11 @@ else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
 	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\{args.model}\\'
-	savedPath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV5\\'
+	args.savedPath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV5\\'
 
+paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
 
-if args.TLParamsFile:
-	paramsPath = os.path.join(params_path, args.TLParamsFile)
-else:
-	paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
-
-dm_source = SingleDatasetModule(data_dir=args.inPath,
+dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
                                 datasetName="",
                                 n_classes=args.n_classes,
                                 freq=args.freq,
@@ -61,17 +58,18 @@ dm_source = SingleDatasetModule(data_dir=args.inPath,
                                 batch_size=128,
                                 oneHotLabel=False,
                                 shuffle=True)
-filename = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
-dm_source.setup(normalize=False, fileName=filename)
+filename = f"{args.source}Down_{args.target}DownpseudoLabel{args.model}.npz"
+dm_pseudoLabel.setup(normalize=False, fileName=filename)
 dm_target = SingleDatasetModule(data_dir=args.inPath,
-                                datasetName="",
+                                datasetName=args.target,
                                 input_shape=2,
                                 freq=args.freq,
                                 n_classes=args.n_classes,
-                                batch_size=128,
+                                batch_size=64,
                                 oneHotLabel=False,
                                 shuffle=True)
-dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
+#dm_target.setup(normalize=True)
+dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginalDown_target_{args.source}AllOriginalDown.npz")
 
 
 def suggest_hyperparameters(trial):
@@ -84,10 +82,40 @@ def suggest_hyperparameters(trial):
 	clfParams['lr'] =  trial.suggest_float("lr", 1e-5, 1e-3, log=True)
 	clfParams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
 	return clfParams
+
+def trainFT(clfParams):
+	clfParams['input_shape'] = dm_pseudoLabel.dataTrain.X.shape[1:]
+	model = ClfModel(trainParams=clfParams,
+	                 class_weight=None,
+	                 oneHotLabel=False,
+	                 mixup=False)
+	
+	
+	model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
+	model.create_model()
+	from torchsummary import summary
+	#summary(model.to("cuda").model.FE, (2, 250, 3))
+	model.load_featureExtractor(args.savedPath, f'Teacher{args.model}_{args.source}Down_{args.target}Down')
+	#load weights of FE
+	trainer = Trainer(devices=1,
+	                  accelerator="gpu",
+	                  check_val_every_n_epoch=1,
+	                  max_epochs=clfParams['epoch'],
+	                  logger=None,
+	                  enable_progress_bar=False,
+	                  min_epochs=1,
+	                  callbacks=[checkpoint_callback],
+	                  enable_model_summary=True)
+	predictions = model.getPredict(domain='Target')
+	pred = {}
+	pred['pred']   = predictions['predTarget']
+	pred['true']   = predictions['trueTarget']
+	return  accuracy_score(pred['true'], pred['pred'])
+	
 def objective(trial):
 	# Initialize the best_val_loss value
 	clfParams= suggest_hyperparameters(trial)
-	result,dictResult = runDisc(clfParams, dm_source, dm_target,1, None, False)
+	result = trainFT(clfParams)
 	print('Student acc Target: ',result)
 	if  result >= finalResult['top 1'][0]:
 		finalResult['top 1'] = [result, clfParams]

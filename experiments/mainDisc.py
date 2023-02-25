@@ -44,7 +44,8 @@ else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
 	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\{args.model}\\'
-	savedPath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV5\\'
+	args.savedPath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficialV5\\'
+
 	args.log = False
 
 if args.TLParamsFile:
@@ -84,7 +85,10 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
-		model.load_params(savedPath, f'Teacher{args.model}_{args.source}_{args.target}')
+		from torchsummary import summary
+		#summary(model.to("cuda").FE, (2, 250, 3))
+		
+		model.load_params(args.savedPath, f'Teacher{args.model}_{args.source}_{args.target}')
 		#
 		# from torchsummary import summary
 		# summary(model.to("cuda").FE, (2, 100, 3))
@@ -106,7 +110,7 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		trainer.fit(model)
 		predT = model.getPredict(domain='Target')
 		predS = model.getPredict(domain='Source')
-		accT,dictMetricsT = calculateMetrics(predS['trueSource'], predS['predSource'])
+		accT,dictMetricsT = calculateMetrics(predT['trueTarget'], predT['predTarget'])
 		dictMetricsAll.append(dictMetricsT)
 		if accT > best_acc:
 			best_acc = accT
@@ -135,7 +139,7 @@ if __name__ == '__main__':
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
 
-	filename = f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz"
+	filename = f"{args.source}AllOriginalDown_target_{args.target}AllOriginalDown.npz"
 	dm_source.setup(normalize=False,fileName =filename )
 	#dm_source.setup(normalize=True, fileName=f"{args.source}AllOriginal.npz")
 
@@ -147,7 +151,7 @@ if __name__ == '__main__':
 	                                batch_size=128,
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
-	dm_target.setup(normalize=False,fileName = f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
+	dm_target.setup(normalize=False,fileName = f"{args.target}AllOriginalDown_target_{args.source}AllOriginalDown.npz")
 	#dm_target.setup(normalize=True, fileName=f"{args.target}AllOriginal.npz")
 	
 	final_result = runDisc(teacherParams, dm_source, dm_target, args.trials, args.savePath, useMixup=useMixup)

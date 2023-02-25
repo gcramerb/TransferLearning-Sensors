@@ -20,7 +20,7 @@ class classifier(nn.Module):
 	             n_classes = 4,
 	             dropout_rate  = 0.0,
 	             encoded_dim = 64,
-	             input_shape = (2,50,3),
+	             input_shape =  None,
 	             n_filters = None,
 	             kernel_dim = None
 					):

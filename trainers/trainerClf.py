@@ -12,8 +12,6 @@ sys.path.insert(0, '../')
 
 from models.classifier import classifier
 from models.customLosses import CenterLoss
-# import geomloss
-
 
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.callbacks import Callback
@@ -70,7 +68,14 @@ class ClfModel(LightningModule):
 			param.requires_grad = False
 		for param in self.Disc.parameters():
 			param.requires_grad = False
-	
+	def load_featureExtractor(self, save_path, file):
+		PATH = os.path.join(save_path, file + '_feature_extractor')
+		weights = torch.load(PATH)
+		self.model.FE.load_state_dict(weights)
+		for param in self.model.FE.parameters():
+			param.requires_grad = False
+		for param in self.model.Disc.parameters():
+			param.requires_grad = True
 	def load_paramsFL(self, save_path, file):
 		"""
 		Just load the first layer. if the weights were loaded, we freezes these initial layers

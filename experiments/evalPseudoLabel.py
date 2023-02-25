@@ -6,7 +6,6 @@ sys.path.insert(0, '../')
 from pytorch_lightning import Trainer
 from dataProcessing.dataModule import SingleDatasetModule
 from models.pseudoLabSelection import getPseudoLabel
-from trainers.trainerClf import ClfModel
 from trainers.trainerTL import TLmodel
 from Utils.myUtils import  MCI,getTeacherParams,getPLS_params
 
@@ -49,23 +48,9 @@ paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3
 
 def analizePL(predictions,selectionParam):
 
-	pred = {}
-	pred['latent'] = predictions['latentTarget']
-	pred['pred']   = predictions['predTarget']
-	pred['true']   = predictions['trueTarget']
-	pred['probs']  = predictions['probTarget']
-	pred['data']   = predictions['dataTarget']
-	
-	accIni = accuracy_score(pred['true'], pred['pred'])
-	f1Ini = f1_score(pred['true'], pred['pred'],average = 'weighted')
-	cm = confusion_matrix(pred['true'], pred['pred'])
-	dataLen = len(pred['true'])
-	print(f'INIT Acc: {accIni}\n F1Socre: {f1Ini}\n confusionMatrix: {cm}')
-	print(f"INIT number of samples: {dataLen}")
-	print("\n====================================================\n")
 	print(f"\n\n METHOD: {selectionParams['method']}, param: {selectionParam}\n")
 	Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = selectionParams['method'],param = selectionParam)
-	if len(Xpl)>0 and cm.shape[0]== 4:
+	if len(Xpl)>0:
 		acc = accuracy_score(trueLabel,softLabel)
 		cm = confusion_matrix(trueLabel, softLabel)
 		result = f1_score(trueLabel, softLabel,average = 'weighted')
@@ -110,14 +95,25 @@ if __name__ == '__main__':
 	model.create_model()
 	model.load_params(args.savePath, f'Teacher{args.model}_{args.source}_{args.target}')
 	predictions = model.getPredict(domain='Target')
-	accIni = accuracy_score(predictions['trueTarget'], predictions['predTarget'])
-	dataLen = len(predictions['trueTarget'])
-	Predictionsfinal = []
+	pred = {}
+	pred['latent'] = predictions['latentTarget']
+	pred['pred']   = predictions['predTarget']
+	pred['true']   = predictions['trueTarget']
+	pred['probs']  = predictions['probTarget']
+	pred['data']   = predictions['dataTarget']
+	accIni = accuracy_score(pred['true'], pred['pred'])
+	f1Ini = f1_score(pred['true'], pred['pred'],average = 'weighted')
+	cm = confusion_matrix(pred['true'], pred['pred'])
+	dataLen = len(pred['true'])
+	print(f'INIT Acc: {accIni}\n F1Socre: {f1Ini}\n confusionMatrix: {cm}')
+	print(f"INIT number of samples: {dataLen}")
+	print("\n====================================================\n")
+
 	best = 0
 	paramFinal,finalAcc,finalCM= {},0,0
 	for param in selectionParamList:
 		selectionParams['params'] = param
-		result, acc, cm, data = analizePL(predictions,selectionParams)
+		result, acc, cm, data = analizePL(pred,selectionParams)
 		if result > best:
 			best = result
 			finalAcc, finalCM = acc, cm

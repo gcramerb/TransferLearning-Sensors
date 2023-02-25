@@ -102,7 +102,7 @@ class USCHAD():
 if __name__ == '__main__':
 	windowSize = 5
 	newFreq = 100
-	overlapping = 0.5
+	overlapping = 0
 	x = []
 	y = []
 	dat = USCHAD( overlapping, newFreq, windowSize)

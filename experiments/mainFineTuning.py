@@ -42,6 +42,7 @@ if args.slurm:
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	verbose = 0
 	params_path = f'/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/{args.model}/'
+	args.savedPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/saved/teacherOficialV5/'
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
@@ -69,14 +70,14 @@ dm_target = SingleDatasetModule(data_dir=args.inPath,
                                 oneHotLabel=False,
                                 shuffle=True)
 #dm_target.setup(normalize=True)
-dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginalDown_target_{args.source}AllOriginalDown.npz")
+dm_target.setup(normalize=False, fileName=f"{args.target}DownAllOriginal_target_{args.source}DownAllOriginal.npz")
 
 
 def suggest_hyperparameters(trial):
 	clfParams = {}
 	clfParams = getTeacherParams(paramsPath)
 	clfParams['alpha'] = trial.suggest_float("alpha", 0.01, 2.0, step=0.05)
-	clfParams['epoch'] = trial.suggest_int("epoch", 5, 81, step=25)
+	clfParams['epoch'] = trial.suggest_int("epoch", 5, 81, step=5)
 	clfParams["dropout_rate"] =  trial.suggest_float("dropout_rate", 0.0, 0.7, step=0.1)
 	clfParams['bs'] = 128
 	clfParams['lr'] =  trial.suggest_float("lr", 1e-5, 1e-3, log=True)
@@ -93,7 +94,7 @@ def trainFT(clfParams):
 	
 	model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
 	model.create_model()
-	from torchsummary import summary
+	#from torchsummary import summary
 	#summary(model.to("cuda").model.FE, (2, 250, 3))
 	model.load_featureExtractor(args.savedPath, f'Teacher{args.model}_{args.source}Down_{args.target}Down')
 	#load weights of FE
@@ -104,13 +105,11 @@ def trainFT(clfParams):
 	                  logger=None,
 	                  enable_progress_bar=False,
 	                  min_epochs=1,
-	                  callbacks=[checkpoint_callback],
+	                  callbacks=[],
 	                  enable_model_summary=True)
-	predictions = model.getPredict(domain='Target')
-	pred = {}
-	pred['pred']   = predictions['predTarget']
-	pred['true']   = predictions['trueTarget']
-	return  accuracy_score(pred['true'], pred['pred'])
+	trainer.fit(model)
+	predictions = model.predict(dm_target.train_dataloader())
+	return  accuracy_score(predictions['true'], predictions['pred'])
 	
 def objective(trial):
 	# Initialize the best_val_loss value
@@ -135,4 +134,7 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 if __name__ == '__main__':
 	print(f"params loaded from: {paramsPath}")
-	run(1)
+	run(args.trials)
+	print("\n\n_________________________________________________________\n\n")
+	print("\n\n_________________________________________________________\n\n")
+	print(finalResult)

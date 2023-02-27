@@ -17,11 +17,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Uschad")
-parser.add_argument('--target', type=str, default="Ucihar")
+parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--trasholdToSave', type=float, default=0)
-parser.add_argument('--freq', type=int, default=-1)
+parser.add_argument('--trials', type=int, default=1)
 args = parser.parse_args()
 
 my_logger = None
@@ -30,7 +30,7 @@ if args.slurm:
 	args.inPath = '/storage/datasets/sensors/frankDatasets/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
 	save_path = '../saved/hypDisc/'
-	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/V4/'
+	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/V5/'
 
 else:
 	verbose = 1
@@ -50,10 +50,11 @@ def suggest_hyperparameters(trial):
 	Tparams['alpha'] = trial.suggest_float("alpha", 0.01, 3.0, step=0.05)
 	Tparams['beta'] = trial.suggest_float("beta", 0.005, 0.5, step=0.0005)
 	Tparams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
-	f1 = trial.suggest_int("f1", 2, 16, step=2)
-	f2 = trial.suggest_int("f2", 16, 24, step=2)
+	f1 = trial.suggest_int("f1", 2, 12, step=2)
+	f2 = trial.suggest_int("f2", 12, 24, step=2)
 	f3 = trial.suggest_int("f3", 24, 36, step=2)
 	Tparams['n_filters'] = (f1, f2, f3)
+	Tparams['kernel_dim'] = [(5, 3), (15, 3)]
 	return Tparams
 
 
@@ -65,19 +66,15 @@ finalResult['count'] = 0
 dm_source = SingleDatasetModule(data_dir=args.inPath,
                                 datasetName="",
                                 n_classes=args.n_classes,
-                                freq=args.freq,
                                 input_shape=2,
                                 batch_size=128,
                                 oneHotLabel=False,
                                 shuffle=True)
-if args.source =="Uschad":
-	dm_source.setup(normalize=False, fileName=f"UschadAllOriginal_ovr.npz")
-else:
-	dm_source.setup(normalize=False, fileName=f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz")
+
+dm_source.setup(normalize=False, fileName=f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz")
 dm_target = SingleDatasetModule(data_dir=args.inPath,
                                 datasetName="",
                                 input_shape=2,
-                                freq=args.freq,
                                 n_classes=args.n_classes,
                                 batch_size=128,
                                 oneHotLabel=False,
@@ -121,5 +118,5 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 	return
 if __name__ == '__main__':
-	run(1000)
+	run(args.trials)
 	print(finalResult)

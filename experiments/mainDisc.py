@@ -24,7 +24,7 @@ parser.add_argument('--expName', type=str, default='__')
 parser.add_argument('--TLParamsFile', type=str, default=None)
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Uschad")
+parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
 parser.add_argument('--n_classes', type=int, default=4)
 parser.add_argument('--freq', type=int, default=100)
@@ -86,13 +86,9 @@ def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixu
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()
 		from torchsummary import summary
-		#summary(model.to("cuda").FE, (2, 250, 3))
-		
-		model.load_params(args.savedPath, f'Teacher{args.model}_{args.source}_{args.target}')
-		#
-		# from torchsummary import summary
-		# summary(model.to("cuda").FE, (2, 100, 3))
-		
+		#summary(model.to("cuda").FE, teacherParams['input_shape'])
+		#model.load_params(args.savedPath, f'Teacher{args.model}_{args.source}_{args.target}')
+
 		#early_stopping = EarlyStopping('valAccTarget', mode='max', patience=10, verbose=True)
 		trainer = Trainer(devices=1,
 		                  accelerator="gpu",
@@ -139,7 +135,7 @@ if __name__ == '__main__':
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
 
-	filename = f"{args.source}AllOriginalDown_target_{args.target}AllOriginalDown.npz"
+	filename = f"{args.source}AllOriginal_target_{args.target}AllOriginal.npz"
 	dm_source.setup(normalize=False,fileName =filename )
 	#dm_source.setup(normalize=True, fileName=f"{args.source}AllOriginal.npz")
 
@@ -151,7 +147,7 @@ if __name__ == '__main__':
 	                                batch_size=128,
 	                                oneHotLabel=useMixup,
 	                                shuffle=True)
-	dm_target.setup(normalize=False,fileName = f"{args.target}AllOriginalDown_target_{args.source}AllOriginalDown.npz")
+	dm_target.setup(normalize=False,fileName = f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
 	#dm_target.setup(normalize=True, fileName=f"{args.target}AllOriginal.npz")
 	
 	final_result = runDisc(teacherParams, dm_source, dm_target, args.trials, args.savePath, useMixup=useMixup)

@@ -26,6 +26,8 @@ fixUSCHADNames = {
 	'walking-up':'ascending stairs',
 	'walking-down':'descending stairs',
 	'sleeping':'lying',
+	'standing':'standing',
+	'sitting':'sitting',
 	'walking-downstairs':'descending stairs',
 	'walking-upstairs':'ascending stairs',
 	'walk-forward':'walking',
@@ -58,13 +60,13 @@ class USCHAD():
 		self.initialFreq = 100
 		self.overlappingSize = self.sample_len - int(overlap*self.sample_len)
 		self.dir_dataset = "C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\originals\\USC-HAD\\"
-		self.dir_save_file = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
+		self.dir_save_file = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset6actv\\'
 		sig_usc = [SignalsUschad.acc_front_right_hip_X, SignalsUschad.acc_front_right_hip_Y,
 		           SignalsUschad.acc_front_right_hip_Z]
 		sig_usc += [SignalsUschad.gyr_front_right_hip_X, SignalsUschad.gyr_front_right_hip_Y,
 		            SignalsUschad.gyr_front_right_hip_Z]
 		self.signals_use = sig_usc
-		self.desired_act = ['walking-left','walking-right','walking-forward', 'walking-up', 'walking-down', 'sleeping','walking-downstairs','walking-upstairs','walk-forward', 'walk-left', 'walk-right', 'walk-up','walk-down','walk-upstairs', 'walk-downstairs']
+		self.desired_act = ['walking-left','walking-right','walking-forward', 'walking-up', 'walking-down', 'sleeping','sitting','standing','walking-downstairs','walking-upstairs','walk-forward', 'walk-left', 'walk-right', 'walk-up','walk-down','walk-upstairs', 'walk-downstairs']
 		self.dataX = []
 		self.dataY = []
 		self.allActvities = []
@@ -88,13 +90,13 @@ class USCHAD():
 				ini = 0
 				while end <= len(trial_data):
 					self.dataX.append(trial_data[ini:end,:])
-					self.dataY.append("Uschad-" + fixUSCHADNames[act])
+					self.dataY.append("Uschad-" + fixUSCHADNames[act.lower()])
 					ini = ini + self.overlappingSize
 					end = end + self.overlappingSize
 
 		self.dataX = np.array(self.dataX, dtype=float)
 		self.dataY = np.array(self.dataY)
-		np.savez_compressed(os.path.join(self.dir_save_file, "UschadAllOriginal_ovr"),
+		np.savez_compressed(os.path.join(self.dir_save_file, "Uschad_6activities"),
 		                    X=self.dataX,
 		                    y=self.dataY)
 

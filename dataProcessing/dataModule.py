@@ -29,7 +29,7 @@ class SingleDatasetModule(LightningDataModule):
 	def __init__(
 			self,
 			data_dir: str = None,
-			datasetName: str = "Dsads",
+			datasetName: str = "",
 			n_classes: int = 4,
 			input_shape: int = 2,
 			batch_size: int = 128,
@@ -64,7 +64,7 @@ class SingleDatasetModule(LightningDataModule):
 		labelOH = np.zeros((label.size, label.max() + 1))
 		labelOH[np.arange(label.size), label] = 1
 		return labelOH
-	def setup(self,normalize = True, fold_i = None,SL_path_file = None, fileName = None):
+	def setup(self,normalize = True, fold_i = None, fileName = None):
 		"""
 		The data input is going to be always (None,1,50,6) = np(None,dumb,Freq,3*n_sensors)
 		
@@ -86,8 +86,7 @@ class SingleDatasetModule(LightningDataModule):
 		if Y.dtype.type is np.str_:
 			y = categorical_to_int(Y).astype('int')
 			Y = np.argmax(y, axis=1).astype('long')
-		if self.oneHotLabel:
-			Y = self.oneHotEncoding(Y)
+
 		if fold_i is not None:
 			self.X_val = X[self.folds[fold_i][1]]
 			self.X_train = X[self.folds[fold_i][0]]
@@ -96,17 +95,8 @@ class SingleDatasetModule(LightningDataModule):
 		else:
 			self.X_val = X
 			self.Y_val = Y
-			
-			if SL_path_file is not None:
-				print('\n There is a incesistency! \n')
-				with np.load(SL_path_file, allow_pickle=True) as tmp:
-					Xsl = tmp['X'].astype('float32')
-					ysl = tmp['y']
-				self.Y_train = np.concatenate([Y,ysl],axis = 0)
-				self.X_train = np.concatenate([X,Xsl],axis = 0)
-			else:
-				self.X_train = X
-				self.Y_train = Y
+			self.X_train = X
+			self.Y_train = Y
 		if normalize:
 			#TODO: normalizar os dados source e target juntos (no soft Labelling technique) ?
 			self.X_train,self.Y_train = self.normalize(self.X_train,self.Y_train)
@@ -149,24 +139,22 @@ class MultiDatasetModule(LightningDataModule):
 	def __init__(
 			self,
 			data_dir: str = None,
+			target: str = None,
 			datasetList: list = [],
 			n_classes: int = 6,
-			freq: int = 50,
-			input_shape: tuple = (2, 100, 3),
+			input_shape: int = 2 ,
 			batch_size: int = 128,
 			num_workers: int = 0,
-			oneHotLabel: bool = False,
 			shuffle: bool = False
 	):
 		super().__init__()
 		self.data_dir = data_dir
+		self.target = target
 		self.datasetList = datasetList
 		self.batch_size = batch_size
 		self.num_workers = num_workers
 		self.n_classes = n_classes
-		self.freq = freq
 		self.input_shape = input_shape
-		self.oneHotLabel = oneHotLabel
 		self.X_val = []
 		self.X_train = []
 		self.Y_val = []
@@ -184,13 +172,8 @@ class MultiDatasetModule(LightningDataModule):
 			newY.append(label)
 		newX, newY = np.array(newX), np.array(newY)
 		return newX[:, None, :, :], newY
-	
-	def oneHotEncoding(self, label):
-		labelOH = np.zeros((label.size, label.max() + 1))
-		labelOH[np.arange(label.size), label] = 1
-		return labelOH
-	
-	def setup(self, normalize=True, fileName=None):
+
+	def setup(self, normalize=True):
 		"""
 		The data input is going to be always (None,1,50,6) = np(None,dumb,Freq,3*n_sensors)
 
@@ -200,7 +183,7 @@ class MultiDatasetModule(LightningDataModule):
 		:return:
 		"""
 		for datasetName in self.datasetList:
-			fileName = f'{datasetName}_f{self.freq}_t2_{self.n_classes}actv.npz'
+			fileName = f'{datasetName}_{self.n_classes}activities_to_{self.target}_{self.n_classes}activities.npz'
 			file = os.path.join(self.data_dir, fileName)
 			with np.load(file, allow_pickle=True) as tmp:
 				X = tmp['X'].astype('float32')
@@ -211,8 +194,7 @@ class MultiDatasetModule(LightningDataModule):
 			if Y.dtype.type is np.str_:
 				y = categorical_to_int(Y).astype('int')
 				Y = np.argmax(y, axis=1).astype('long')
-			if self.oneHotLabel:
-				Y = self.oneHotEncoding(Y)
+
 			X_val = X
 			Y_val = Y
 			X_train = X
@@ -223,7 +205,7 @@ class MultiDatasetModule(LightningDataModule):
 				X_train, Y_train = self.normalize(X_train, Y_train)
 				X_val, Y_val = self.normalize(X_val, Y_val)
 			
-			if self.input_shape[0] == 2:
+			if self.input_shape== 2:
 				X_train = np.concatenate([X_train[:, :, :, 0:3], X_train[:, :, :, 3:6]], axis=1)
 				X_val = np.concatenate([X_val[:, :, :, 0:3], X_val[:, :, :, 3:6]], axis=1)
 			self.X_train.append(X_train)

@@ -52,7 +52,27 @@ class SignalsDsads(Enum):
 	mag_left_leg_Y = 43
 	mag_left_leg_Z = 44
 
-
+actNameGenericDsads = {
+	1: 'Dsads-sitting',
+	2: 'Dsads-standing',
+	3: 'Dsads-lying',
+	4: 'Dsads-lying',
+	5: 'Dsads-ascending stairs',
+	6: 'Dsads-descending stairs',
+	7: 'Standing in an elevator',
+	8: 'Moving around in an elevator',
+	9: 'Dsads-walking',  # walking in a parking lot
+	10: 'Walking on a treadmill (4 km/h - flat)',
+	11: 'Walking on a treadmill (4 km/h - 15 deg inclined)',
+	12: 'Running on a treadmill (8 km/h)',
+	13: 'Exercising on a stepper',
+	14: 'Exercising on a cross trainer',
+	15: 'Cycling (horizontal)',  # cycling on an exercise bike in horizontal
+	16: 'Cycling (vertical)',
+	17: 'Rowing',
+	18: 'Jumping',
+	19: 'Playing basketball '
+}
 actNameDsads = {
 	1: 'Sitting',
 	2: 'Standing',
@@ -81,13 +101,13 @@ class DSADS():
 		self.overlap = overlap
 		self.new_freq = new_freq
 		self.windowSize = ts
-		self.initialFreq = 50
+		self.initialFreq = 25
 		self.dir_dataset = "C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\originals\\uci-daily-and-sports-activities\\"
-		self.dir_save_file ='C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
+		self.dir_save_file ='C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset6actv\\'
 		sig_dsa = [SignalsDsads.acc_right_arm_X, SignalsDsads.acc_right_arm_Y, SignalsDsads.acc_right_arm_Z]
 		sig_dsa += [SignalsDsads.gyr_right_arm_X, SignalsDsads.gyr_right_arm_Y, SignalsDsads.gyr_right_arm_Z]
 		self.signals_use = sig_dsa
-		self.desired_act = ['Walking','Ascending stairs','Descending stairs','lying on right','Lying on back']
+		self.desired_act = ['Walking','Ascending stairs','Descending stairs','lying on right','Lying on back','Sitting','Standing']
 		self.dataX = []
 		self.dataY = []
 	def print_info(self):
@@ -120,10 +140,10 @@ class DSADS():
 							data.append(trialData[:, d.value])
 						data = np.transpose(np.array(data).astype('float64'), (1, 0))
 						self.dataX.append(data)
-						self.dataY.append(act_name)
+						self.dataY.append(actNameGenericDsads[np.int(act[-2:])])
 		self.dataX = np.array(self.dataX, dtype=float)
 		self.dataY = np.array(self.dataY)
-		np.savez_compressed(os.path.join(self.dir_save_file, "DsadsAllOriginal"),
+		np.savez_compressed(os.path.join(self.dir_save_file, "Dsads_6activities"),
 		                    X=self.dataX,
 		                    y=self.dataY)
 if __name__ == '__main__':

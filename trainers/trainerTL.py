@@ -35,6 +35,7 @@ class TLmodel(LightningModule):
 			save_path: str = None,
 			penalty:str = 'ot',
 			class_weight: torch.tensor = None,
+			n_classes = 4,
 			**kwargs
 	):
 		super().__init__()
@@ -46,6 +47,7 @@ class TLmodel(LightningModule):
 		self.hparams.lr_fe = trainParams['lr']
 		self.hparams.lr_disc = trainParams['lr']
 		self.hparams.input_shape = trainParams['input_shape']
+		self.hparams.n_classes = n_classes
 		self.save_hyperparameters()
 		
 	def create_model(self):

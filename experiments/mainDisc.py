@@ -71,17 +71,20 @@ def calculateMetrics(pred,true):
 	# 	final_result[f"Acc class {class_}"] = cm[class_][class_] / cm[class_][:].sum()
 	return acc,final_result
 	
-def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, useMixup=True):
+def runDisc(teacherParams, dm_source, dm_target, trials, save_path=None, classes=4):
 	best_acc = 0
 	dictMetricsAll = []
 	for i in range(trials):
 		teacherParams['input_shape'] = dm_source.dataTrain.X.shape[1:]
+		class_weight = None
+		if classes == 4:
+			class_weight = torch.tensor([0.5, 2, 2, 0.5])
 		model = TLmodel(trainParams=teacherParams,
-		                n_classes=args.n_classes,
 		                lossParams=None,
-		                useMixup=useMixup,
+		                useMixup=False,
 		                save_path=None,
-		                class_weight=torch.tensor([0.5, 2, 2, 0.5]))
+		                class_weight=class_weight,
+		                n_classes=classes)
 		
 		model.setDatasets(dm_source, dm_target)
 		model.create_model()

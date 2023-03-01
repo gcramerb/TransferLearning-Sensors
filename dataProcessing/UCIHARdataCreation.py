@@ -24,6 +24,14 @@ actNameUcihar = {
 	5: 'Standing',
 	6: 'Laying'
 }
+actNameUciharGeneric = {
+	1: 'Ucihar-walking',
+	2: 'Ucihar-ascending stairs',
+	3: 'Ucihar-descending stairs',
+	4: 'Ucihar-sitting',
+	5: 'Ucihar-standing',
+	6: 'Ucihar-lying'
+}
 class SignalsUcihar(Enum):
 	acc_body_X = 0
 	acc_body_Y = 1
@@ -35,28 +43,21 @@ class SignalsUcihar(Enum):
 	acc_total_Y = 7
 	acc_total_Z = 8
 
-init_freq = 100
 class UCIHAR():
-	def __init__(self, acts, overlap, new_freq, ts ):
-		self.acts = acts
+	def __init__(self, overlap, new_freq, ts ):
 		self.overlap = overlap
 		self.new_freq = new_freq
 		self.windowSize = ts
 		self.initialFreq = 50
 		self.dir_dataset = "C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\originals\\uci-human-activity-recognition\\original\\"
-		self.dir_save_file ='C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
+		self.dir_save_file ='C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset6actv\\'
 		sig_uci = [SignalsUcihar.acc_body_X, SignalsUcihar.acc_body_Y, SignalsUcihar.acc_body_Z]
 		sig_uci += [SignalsUcihar.gyr_body_X, SignalsUcihar.gyr_body_Y, SignalsUcihar.gyr_body_Z]
 		self.signals_use = sig_uci
-		self.desired_act = ['Walking','Ascending stairs','Descending stairs','Laying']
+		self.desired_act = ['Walking','Ascending stairs','Descending stairs','Sitting','Standing','Laying']
 		self.dataX = []
 		self.dataY = []
-		self.fixNames = {
-				'Walking':'Ucihar-walking',
-				'Ascending stairs' :'Ucihar-ascending stairs',
-				'Descending stairs':'Ucihar-descending stairs',
-				'Laying':'Ucihar-lying'
-			}
+
 	def print_info(self):
 		return "device:  smartphone (Samsung Galaxy S II)" \
 		       "frequency: 50 Hz" \
@@ -93,24 +94,23 @@ class UCIHAR():
 					signals = [signal.value for signal in self.signals_use]
 					trial = trial[:, signals]
 					self.dataX.append(trial)
-					self.dataY.append(self.fixNames[act])
+					self.dataY.append(actNameUciharGeneric[labels.iloc[i].values[0]])
 
 		self.dataX = np.array(self.dataX, dtype=float)
 		self.dataY = np.array(self.dataY)
-		np.savez_compressed(os.path.join(self.dir_save_file, "UciharAllOriginal"),
+		np.savez_compressed(os.path.join(self.dir_save_file, "Ucihar_6activities"),
 		                    X=self.dataX,
 		                    y=self.dataY)
 
 
 if __name__ == '__main__':
-	windowSize = 5
+	windowSize = 2.56
 	newFreq = 50
-	overlapping = 0.5
+	overlapping = 0.0
 	x = []
 	y = []
 	ini = 0
-	acts = [1, 2,3,6]
-	dat = UCIHAR(acts, overlapping, newFreq, windowSize)
+	dat = UCIHAR(overlapping, newFreq, windowSize)
 	dat.preprocess()
 	# data = np.concatenate(x, axis=0)[:, None, :, :]
 	# labels = np.concatenate(y, axis=0)

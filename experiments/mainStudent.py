@@ -20,13 +20,10 @@ parser.add_argument('--expName', type=str, default='student')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--studentPath', action='store_true')
-parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
-parser.add_argument('--model', type=str, default="V4")
 parser.add_argument('--trials', type=int, default=1)
-parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--freq', type=int, default=50)
-parser.add_argument('--saveModel', type=bool, default=False)
+parser.add_argument('--nClasses', type=int, default=4)
 args = parser.parse_args()
 
 my_logger = None
@@ -48,77 +45,26 @@ if args.log:
 	                        name=args.expName + f'{args.model}' + args.source + '_to_' + args.target)
 
 
-def runStudent(studentParams, source, target, class_weight=None, my_logger=None,trials = 1, pre_train = False):
-	final_result = {}
-	final_result["Acc Target"] = []
-	final_result["F1 Target"] = []
-	for class_ in range(4):
-		final_result[f"Acc Target class {class_}"] = []
-	for i in range(trials):
-		batchSize = 64
-
-		model = ClfModel(trainParams=studentParams,
-		                 class_weight=class_weight,
-		                 oneHotLabel=False,
-		                 mixup = False)
-		model.create_model()
-		dm_target = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=target,
-		                                input_shape=(2, args.freq * 2, 3),
-		                                freq=args.freq,
-		                                n_classes=args.n_classes,
-		                                batch_size=batchSize,
-		                                oneHotLabel=True,
-		                                shuffle=True)
-		
-		dm_target.setup(normalize=True)
-		#early_stopping = EarlyStopping('training_loss', mode='min', patience=10, verbose=True)
-		early_stopping = []
-
-		trainer = Trainer(devices=1,
-		                  accelerator="gpu",
-		                  check_val_every_n_epoch=1,
-		                  max_epochs=15,
-		                  logger=my_logger,
-		                  enable_progress_bar=False,
-		                  min_epochs=1,
-		                  callbacks=[checkpoint_callback],
-		                  enable_model_summary=True)
-
-		dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
-		                                     datasetName=f"",
-		                                     input_shape=(2, args.freq * 2, 3),
-		                                     freq=args.freq,
-		                                     n_classes=args.n_classes,
-		                                     batch_size=batchSize,
-		                                     oneHotLabel=False,
-		                                     shuffle=True)
-		
-		fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
-		dm_pseudoLabel.setup(normalize=True, fileName=fileName)
-		model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
-		trainer.fit(model,ckpt_path='/teste.ckpt')
-		pred = model.predict(dm_target.test_dataloader())
-		final_result["Acc Target"].append(accuracy_score(pred['true'], pred['pred']))
-		cm = confusion_matrix(pred['true'], pred['pred'])
-		final_result['F1 Target'].append(f1_score(pred['true'], pred['pred'], average='weighted'))
-		for class_ in range(4):
-			final_result[f"Acc Target class {class_}"].append(cm[class_][class_] / \
-			                                             cm[class_][:].sum())
-	final_result['Target acc mean'] = MCI(final_result["Acc Target"])
-	final_result['Target f1 mean'] =  MCI(final_result["F1 Target"])
-	for class_ in range(4):
-		final_result[f"Acc Target class {class_}"] = MCI(final_result[f"Acc Target class {class_}"])
-	return final_result
-
-
 if __name__ == '__main__':
 	studentParams = getStudentParams()
 	studentParams['input_shape'] = (2, args.freq * 2, 3)
-	class_weight = torch.tensor([0.5, 2, 2, 0.5])
+	class_weight = None
+	if args.nClasses ==4:
+		class_weight = torch.tensor([0.5, 2, 2, 0.5])
 	studentParams['class_weight'] = class_weight
 	pre_train = True
-	metrics = runStudent(studentParams, args.source, args.target, class_weight=class_weight, my_logger=my_logger,trials = args.trials,pre_train = pre_train)
+	_, dm_target = getDatasets(args.inPath, "Dsads", args.target, args.nClasses)
+	dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
+	                                     datasetName=f"",
+	                                     input_shape=2,
+	                                     n_classes=args.nClasses,
+	                                     batch_size=batchSize,
+	                                     oneHotLabel=False,
+	                                     shuffle=True)
+	
+	fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+	dm_pseudoLabel.setup(normalize=False, fileName=fileName)
+	metrics = runStudent(studentParams, dm_target, dm_pseudoLabel)
 	print(metrics)
 	if my_logger:
 		my_logger.log_hyperparams(studentParams)

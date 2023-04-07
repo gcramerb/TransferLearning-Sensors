@@ -11,16 +11,16 @@ def MCI(data, confidence=0.95):
 
 def getTeacherParams(path_file=None):
 	Tparams = {}
-	Tparams['kernel_dim'] = [(5, 3), (25, 3)]
-	Tparams['n_filters'] = (4, 16, 18)
-	Tparams['enc_dim'] = 128
+	#
+	# Tparams['n_filters'] = (4, 16, 18)
+	# Tparams['enc_dim'] = 128
 	Tparams['input_shape'] = (2, 50, 3)
-	Tparams['alpha'] = 0.5
-	Tparams['beta'] = 0.05
-	Tparams['epoch'] = 32
+	# Tparams['alpha'] = 0.5
+	# Tparams['beta'] = 0.05
+	# Tparams['epoch'] = 32
 	Tparams["dropout_rate"] = 0.2
 	Tparams['bs'] = 128
-	Tparams['lr'] = 0.0005
+	Tparams['lr'] = 0.001
 	Tparams['weight_decay'] = 0.2
 	Tparams['iter'] = 10
 	Tparams['trashold'] = 0.75
@@ -33,6 +33,10 @@ def getTeacherParams(path_file=None):
 			Tparams[k] = v
 	if "f1" in Tparams.keys():
 		Tparams['n_filters'] = (Tparams['f1'],Tparams['f2'],Tparams['f3'])
+	if "kernel_dim" in Tparams.keys():
+		Tparams['kernel_dim'] =[(5, 3), (Tparams['kernel_dim'], 3)]
+	else:
+		Tparams['kernel_dim'] = [(5, 3), (25, 3)]
 	return Tparams
 
 def getStudentParams(path_file=None):

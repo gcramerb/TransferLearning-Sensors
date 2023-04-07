@@ -22,7 +22,7 @@ class ClfModel(LightningModule):
 	def __init__(
 			self,
 			trainParams: dict = None,
-			n_classes: int = 4,
+			n_classes: int = -1,
 			class_weight: torch.tensor = None,
 			oneHotLabel: bool = False,
 			mixup: bool = False,

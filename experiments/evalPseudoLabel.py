@@ -22,34 +22,32 @@ parser.add_argument('--expName', type=str, default='Stu_bench')
 parser.add_argument('--TLParamsFile', type=str, default="DiscUscDsa.json")
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--savePath', type=str, default='../saved/teacherOficial_v2/')
+parser.add_argument('--savePath', type=str, default='../saved/teacherOficial/')
+parser.add_argument('--dicrepancy', type=str, default="ot")
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
-parser.add_argument('--model', type=str, default="V5")
-parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--freq', type=int, default=50)
+parser.add_argument('--nClasses', type=int, default=6)
 args = parser.parse_args()
 
 my_logger = None
 if args.slurm:
-	verbose = 0
-	args.inPath = '/storage/datasets/sensors/frankDatasets/'
+	args.inPath = f'/storage/datasets/sensors/frankDatasets_{args.nClasses}actv/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
-	params_path = f'/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/{args.model}/'
-
+	verbose = 0
+	params_path = f'/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
-	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\{args.model}\\'
-	args.savePath  = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficial{args.model}\\'
+	args.inPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.nClasses}actv\\'
+	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
+	#args.savePath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficial\\'
+	args.log = False
 
-paramsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
-
+paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + f"_{args.nClasses}activities.json")
 
 def analizePL(predictions,selectionParam):
 
 	print(f"\n\n METHOD: {selectionParams['method']}, param: {selectionParam}\n")
-	Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = selectionParams['method'],param = selectionParam)
+	Xpl,softLabel, trueLabel = getPseudoLabel(pred.copy(),method = selectionParams['method'],param = selectionParam,n_classes = args.nClasses)
 	if len(Xpl)>0:
 		acc = accuracy_score(trueLabel,softLabel)
 		cm = confusion_matrix(trueLabel, softLabel)
@@ -75,25 +73,18 @@ if __name__ == '__main__':
 	selectionParams['method'] = 'cluster'
 	useMixup = False
 	selectionParamList  = getPLS_params()
-	dm_target = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName="",
-	                                input_shape=2,
-	                                n_classes=args.n_classes,
-	                                batch_size=128,
-	                                freq=args.freq,
-	                                oneHotLabel=useMixup,
-	                                shuffle=True)
-	dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
-	# dm_target.setup(normalize=True, fileName=f"{args.target}AllOriginal.npz")
+	_,dm_target  = getDatasets(args.inPath,args.source,args.target,args.nClasses)
 	teacherParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
+	
 	model = TLmodel(trainParams=teacherParams,
-	                n_classes=args.n_classes,
+	                n_classes=args.nClasses,
 	                lossParams=None,
 	                save_path=None,
 	                class_weight=None)
 	model.setDatasets(dm_target=dm_target)
 	model.create_model()
-	model.load_params(args.savePath, f'Teacher{args.model}_{args.source}_{args.target}')
+	
+	model.load_params(args.savePath, f'Teacher{args.dicrepancy}_{args.source}_{args.target}_{args.nClasses}actv')
 	predictions = model.getPredict(domain='Target')
 	pred = {}
 	pred['latent'] = predictions['latentTarget']
@@ -122,7 +113,7 @@ if __name__ == '__main__':
 			paramFinal = param
 	if best>0:
 		print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
-		fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+		fileName = f"{args.source}_{args.target}pseudoLabel_{args.nClasses}actv'.npz"
 		path_file = os.path.join(args.inPath, fileName)
 		with open(path_file, "wb") as f:
 			np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))

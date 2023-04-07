@@ -3,7 +3,7 @@ import glob,os
 from sklearn.neighbors import KernelDensity
 from sklearn.mixture import GaussianMixture
 
-def getPseudoLabel(prediction,param,method = 'simplest'):
+def getPseudoLabel(prediction,param,method = 'simplest',n_classes = 4):
 	"""
 	Filter the ps labels and return the indexes, the trueLabels and the Pseudo lables.
 
@@ -27,9 +27,9 @@ def getPseudoLabel(prediction,param,method = 'simplest'):
 	# 	trueLabel = prediction['true']
 	#
 	if method =='cluster':
-		data, softLabel, trueLabel = cluster(prediction, param)
+		data, softLabel, trueLabel = cluster(prediction, param,n_classes)
 	if method =='DoubleCluster':
-		data, softLabel, trueLabel = DoubleCluster(prediction, param)
+		data, softLabel, trueLabel = DoubleCluster(prediction, param,n_classes)
 	# if data.shape[1] == 2:
 	# 	data = np.concatenate([data[:, [0], :, :], data[:, [1], :, :]], axis=-1)
 	#
@@ -78,7 +78,7 @@ def simplest(probs, trh):
 # 	return data, softLabel, prediction['true'][idx]
 
 
-def DoubleCluster(prediction, params):
+def DoubleCluster(prediction, params,n_classes):
 	"""
 	The same method described before, but use a gaussian mixture model to select the pseudo label
 
@@ -95,8 +95,7 @@ def DoubleCluster(prediction, params):
 	params1['minSamples'] = 100
 	
 	X, softLabel, Ytrue, selectedIdx = runGMM(params1, prediction['latent'], prediction['probs'],
-	                                          prediction['true'], prediction['data'])
-	n_classes = 4
+	                                          prediction['true'], prediction['data'],n_classes)
 	# second step:
 	idx = np.where(softLabel == 3)[0]
 	X2 = []
@@ -109,7 +108,7 @@ def DoubleCluster(prediction, params):
 		newProbs = prediction['probs'][newSelectedIdx]
 		newYtrue = prediction['true'][newSelectedIdx]
 		if (len(newX) > 0):
-			X2, softLabel2, Ytrue2, _ = runGMM(params['params'], newLatent, newProbs, newYtrue, newX, 4)
+			X2, softLabel2, Ytrue2, _ = runGMM(params['params'], newLatent, newProbs, newYtrue, newX, n_classes)
 
 		if(len(X2)>0):
 			X = X[idx]
@@ -122,7 +121,7 @@ def DoubleCluster(prediction, params):
 	return X, softLabel, Ytrue
 
 
-def cluster(prediction, params):
+def cluster(prediction, params,n_classes = 4):
 	"""
 	The same method described before, but use a gaussian mixture model to select the pseudo label
 
@@ -135,9 +134,9 @@ def cluster(prediction, params):
 	"""
 
 	X, softLabel, Ytrue, selectedIdx = runGMM(params['params'], prediction['latent'], prediction['probs'],
-	                                          prediction['true'], prediction['data'])
+	                                          prediction['true'], prediction['data'],n_classes)
 	return X, softLabel, Ytrue
-def runGMM(params,latent,probs,true,data,n_classes = 4):
+def runGMM(params,latent,probs,true,data,n_classes ):
 	softLabelIdx = []
 	softLabelGenerated = []
 	X = []

@@ -13,27 +13,20 @@ import optuna
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--inPath', type=str, default=None)
-parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Uschad")
 parser.add_argument('--target', type=str, default="Ucihar")
-parser.add_argument('--n_classes', type=int, default=4)
-parser.add_argument('--freq', type=int, default=50)
-parser.add_argument('--model', type=str, default="V5")
+parser.add_argument('--n_classes', type=int, default=0)
+parser.add_argument('--trials', type=int, default=1)
+
 args = parser.parse_args()
 finalResult = {}
 finalResult['top 1'] = [0, {}]
 if args.slurm:
-	args.inPath = '/storage/datasets/sensors/frankDatasets/'
-	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
+	args.inPath = f'/storage/datasets/sensors/frankDatasets_{args.n_classes}actv/'
 	verbose = 0
-	save_path = '../saved/'
-
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\originalWindFreq\\'
-	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\'
-	args.paramsPath = None
-	save_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\'
+	args.inPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.n_classes}actv\\'
 
 
 def suggest_hyperparameters(trial):
@@ -43,11 +36,10 @@ def suggest_hyperparameters(trial):
 	f2 = trial.suggest_int("f2", 12, 24, step=2)
 	f3= trial.suggest_int("f3", 24, 32, step=2)
 	clfParams['n_filters'] = (f1,f2,f3)
-	clfParams['enc_dim'] = trial.suggest_categorical("enc_dim", [32,64,90, 128])
-	clfParams['input_shape'] = (2, args.freq * 2, 3)
-	clfParams['alpha'] = trial.suggest_float("alpha", 0.01, 2.0, step=0.05)
+	clfParams['enc_dim'] = trial.suggest_categorical("enc_dim", [32,64, 128,256])
+	clfParams['alpha'] = trial.suggest_float("alpha", 0.01, 3.0, step=0.05)
 	clfParams['step_size'] = None
-	clfParams['epoch'] = trial.suggest_int("epoch", 5, 81, step=25)
+	clfParams['epoch'] = trial.suggest_int("epoch", 5, 86, step=10)
 	clfParams["dropout_rate"] =  trial.suggest_float("dropout_rate", 0.0, 0.7, step=0.1)
 	clfParams['bs'] = 128
 	clfParams['lr'] =  trial.suggest_float("lr", 1e-5, 1e-3, log=True)
@@ -58,29 +50,27 @@ def suggest_hyperparameters(trial):
 dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
                                      datasetName=f"",
                                      input_shape=2,
-                                     freq=args.freq,
                                      n_classes=args.n_classes,
                                      batch_size=64,
                                      oneHotLabel=False,
                                      shuffle=True)
 
-fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
-dm_pseudoLabel.setup(normalize=False, fileName=fileName)
+dm_pseudoLabel.setup(normalize=False, fileName=f"{args.source}_{args.target}pseudoLabel_{args.n_classes}actv'.npz")
+
 dm_target = SingleDatasetModule(data_dir=args.inPath,
-                                datasetName=args.target,
+                                datasetName="",
                                 input_shape=2,
-                                freq=args.freq,
                                 n_classes=args.n_classes,
                                 batch_size=64,
                                 oneHotLabel=False,
                                 shuffle=True)
-#dm_target.setup(normalize=True)
-dm_target.setup(normalize=False, fileName=f"{args.target}AllOriginal_target_{args.source}AllOriginal.npz")
+dm_target.setup(normalize=False, fileName=f"{args.target}_to_{args.source}_{args.n_classes}activities.npz")
 
 def runStudent(studentParams,  class_weight=None):
 	batchSize = 64
 	studentParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
 	model = ClfModel(trainParams=studentParams,
+	                 n_classes = args.n_classes,
 	                 class_weight=class_weight)
 	model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
 	model.create_model()
@@ -127,5 +117,5 @@ def run(n_trials):
 		print("    {}: {}".format(key, value))
 
 if __name__ == '__main__':
-	run(501)
+	run(args.trials)
 	print(finalResult)

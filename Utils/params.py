@@ -28,25 +28,6 @@ def getTeacherParams(path_file=None):
 		Tparams['kernel_dim'] = [(5, 3), (25, 3)]
 	return Tparams
 
-def getStudentParams(path_file=None):
-	clfParams = {}
-	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
-	clfParams['n_filters'] = (4, 16, 18)
-	clfParams['enc_dim'] = 64
-	clfParams['alpha'] = 0.5
-	clfParams['step_size'] = None
-	clfParams['epoch'] = 70
-	clfParams["dropout_rate"] = 0.2
-	clfParams['lr'] = 0.001
-	clfParams['weight_decay'] = 0.2
-	if path_file is not None:
-		with open(path_file) as f:
-			aux = json.load(f)
-		for k,v in aux.items():
-			clfParams[k] = v
-	return clfParams
-
-
 def get_foldsInfo():
 	folds = {}
 	folds['Dsads'] = 8

@@ -43,13 +43,15 @@ dm_pseudoLabel.setup(normalize=False, fileName=fileName)
 def objective(trial):
 	# Initialize the best_val_loss value
 	clfParams= suggest_hyperparameters(trial)
-	result = runStudent(studentParams, dm_target, dm_pseudoLabel)
-	print('Student acc Target: ',result)
-	if result >= finalResult['top 1'][0]:
+	model = runStudent(studentParams, dm_pseudoLabel,dm_target)
+	pred = model.predict(dm_target.test_dataloader())
+	metrics = calculateMetrics(pred['pred'], pred['true'])
+	acc = metrics["Acc"]
+	if acc >= finalResult['top 1'][0]:
 		finalResult['top 1'] = [result, clfParams]
-		print(f'Result: {args.source} to {args.target} --- {result}')
+		print(f'Result: {args.source} to {args.target}: \n --- {metrics}')
 		print('clfParams: ', clfParams, '\n')
-	return result
+	return acc
 def run(n_trials):
 	study = optuna.create_study(study_name="pytorch-optuna", direction="maximize")
 	study.optimize(objective, n_trials=n_trials)
@@ -79,15 +81,14 @@ def suggest_hyperparameters(trial):
 	clfParams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
 	return clfParams
 if __name__ == '__main__':
-	studentParams = getStudentParams()
 	class_weight = None
 	if args.nClasses ==4:
 		class_weight = torch.tensor([0.5, 2, 2, 0.5])
 	studentParams['class_weight'] = class_weight
 	pre_train = True
 
-	metrics = runStudent(studentParams, dm_target, dm_pseudoLabel)
-	print(metrics)
+	metrics = runStudent(studentParams, dm_pseudoLabel,dm_target)
+	print(metrics['target'])
 	if my_logger:
 		my_logger.log_hyperparams(studentParams)
-		my_logger.log_metrics(metrics)
+		my_logger.log_metrics(metrics['target'])

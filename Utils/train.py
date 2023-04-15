@@ -3,6 +3,7 @@ from dataProcessing.dataModule import SingleDatasetModule
 from trainers.trainerTL import TLmodel
 from trainers.trainerClf import ClfModel
 from pytorch_lightning import Trainer
+from Utils.params import getTeacherParams
 import torch
 def getDatasets(inPath,source,target,nClasses):
 	dm_source = SingleDatasetModule(data_dir=inPath,
@@ -25,8 +26,24 @@ def getDatasets(inPath,source,target,nClasses):
 
 	dm_target.setup(normalize=False,
 	                fileName=f"{target}_to_{source}_{nClasses}activities.npz")
+	
 	return dm_source, dm_target
-
+def suggestTeacherHyp(trial):
+	Tparams = getTeacherParams()
+	Tparams["dropout_rate"] = trial.suggest_float("dropout_rate", 0.0, 0.7, step=0.1)
+	Tparams['enc_dim'] = trial.suggest_categorical("enc_dim", [32,64, 128,256])
+	Tparams['lr'] = 0.001
+	Tparams['epoch'] = trial.suggest_int("epoch", 10, 80, step=10)
+	Tparams['alpha'] = trial.suggest_float("alpha", 0.01, 3.0, step=0.05)
+	Tparams['beta'] = trial.suggest_float("beta", 0.005, 0.5, step=0.0005)
+	Tparams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
+	f1 = trial.suggest_int("f1", 2, 12, step=2)
+	f2 = trial.suggest_int("f2", 12, 24, step=2)
+	f3 = trial.suggest_int("f3", 24, 36, step=2)
+	Tparams['n_filters'] = (f1, f2, f3)
+	k = int(trial.suggest_categorical("kernel2", [15,25]))
+	Tparams['kernel_dim'] = [(5, 3), (k, 3)]
+	return Tparams
 def runTeacher(teacherParams, dm_source, dm_target, classes=4):
 	teacherParams['input_shape'] = dm_source.dataTrain.X.shape[1:]
 	class_weight = None
@@ -74,7 +91,7 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 	return bestAcc, dictMetricsAll
 
 
-def runStudent(studentParams, dm_target, dm_pseudoLabel):
+def runStudent(studentParams, dm_pseudoLabel,dm_target):
 	batchSize = 64
 	studentParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
 	model = ClfModel(trainParams=studentParams,
@@ -92,6 +109,4 @@ def runStudent(studentParams, dm_target, dm_pseudoLabel):
 
 	model.setDatasets(dm=dm_pseudoLabel, secondDataModule=dm_target)
 	trainer.fit(model)
-	pred = model.predict(dm_target.test_dataloader())
-	final_result = calculateMetrics(pred['pred'],pred['true'])
-	return final_result
+	return model

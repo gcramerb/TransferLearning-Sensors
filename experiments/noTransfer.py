@@ -3,38 +3,32 @@ import numpy as np
 import scipy.stats as st
 
 sys.path.insert(0, '../')
-from Utils.params import get_Clfparams,get_TLparams,get_foldsInfo,MCI
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-from dataProcessing.dataModule import SingleDatasetModule
-from trainers.runClf import runClassifier
-
-
+from Utils.train import getDatasets, runStudent
+from Utils.params import getTeacherParams
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
-parser.add_argument('--debug', action='store_true')
-parser.add_argument('--n_classes', type=int, default=4)
+parser.add_argument('--nClasses', type=int, default=4)
 parser.add_argument('--inPath', type=str, default=None)
-parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
+parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--trials', type=int, default=10)
-parser.add_argument('--ClfParamsFile', type=str, default=None)
-parser.add_argument('--saveModel', type=bool, default=False)
 args = parser.parse_args()
 
-datasetList = ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']
-my_logger = WandbLogger(project='classifier',
-                        log_model='all',
-                        name=args.source + f'{args.n_classes}' + 'just_clf')
+datasetList = ["Dsads","Ucihar","Uschad" ]
+datasetList.remove(args.source)
+if len(datasetList) != 2:
+	raise ValueError('Dataset Name not exist')
 if args.slurm:
-	verbose = 0
-	args.inPath = '/storage/datasets/sensors/frankDatasets/'
+	args.inPath = f'/storage/datasets/sensors/frankDatasets_{args.nClasses}actv/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
-	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
+	verbose = 0
+	params_path = f'/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	args.outPath = '../results/tests/'
+	args.inPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.nClasses}actv\\'
+	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
+	args.log = False
 
 def create_result_dict():
 	result = {}
@@ -43,45 +37,23 @@ def create_result_dict():
 	return result
 
 if __name__ == '__main__':
-	"""
-	This experiment assumes that you alread have a good classifier for your source data.
-	
-	"""
-	folds = get_foldsInfo()
-	if args.ClfParamsFile:
-		clfParams = get_Clfparams(os.path.join(params_path,args.ClfParamsFile))
-	else:
-		clfParams = get_Clfparams()
-
-	my_logger.log_hyperparams(clfParams)
 	result = create_result_dict()
-	for i in range(folds[args.source]):
-		dm = SingleDatasetModule(data_dir=args.inPath,
-		                                datasetName=args.source,
-		                                n_classes=args.n_classes,
-		                                input_shape=clfParams['input_shape'],
-		                                batch_size=clfParams['bs'])
-		
-		dm.setup(fold_i = i, normalize=True)
-	#for i in range(args.trials):
-		trainer, clf, res = runClassifier(dm,clfParams ,my_logger = my_logger)
-		result[args.source].append(res['test_acc'])
-		
-		# for dataset in datasetList:
-		# 	if dataset != args.source:
-		# 		dm_target = SingleDatasetModule(data_dir=args.inPath,
-		# 		                         datasetName = dataset,
-		# 		                         n_classes=4,
-		# 		                         input_shape=clfParams['input_shape'],
-		#                                 batch_size=clfParams['bs'])
-		# 		dm_target.setup(split=False, normalize=True)
-		# 		res = clf.get_all_metrics(dm_target)
-		# 		result[dataset].append(res['test_acc'])
-		# 		del dm_target
-		del trainer,clf,dm
-	print('Resultado: ', result,'\n\n')
-	# for k,v in result.items():
-	# 	result[k] = MCI(v)
-	result[args.source] = MCI(result[args.source])
-	print('Resultado: ', result, '\n\n')
-	my_logger.log_metrics(result)
+
+
+	for dataset_i in datasetList:
+		paramsPath = os.path.join(params_path,
+		                          args.source[:3] + dataset_i[
+		                                            :3] + f"_{args.nClasses}activities_ot.json")
+		teacherParams = getTeacherParams(paramsPath)
+		dm_source, dm_target = getDatasets(args.inPath, args.source, datasetList[0], args.nClasses)
+		model = runStudent(studentParams, dm_source, dm_target)
+		pred = model.predict(dm_target.test_dataloader())
+		metrics= {}
+		metrics['target'] = calculateMetrics(pred['pred'], pred['true'])
+		pred = model.predict(dm_source.test_dataloader())
+		metrics['source'] = calculateMetrics(pred['pred'], pred['true'])
+		result[dataset_i]  = metrics
+		print(dataset_i,":\n")
+		print(metrics)
+	print("\n\n\n______________________________________\n")
+	print(result)

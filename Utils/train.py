@@ -1,6 +1,9 @@
 from Utils.metrics import calculateMetrics,calculateMetricsFromTeacher
-
-
+from dataProcessing.dataModule import SingleDatasetModule
+from trainers.trainerTL import TLmodel
+from trainers.trainerClf import ClfModel
+from pytorch_lightning import Trainer
+import torch
 def getDatasets(inPath,source,target,nClasses):
 	dm_source = SingleDatasetModule(data_dir=inPath,
 	                                datasetName="",
@@ -24,7 +27,7 @@ def getDatasets(inPath,source,target,nClasses):
 	                fileName=f"{target}_to_{source}_{nClasses}activities.npz")
 	return dm_source, dm_target
 
-def runTeacher(teacherParams, dm_source, dm_target, save_path=None, classes=4):
+def runTeacher(teacherParams, dm_source, dm_target, classes=4):
 	teacherParams['input_shape'] = dm_source.dataTrain.X.shape[1:]
 	class_weight = None
 	if classes == 4:
@@ -42,7 +45,7 @@ def runTeacher(teacherParams, dm_source, dm_target, save_path=None, classes=4):
 	                  accelerator="gpu",
 	                  check_val_every_n_epoch=1,
 	                  max_epochs=teacherParams['epoch'],
-	                  logger=my_logger,
+	                  logger=None,
 	                  enable_progress_bar=False,
 	                  min_epochs=1,
 	                  callbacks=[],
@@ -56,7 +59,7 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 	bestAcc = 0
 	dictMetricsAll = []
 	for i in range(trials):
-		model = runTeacher(teacherParams,dm_source,dm_target,save_path,classes)
+		model = runTeacher(teacherParams,dm_source,dm_target,classes)
 		metrics = calculateMetricsFromTeacher(model)
 		dictMetricsAll.append(metrics)
 		if metrics["Acc"] > bestAcc:
@@ -64,7 +67,8 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 			if save_path is not None:
 				print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {accT}\n\n")
 				print(teacherParams)
-				model.save_params(save_path, f'Teacher{args.model}_{args.source}_{args.target}')
+				disc = teacherParams['dicrepancy']
+				model.save_params(save_path, f'Teacher{disc}_{args.source}_{args.target}_{args.nClasses}actv')
 	print(f'\n-------------------------------------------------------\n BEST Acc target {bestAcc}\n')
 	print('-----------------------------------------------------------')
 	return bestAcc, dictMetricsAll
@@ -72,6 +76,7 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 
 def runStudent(studentParams, dm_target, dm_pseudoLabel):
 	batchSize = 64
+	studentParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
 	model = ClfModel(trainParams=studentParams,
 	                 class_weight=studentParams['class_weight'],
 	                 oneHotLabel=False,
@@ -89,7 +94,4 @@ def runStudent(studentParams, dm_target, dm_pseudoLabel):
 	trainer.fit(model)
 	pred = model.predict(dm_target.test_dataloader())
 	final_result = calculateMetrics(pred['pred'],pred['true'])
-	final_result["Acc Target"].append(accuracy_score()
 	return final_result
-
-def runStudentNtrials

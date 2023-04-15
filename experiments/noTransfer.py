@@ -3,7 +3,7 @@ import numpy as np
 import scipy.stats as st
 
 sys.path.insert(0, '../')
-from Utils.myUtils import get_Clfparams,get_TLparams,get_foldsInfo,MCI
+from Utils.params import get_Clfparams,get_TLparams,get_foldsInfo,MCI
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from dataProcessing.dataModule import SingleDatasetModule

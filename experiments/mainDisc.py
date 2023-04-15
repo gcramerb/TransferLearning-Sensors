@@ -1,18 +1,11 @@
-import sys, argparse, os, glob
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+import sys, argparse, os
 
 sys.path.insert(0, '../')
 
-import torch
-from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from dataProcessing.dataModule import SingleDatasetModule
 
-from trainers.runClf import runClassifier
-from trainers.trainerTL import TLmodel
-from Utils.myUtils import MCI, getTeacherParams
-from experiments.Utils.train import getDatasets,calculateMetricsFromTeacher
+from Utils.params import getTeacherParams
+from Utils.train import getDatasets,calculateMetricsFromTeacher,runTeacher,runTeacherNtrials
 
 # seed = 2804
 # print('Seeding with {}'.format(seed))
@@ -23,13 +16,12 @@ parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--log', action='store_true')
 parser.add_argument('--expName', type=str, default='__')
 parser.add_argument('--inPath', type=str, default=None)
-parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--source', type=str, default="Ucihar")
 parser.add_argument('--target', type=str, default="Dsads")
-parser.add_argument('--dicrepancy', type=str, default="")
+parser.add_argument('--dicrepancy', type=str, default="mmd")
 parser.add_argument('--nClasses', type=int, default=4)
 parser.add_argument('--trials', type=int, default=1)
-parser.add_argument('--savePath', type=str, default=None)
+parser.add_argument('--pathToSave', type=str, default=None)
 args = parser.parse_args()
 
 my_logger = None
@@ -42,9 +34,9 @@ else:
 	verbose = 1
 	args.inPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.nClasses}actv\\'
 	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
-	#args.savePath = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\saved\\teacherOficial\\'
 	args.log = False
-paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + f"_{args.nClasses}activities.json")
+	
+paramsPath = os.path.join(params_path, args.source[:3] + args.target[:3] + f"_{args.nClasses}activities_{args.dicrepancy}.json")
 
 if args.log:
 	my_logger = WandbLogger(project='TransferLearning-Soft-Label',
@@ -57,8 +49,5 @@ if __name__ == '__main__':
 	teacherParams['discrepancy'] = ""
 	teacherParams['discrepancy'] = args.dicrepancy
 	dm_source, dm_target = getDatasets(args.inPath,args.source,args.target,args.nClasses)
-	model = runTeacher(teacherParams, dm_source, dm_target, args.trials, args.savePath, args.nClasses)
-	metrics = calculateMetricsFromTeacher(model)
+	metrics = runTeacherNtrials(teacherParams, dm_source, dm_target,args.trials,args.pathToSave, args.nClasses)
 	print(metrics)
-	if my_logger:
-		my_logger.log_metrics(metrics)

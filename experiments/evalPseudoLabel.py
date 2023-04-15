@@ -7,7 +7,7 @@ from pytorch_lightning import Trainer
 from dataProcessing.dataModule import SingleDatasetModule
 from models.pseudoLabSelection import getPseudoLabel
 from trainers.trainerTL import TLmodel
-from Utils.myUtils import  MCI,getTeacherParams,getPLS_params
+from Utils.params import  MCI,getTeacherParams,getPLS_params
 
 
 """
@@ -18,10 +18,7 @@ models and evaluate it by the hold labels
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--debug', action='store_true')
-parser.add_argument('--expName', type=str, default='Stu_bench')
-parser.add_argument('--TLParamsFile', type=str, default="DiscUscDsa.json")
 parser.add_argument('--inPath', type=str, default=None)
-parser.add_argument('--outPath', type=str, default=None)
 parser.add_argument('--savePath', type=str, default='../saved/teacherOficial/')
 parser.add_argument('--dicrepancy', type=str, default="ot")
 parser.add_argument('--source', type=str, default="Ucihar")
@@ -83,7 +80,6 @@ if __name__ == '__main__':
 	                class_weight=None)
 	model.setDatasets(dm_target=dm_target)
 	model.create_model()
-	
 	model.load_params(args.savePath, f'Teacher{args.dicrepancy}_{args.source}_{args.target}_{args.nClasses}actv')
 	predictions = model.getPredict(domain='Target')
 	pred = {}
@@ -113,7 +109,7 @@ if __name__ == '__main__':
 			paramFinal = param
 	if best>0:
 		print(f'saving methdod ', selectionParams['method'], f'with param {paramFinal}')
-		fileName = f"{args.source}_{args.target}pseudoLabel_{args.nClasses}actv'.npz"
+		fileName = f"{args.source}_{args.target}pseudoLabel_{args.nClasses}actv_{args.dicrepancy}.npz"
 		path_file = os.path.join(args.inPath, fileName)
 		with open(path_file, "wb") as f:
 			np.savez(f, X=Xfinal, y=slFinal, yTrue=trueFinal, folds=np.zeros(1))

@@ -11,7 +11,7 @@ from dataProcessing.dataModule import SingleDatasetModule
 from trainers.runClf import runClassifier
 from trainers.trainerTL import TLmodel
 from trainers.trainerClf import ClfModel
-from Utils.myUtils import MCI, getTeacherParams
+from Utils.params import MCI, getTeacherParams
 from mainDisc import runDisc
 import optuna
 # seed = 2804

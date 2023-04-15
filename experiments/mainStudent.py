@@ -1,25 +1,15 @@
-import sys, argparse, os, glob
-import numpy as np
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
-from pytorch_lightning.loggers import WandbLogger
+import sys, argparse
 
 sys.path.insert(0, '../')
 import torch
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping,ModelCheckpoint
 from dataProcessing.dataModule import SingleDatasetModule
-from models.pseudoLabSelection import getPseudoLabel
-from trainers.trainerClf import ClfModel
-from trainers.trainerTL import TLmodel
-from Utils.myUtils import MCI, getTeacherParams, getStudentParams
+from Utils.params import getStudentParams
+from Utils.train import getDatasets, runStudent
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
-parser.add_argument('--log', action='store_true')
-parser.add_argument('--expName', type=str, default='student')
 parser.add_argument('--inPath', type=str, default=None)
 parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--studentPath', action='store_true')
 parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--trials', type=int, default=1)
@@ -37,33 +27,65 @@ else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
-teacherParamsPath = os.path.join(params_path, "Disc" + args.source[:3] + args.target[:3] + ".json")
+	
+_, dm_target = getDatasets(args.inPath, "Dsads", args.target, args.nClasses)
+dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
+                                     datasetName=f"",
+                                     input_shape=2,
+                                     n_classes=args.nClasses,
+                                     batch_size=64,
+                                     oneHotLabel=False,
+                                     shuffle=True)
 
-if args.log:
-	my_logger = WandbLogger(project='studentOficial',
-	                        log_model='all',
-	                        name=args.expName + f'{args.model}' + args.source + '_to_' + args.target)
+fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+dm_pseudoLabel.setup(normalize=False, fileName=fileName)
 
+def objective(trial):
+	# Initialize the best_val_loss value
+	clfParams= suggest_hyperparameters(trial)
+	result = runStudent(studentParams, dm_target, dm_pseudoLabel)
+	print('Student acc Target: ',result)
+	if result >= finalResult['top 1'][0]:
+		finalResult['top 1'] = [result, clfParams]
+		print(f'Result: {args.source} to {args.target} --- {result}')
+		print('clfParams: ', clfParams, '\n')
+	return result
+def run(n_trials):
+	study = optuna.create_study(study_name="pytorch-optuna", direction="maximize")
+	study.optimize(objective, n_trials=n_trials)
+	print("\n++++++++++++++++++++++++++++++++++\n")
+	print('Source dataset: ', args.source)
+	print('Target dataset: ', args.target)
+	print(" Trial number: ", study.best_trial.number)
+	print("  Acc (trial value): ", study.best_trial.value)
+	print("  Params: ")
+	for key, value in study.best_trial.params.items():
+		print("    {}: {}".format(key, value))
 
+def suggest_hyperparameters(trial):
+	clfParams = {}
+	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
+	f1 = trial.suggest_int("f1", 4, 12, step=2)
+	f2 = trial.suggest_int("f2", 12, 24, step=2)
+	f3= trial.suggest_int("f3", 24, 32, step=2)
+	clfParams['n_filters'] = (f1,f2,f3)
+	clfParams['enc_dim'] = trial.suggest_categorical("enc_dim", [32,64, 128,256])
+	clfParams['alpha'] = trial.suggest_float("alpha", 0.01, 3.0, step=0.05)
+	clfParams['step_size'] = None
+	clfParams['epoch'] = trial.suggest_int("epoch", 5, 86, step=10)
+	clfParams["dropout_rate"] =  trial.suggest_float("dropout_rate", 0.0, 0.7, step=0.1)
+	clfParams['bs'] = 128
+	clfParams['lr'] =  trial.suggest_float("lr", 1e-5, 1e-3, log=True)
+	clfParams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
+	return clfParams
 if __name__ == '__main__':
 	studentParams = getStudentParams()
-	studentParams['input_shape'] = (2, args.freq * 2, 3)
 	class_weight = None
 	if args.nClasses ==4:
 		class_weight = torch.tensor([0.5, 2, 2, 0.5])
 	studentParams['class_weight'] = class_weight
 	pre_train = True
-	_, dm_target = getDatasets(args.inPath, "Dsads", args.target, args.nClasses)
-	dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
-	                                     datasetName=f"",
-	                                     input_shape=2,
-	                                     n_classes=args.nClasses,
-	                                     batch_size=batchSize,
-	                                     oneHotLabel=False,
-	                                     shuffle=True)
-	
-	fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
-	dm_pseudoLabel.setup(normalize=False, fileName=fileName)
+
 	metrics = runStudent(studentParams, dm_target, dm_pseudoLabel)
 	print(metrics)
 	if my_logger:

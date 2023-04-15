@@ -11,7 +11,7 @@ from dataProcessing.dataModule import SingleDatasetModule,MultiDatasetModule
 
 import optuna
 from trainers.trainerTL import TLmodel
-from Utils.myUtils import MCI, getTeacherParams
+from Utils.params import MCI, getTeacherParams
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')

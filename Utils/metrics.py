@@ -15,7 +15,7 @@ def calculateMetrics(pred, true):
 	final_result["F1"] = f1_score(true, pred, average='weighted')
 	final_result["CM"] = confusion_matrix(true, pred)
 	accPerClass = []
-	for class_ in range(final_result["CM"].shape):
+	for class_ in range(final_result["CM"].shape[0]):
 		accPerClass.append(final_result["CM"][class_][class_] / final_result["CM"][class_][:].sum())
 	final_result["Acc per class"] = accPerClass
 	return final_result

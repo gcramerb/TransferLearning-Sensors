@@ -39,12 +39,12 @@ def objective(trial):
 	model = runTeacher(teacherParams, dm_source, dm_target, args.nClasses)
 	metrics = calculateMetricsFromTeacher(model)
 	if metrics["Acc"] > finalResult['top 1'][0]:
-		finalResult['top 1'] = [acc, teacherParams]
+		finalResult['top 1'] = [metrics["Acc"], teacherParams]
 		print('\n------------------------------------------------\n')
-		print(f'New Top 1: {acc}\n')
+		print(f'New Top 1: {metrics["Acc"]}\n')
 		print(teacherParams)
 		print('\n------------------------------------------------\n\n\n')
-	return acc
+	return metrics["Acc"]
 
 
 def run(n_trials):

@@ -80,9 +80,9 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 		metrics = calculateMetricsFromTeacher(model)
 		dictMetricsAll.append(metrics)
 		if metrics["Acc"] > bestAcc:
-			bestAcc = accTarget
+			bestAcc =  metrics["Acc"]
 			if save_path is not None:
-				print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {accT}\n\n")
+				print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {bestAcc}\n\n")
 				print(teacherParams)
 				disc = teacherParams['dicrepancy']
 				model.save_params(save_path, f'Teacher{disc}_{args.source}_{args.target}_{args.nClasses}actv')
@@ -91,18 +91,18 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 	return bestAcc, dictMetricsAll
 
 
-def runStudent(studentParams, dm_pseudoLabel,dm_target):
+def runStudent(studentParams, dm_pseudoLabel,dm_target,nClasses):
 	batchSize = 64
 	studentParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
 	model = ClfModel(trainParams=studentParams,
-	                 class_weight=studentParams['class_weight'],
+	                 n_classes =nClasses,
 	                 oneHotLabel=False,
 	                 mixup=False)
 	model.create_model()
 	trainer = Trainer(devices=1,
 	                  accelerator="gpu",
 	                  check_val_every_n_epoch=1,
-	                  max_epochs=studentParams["epochs"],
+	                  max_epochs=studentParams["epoch"],
 	                  enable_progress_bar=False,
 	                  min_epochs=1,
 	                  enable_model_summary=True)

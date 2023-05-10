@@ -26,7 +26,8 @@ def getDatasets(inPath,source,target,nClasses):
 
 	dm_target.setup(normalize=False,
 	                fileName=f"{target}_to_{source}_{nClasses}activities.npz")
-	
+	dm_target.datasetName = target
+	dm_source.datasetName = source
 	return dm_source, dm_target
 def suggestTeacherHyp(trial):
 	Tparams = getTeacherParams()
@@ -84,8 +85,8 @@ def runTeacherNtrials(teacherParams, dm_source, dm_target, trials, save_path=Non
 			if save_path is not None:
 				print(f"saving: {dm_source.datasetName} to {dm_target.datasetName} with Acc {bestAcc}\n\n")
 				print(teacherParams)
-				disc = teacherParams['dicrepancy']
-				model.save_params(save_path, f'Teacher{disc}_{args.source}_{args.target}_{args.nClasses}actv')
+				disc = teacherParams['discrepancy']
+				model.save_params(save_path, f'Teacher{disc}_{dm_source.datasetName}_{dm_target.datasetName}_{classes}actv')
 	print(f'\n-------------------------------------------------------\n BEST Acc target {bestAcc}\n')
 	print('-----------------------------------------------------------')
 	return bestAcc, dictMetricsAll

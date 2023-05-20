@@ -1,15 +1,15 @@
 import sys, argparse
-
+import optuna
 sys.path.insert(0, '../')
 import torch
 from dataProcessing.dataModule import SingleDatasetModule
-from Utils.params import getStudentParams
 from Utils.train import getDatasets, runStudent
+from Utils.metrics  import calculateMetrics
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
 parser.add_argument('--inPath', type=str, default=None)
-parser.add_argument('--outPath', type=str, default=None)
+parser.add_argument('--dicrepancy', type=str, default="")
 parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
 parser.add_argument('--trials', type=int, default=1)
@@ -17,18 +17,21 @@ parser.add_argument('--nClasses', type=int, default=4)
 args = parser.parse_args()
 
 my_logger = None
+originalDataPath = ""
 if args.slurm:
 	verbose = 0
-	args.inPath = '/storage/datasets/sensors/frankDatasets/'
-	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
+	args.inPath = f'/storage/datasets/sensors/frankDatasets/PLdatasets/'
+	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results/'
 	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
-
+	originalDataPath = f'/storage/datasets/sensors/frankDatasets_{args.nClasses}actv/'
 else:
 	verbose = 1
 	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
 	params_path = 'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\'
-	
-_, dm_target = getDatasets(args.inPath, "Dsads", args.target, args.nClasses)
+	originalDataPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.nClasses}actv\\'
+finalResult = {}
+finalResult['top 1'] = [0, {}]
+_, dm_target = getDatasets(originalDataPath, args.source, args.target, args.nClasses)
 dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
                                      datasetName=f"",
                                      input_shape=2,
@@ -37,20 +40,20 @@ dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
                                      oneHotLabel=False,
                                      shuffle=True)
 
-fileName = f"{args.source}_{args.target}pseudoLabel{args.model}.npz"
+fileName = f"{args.source}_{args.target}pseudoLabel_{args.nClasses}actv_{args.dicrepancy}.npz"
 dm_pseudoLabel.setup(normalize=False, fileName=fileName)
 
 def objective(trial):
 	# Initialize the best_val_loss value
-	clfParams= suggest_hyperparameters(trial)
-	model = runStudent(studentParams, dm_pseudoLabel,dm_target)
+	studentParams= suggest_hyperparameters(trial)
+	model = runStudent(studentParams, dm_pseudoLabel,dm_target,nClasses = args.nClasses)
 	pred = model.predict(dm_target.test_dataloader())
 	metrics = calculateMetrics(pred['pred'], pred['true'])
 	acc = metrics["Acc"]
 	if acc >= finalResult['top 1'][0]:
-		finalResult['top 1'] = [result, clfParams]
-		print(f'Result: {args.source} to {args.target}: \n --- {metrics}')
-		print('clfParams: ', clfParams, '\n')
+		finalResult['top 1'] = [acc, studentParams]
+		print(f'Result: {args.source} to {args.target}: \n --- {metrics} \n\n')
+		print('clfParams: ', studentParams, '\n\n\n\n\n')
 	return acc
 def run(n_trials):
 	study = optuna.create_study(study_name="pytorch-optuna", direction="maximize")
@@ -63,7 +66,7 @@ def run(n_trials):
 	print("  Params: ")
 	for key, value in study.best_trial.params.items():
 		print("    {}: {}".format(key, value))
-
+	return
 def suggest_hyperparameters(trial):
 	clfParams = {}
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
@@ -81,14 +84,6 @@ def suggest_hyperparameters(trial):
 	clfParams['weight_decay'] = trial.suggest_float("weight_decay", 0.0, 0.7, step=0.1)
 	return clfParams
 if __name__ == '__main__':
-	class_weight = None
-	if args.nClasses ==4:
-		class_weight = torch.tensor([0.5, 2, 2, 0.5])
-	studentParams['class_weight'] = class_weight
-	pre_train = True
+	run(args.trials)
+	print(finalResult)
 
-	metrics = runStudent(studentParams, dm_pseudoLabel,dm_target)
-	print(metrics['target'])
-	if my_logger:
-		my_logger.log_hyperparams(studentParams)
-		my_logger.log_metrics(metrics['target'])

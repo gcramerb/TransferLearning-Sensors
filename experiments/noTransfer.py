@@ -46,6 +46,7 @@ if __name__ == '__main__':
 		                                            :3] + f"_{args.nClasses}activities_ot.json")
 		studentParams = getTeacherParams(paramsPath)
 		dm_source, dm_target = getDatasets(args.inPath, args.source, datasetList[0], args.nClasses)
+		studentParams['epoch'] = 70
 		model = runStudent(studentParams, dm_source, dm_target, args.nClasses)
 		pred = model.predict(dm_target.test_dataloader())
 		metrics= {}
@@ -55,5 +56,4 @@ if __name__ == '__main__':
 		result[dataset_i]  = metrics
 		print(dataset_i,":\n")
 		print(metrics)
-	print("\n\n\n______________________________________\n")
-	print(result)
+		print("\n\n\n______________________________________\n")

@@ -41,7 +41,7 @@ class ClfModel(LightningModule):
 		self.hparams.mixup = mixup
 		self.save_hyperparameters()
 	
-	def create_model(self):
+	def create_model(self, setCenterLoss = True):
 		self.model = classifier(n_classes=self.hparams.n_classes,
 		                        dropout_rate=self.hparams.dropout_rate,
 		                        encoded_dim=self.hparams.encoded_dim,
@@ -51,7 +51,8 @@ class ClfModel(LightningModule):
 		                        )
 		self.model.create_model()
 		self.clfLoss = torch.nn.CrossEntropyLoss(weight=self.hparams.class_weight)
-		self.classDist = CenterLoss(num_classes=self.hparams.n_classes, feat_dim=self.hparams.encoded_dim, use_gpu=True)
+		if setCenterLoss:
+			self.classDist = CenterLoss(num_classes=self.hparams.n_classes, feat_dim=self.hparams.encoded_dim, use_gpu=True)
 	
 	def save_params(self, save_path, file):
 		path = os.path.join(save_path, file + '_feature_extractor')
@@ -122,16 +123,11 @@ class ClfModel(LightningModule):
 		# opt = self.optimizers()
 		data, label = batch['data'], batch['label'].long()
 		latent = self.model.getLatent(data)
-		if self.hparams.oneHotLabel:
-			classDistence = self.classDist(latent, label.argmax(axis=1))
-		else:
-			classDistence = self.classDist(latent, label)
-		if self.hparams.mixup:
-			latentMixup, labelMixup = self.mixup(latent, label, np.random.beta(0.5, 0.5))
-			latent = torch.cat((latent, latentMixup), 0)
-			label = torch.cat((label, labelMixup), 0)
 		pred = self.model.forward_from_latent(latent)
-		loss = self.clfLoss(pred, label) + self.hparams.alpha * classDistence
+		loss = self.clfLoss(pred, label)
+		if self.classDist is not None:
+			classDistence = self.classDist(latent, label)
+			loss += self.hparams.alpha * classDistence
 		tqdm_dict = {"train_loss": loss.detach()}
 		output = OrderedDict({"loss": loss, "progress_bar": tqdm_dict, "log": tqdm_dict})
 		self.log("training_loss", loss, batch_size=self.batch_size)
@@ -219,17 +215,16 @@ class ClfModel(LightningModule):
 		if self.scnd_dm is not None:
 			return [self.dm.test_dataloader(), self.scnd_dm.test_dataloader()]
 		else:
-			return dm.test_dataloader()
+			return self.dm.test_dataloader()
 	
 	def val_dataloader(self):
 		if self.scnd_dm is not None:
 			return [self.dm.val_dataloader(), self.scnd_dm.val_dataloader()]
 		else:
-			return dm.val_dataloader()
+			return [self.dm.val_dataloader(), self.dm.val_dataloader()]
 	
 	def setDatasets(self, dm, secondDataModule=None):
 		self.dm = dm
 		self.n_classes = dm.n_classes
 		self.batch_size = dm.batch_size
-		if secondDataModule is not None:
-			self.scnd_dm = secondDataModule
+		self.scnd_dm = secondDataModule

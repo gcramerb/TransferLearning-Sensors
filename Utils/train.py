@@ -5,12 +5,12 @@ from trainers.trainerClf import ClfModel
 from pytorch_lightning import Trainer
 from Utils.params import getTeacherParams
 import torch
-def getDatasets(inPath,source,target,nClasses):
+def getDatasets(inPath,source,target,nClasses,batchSize = 128):
 	dm_source = SingleDatasetModule(data_dir=inPath,
 	                                datasetName="",
 	                                n_classes=nClasses,
 	                                input_shape=2,
-	                                batch_size=128,
+	                                batch_size=batchSize,
 	                                oneHotLabel=False,
 	                                shuffle=True)
 	
@@ -20,7 +20,7 @@ def getDatasets(inPath,source,target,nClasses):
 	                                datasetName="",
 	                                input_shape=2,
 	                                n_classes=nClasses,
-	                                batch_size=128,
+	                                batch_size=batchSize,
 	                                oneHotLabel=False,
 	                                shuffle=True)
 
@@ -50,6 +50,8 @@ def runTeacher(teacherParams, dm_source, dm_target, classes=4):
 	class_weight = None
 	if classes == 4:
 		class_weight = torch.tensor([0.5, 2, 2, 0.5])
+	elif classes == 6:
+		class_weight = torch.tensor([2, 2, 2, 0.5,2,2])
 	model = TLmodel(trainParams=teacherParams,
 	                lossParams=None,
 	                useMixup=False,

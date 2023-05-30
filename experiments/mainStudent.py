@@ -8,7 +8,7 @@ from Utils.metrics  import calculateMetrics
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
-parser.add_argument('--inPath', type=str, default=None)
+parser.add_argument('--multSource', action='store_true')
 parser.add_argument('--dicrepancy', type=str, default="")
 parser.add_argument('--source', type=str, default="Dsads")
 parser.add_argument('--target', type=str, default="Ucihar")
@@ -31,7 +31,10 @@ else:
 	originalDataPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.nClasses}actv\\'
 finalResult = {}
 finalResult['top 1'] = [0, {}]
-_, dm_target = getDatasets(originalDataPath, args.source, args.target, args.nClasses)
+datasetList = ["Dsads", "Ucihar", "Uschad"]
+datasetList.remove(args.target)
+if len(datasetList) != 2:
+	raise ValueError('Dataset Name not exist')
 dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
                                      datasetName=f"",
                                      input_shape=2,
@@ -39,9 +42,25 @@ dm_pseudoLabel = SingleDatasetModule(data_dir=args.inPath,
                                      batch_size=64,
                                      oneHotLabel=False,
                                      shuffle=True)
-
-fileName = f"{args.source}_{args.target}pseudoLabel_{args.nClasses}actv_{args.dicrepancy}.npz"
-dm_pseudoLabel.setup(normalize=False, fileName=fileName)
+if args.multSource:
+	dm_target = SingleDatasetModule(data_dir=originalDataPath,
+	                                datasetName="",
+	                                input_shape=2,
+	                                n_classes=6,
+	                                batch_size=128,
+	                                oneHotLabel=False,
+	                                shuffle=True)
+	targetName = f"{args.target}_MultiSource"
+	dm_target.setup(normalize=False,
+	                fileName=f"{args.target}_MultiSource.npz")
+	dm_target.datasetName = targetName
+	sourceName = f"{datasetList[0]}_and_{datasetList[1]}"
+	fileName = f"{sourceName}_{targetName}pseudoLabel_{args.nClasses}actv_{args.dicrepancy}.npz"
+	dm_pseudoLabel.setup(normalize=False, fileName=fileName)
+else:
+	_, dm_target = getDatasets(originalDataPath, args.source, args.target, args.nClasses)
+	fileName = f"{args.source}_{args.target}pseudoLabel_{args.nClasses}actv_{args.dicrepancy}.npz"
+	dm_pseudoLabel.setup(normalize=False, fileName=fileName)
 
 def objective(trial):
 	# Initialize the best_val_loss value

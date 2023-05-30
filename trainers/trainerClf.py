@@ -40,6 +40,7 @@ class ClfModel(LightningModule):
 		self.hparams.oneHotLabel = oneHotLabel
 		self.hparams.mixup = mixup
 		self.save_hyperparameters()
+		self.classDist = None
 	
 	def create_model(self, setCenterLoss = True):
 		self.model = classifier(n_classes=self.hparams.n_classes,

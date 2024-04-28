@@ -1,78 +1,98 @@
 import sys, argparse,os
-sys.path.insert(0, '../')
-from Utils.myUtils import get_Clfparams,get_TLparams,get_foldsInfo,MCI
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import WandbLogger
-from dataProcessing.dataModule import SingleDatasetModule
-from trainers.runClf import runClassifier
 import numpy as np
 import scipy.stats as st
+import optuna
+sys.path.insert(0, '../')
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import WandbLogger
+from Utils.train import getDatasets
+from Utils.metrics import calculateMetrics
+from Utils.params import getTeacherParams
+from trainers.trainerClf import ClfModel
+from pytorch_lightning.callbacks import EarlyStopping
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slurm', action='store_true')
-parser.add_argument('--debug', action='store_true')
-parser.add_argument('--n_classes', type=int, default=4)
+parser.add_argument('--nClasses', type=int, default=6)
 parser.add_argument('--inPath', type=str, default=None)
-parser.add_argument('--outPath', type=str, default=None)
-parser.add_argument('--source', type=str, default="Pamap2")
-parser.add_argument('--ClfParamsFile', type=str, default=None)
-parser.add_argument('--saveModel', type=bool, default=False)
+parser.add_argument('--source', type=str, default="Ucihar")
+parser.add_argument('--target', type=str, default="Uschad")
+parser.add_argument('--trials', type=int, default=1)
 args = parser.parse_args()
-
-datasetList = ['Dsads', 'Ucihar', 'Uschad', 'Pamap2']
-my_logger = WandbLogger(project='classifier',
-                        log_model='all',
-                        name=args.source + f'{args.n_classes}' + '_no_TL')
+finalResult = {}
+finalResult['top 1'] = [0, {}]
 if args.slurm:
-	verbose = 0
-	args.inPath = '/storage/datasets/sensors/frankDatasets/'
+	args.inPath = f'/storage/datasets/sensors/frankDatasets_{args.nClasses}actv/'
 	args.outPath = '/mnt/users/guilherme.silva/TransferLearning-Sensors/results'
-	params_path = '/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/'
+	verbose = 0
+	params_path = f'/mnt/users/guilherme.silva/TransferLearning-Sensors/experiments/params/oficial/'
 else:
 	verbose = 1
-	args.inPath = 'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset\\'
-	args.outPath = '../results/tests/'
+	args.inPath = f'C:\\Users\\gcram\\Documents\\Smart Sense\\Datasets\\frankDataset_{args.nClasses}actv\\'
+	params_path = f'C:\\Users\\gcram\\Documents\\GitHub\\TransferLearning-Sensors\\experiments\\params\\oficial\\ot\\'
+	args.log = False
+def suggestTeacherHyp(trial):
+	paramsPath = os.path.join(params_path,
+	                          args.source[:3] + args.target[:3] + f"_{args.nClasses}activities_ot.json")
+	studentParams = getTeacherParams(paramsPath)
+	studentParams['batch_size'] = trial.suggest_categorical("batch_size", [32,64, 128,256])
+	studentParams['lr'] =trial.suggest_loguniform("lr",0.0001,0.1)
+	studentParams['epoch'] = trial.suggest_int("epoch", 5, 100, step=3)
+	studentParams['centerLoss'] = trial.suggest_categorical("centerLoss",[True,False])
+	return studentParams
+def objective(trial):
+	studentParams = suggestTeacherHyp(trial)
+	dm_source, dm_target = getDatasets(args.inPath, args.source, args.target, args.nClasses, batchSize=studentParams['batch_size'])
+	studentParams['input_shape'] = dm_target.dataTrain.X.shape[1:]
+	model = ClfModel(trainParams=studentParams,
+	                 n_classes =args.nClasses,
+	                 oneHotLabel=False,
+	                 mixup=False)
+	model.create_model(setCenterLoss = studentParams['centerLoss'])
+	seed_everything(42, workers=True)
+	trainer = Trainer(devices=1,
+	                  accelerator="gpu",
+	                  check_val_every_n_epoch=1,
+	                  max_epochs=studentParams["epoch"],
+	                  callbacks=[EarlyStopping(monitor='valAcc (ps)',mode = "max",patience = 5)],
+	                  enable_progress_bar=False,
+	                  min_epochs=1,
+	                  deterministic=True,
+	                  enable_model_summary=True)
 
-def create_result_dict():
-	result = {}
-	for dat in datasetList:
-		result[dat] = {}
-	return result
+	model.setDatasets(dm=dm_source)
+	trainer.fit(model)
+	pred = model.predict(dm_target.test_dataloader())
+	metrics= {}
+	metrics['target'] = calculateMetrics(pred['pred'], pred['true'])
+	pred = model.predict(dm_source.test_dataloader())
+	metrics['source'] = calculateMetrics(pred['pred'], pred['true'])
 
+	if metrics['source']["Acc"] > finalResult['top 1'][0]:
+		print(args.target, ":\n")
+		print(metrics['target'])
+		print(args.source, ":\n")
+		print(metrics['source'])
+		print("\n\n\n______________________________________\n")
+		finalResult['top 1'] = [metrics['source']["Acc"], studentParams]
+		print('\n------------------------------------------------\n')
+	return metrics['source']["Acc"]
+def run(n_trials):
+	study = optuna.create_study(study_name="pytorch-mlflow-optuna", direction="maximize")
+	study.optimize(objective, n_trials=n_trials)
+	print("\n++++++++++++++++++++++++++++++++++\n")
+	print('Source dataset: ', args.source)
+	print('Target dataset: ', args.target)
+	print("  Trial number: ", study.best_trial.number)
+	print("  Acc (trial value): ", study.best_trial.value)
+	print("  Params: ")
+	for key, value in study.best_trial.params.items():
+		print("    {}: {}".format(key, value))
+	return
 if __name__ == '__main__':
-	"""
-	This experiment assumes that you alread have a good classifier for your source data.
-	
-	"""
-	if args.ClfParamsFile:
-		clfParams = get_Clfparams(os.path.join(params_path,args.ClfParamsFile))
-	else:
-		clfParams = get_Clfparams()
+	run(args.trials)
+	print(finalResult)
 
-	my_logger.log_hyperparams(clfParams)
-	result = create_result_dict()
-	dm = SingleDatasetModule(data_dir=args.inPath,
-	                                datasetName=args.source,
-	                                n_classes=args.n_classes,
-	                                input_shape=clfParams['input_shape'],
-	                                batch_size=clfParams['bs'])
-	
-	dm.setup(split=False, normalize=True)
-	trainer, clf, res = runClassifier(dm,clfParams ,my_logger = my_logger)
-	result[args.source][args.source] = res
-	
-	for dataset in datasetList:
-		if dataset != args.source:
-			dm_target = SingleDatasetModule(data_dir=args.inPath,
-			                         datasetName = dataset,
-			                         n_classes=4,
-			                         input_shape=clfParams['input_shape'],
-	                                batch_size=clfParams['bs'])
-			dm_target.setup(split=False, normalize=True)
-			res = clf.get_all_metrics(dm_target)
-			result[args.source][dataset] = res
-			del dm_target
-	del trainer,dm,clf
-	print('Resultado: ', result,'\n\n')
-	my_logger.log_metrics(result)
+
+
 

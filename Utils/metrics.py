@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, recall_score, f1_score,confusion_matrix
 from sklearn.metrics import mean_squared_error as MSE
 import scipy.stats as st
 import sys
@@ -9,6 +9,21 @@ import os
 import numpy as np
 import scipy.stats
 
+def calculateMetrics(pred, true):
+	final_result = {}
+	final_result["Acc"] = accuracy_score(pred, true)
+	final_result["F1"] = f1_score(true, pred, average='weighted')
+	final_result["CM"] = confusion_matrix(true, pred)
+	accPerClass = []
+	for class_ in range(final_result["CM"].shape[0]):
+		accPerClass.append(final_result["CM"][class_][class_] / final_result["CM"][class_][:].sum())
+	final_result["Acc per class"] = accPerClass
+	return final_result
+def calculateMetricsFromTeacher(model):
+	predT = model.getPredict(domain='Target')
+	#predS = model.getPredict(domain='Source')
+	final_result = calculateMetrics(predT['trueTarget'], predT['predTarget'])
+	return final_result
 
 def mean_confidence_interval(data, confidence=0.95):
 	a = 1.0 * np.array(data)

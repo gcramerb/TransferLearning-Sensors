@@ -38,7 +38,7 @@ def get_Clfparams(path_file = None):
 	clfParams['kernel_dim'] = [(5, 3), (25, 3)]
 	clfParams['n_filters'] = (4, 16, 18, 24)
 	clfParams['enc_dim'] = 64
-	clfParams['input_shape'] = (2, 50, 3)
+	clfParams['input_shape'] = (2, 250, 3)
 	clfParams['alpha'] = None
 	clfParams['step_size'] = 10
 	
